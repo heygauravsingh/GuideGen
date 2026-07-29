@@ -198,6 +198,16 @@ data. Long random IDs, `X-Robots-Tag: noindex` on every guide route, `robots.txt
 disallow. Default new shares to link-only, never to public. Getting this wrong turns your
 product into an accidental disclosure engine, and you find out via a very bad email.
 
+**The extension ID is now known** (assigned by the store on 29 Jul 2026):
+
+```
+pifkelcohogbbocldnkjlfiagjigikjl
+```
+
+This unblocks Google sign-in from the extension (an OAuth client needs the redirect URI
+`https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/`) and it is the value the web
+app must name when messaging the extension.
+
 **Extension → account linking.** Use `externally_connectable` in the manifest so your web
 app can message the extension directly after sign-in — no token pasting, no OAuth dance.
 This needs a manifest entry and a stable extension ID, which is **easier to add before
