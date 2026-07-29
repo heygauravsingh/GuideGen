@@ -120,6 +120,15 @@ by hand once, after the fix lands.
 | ~~8~~ | ~~`assetTag` on the guide doc~~ | **Done 30 Jul 2026**, verified on a real publish. |
 | 9 | `/api/delete-assets` Vercel function | Purge Cloudinary assets on guide or account deletion. Only server-side code in the product. |
 
+### Small gap: the viewer has no broken-image handling
+
+`web/g.html` renders each step's `imageUrl` as a plain `<img>` with no `onerror`. If an image
+404s — a CDN purge racing a page load, or a guide whose assets were deleted out of band —
+the reader gets a broken-image icon with no explanation. Five-line fix: an `onerror` that
+replaces the figure with a quiet "image unavailable" placeholder. Worth doing before the
+first real shared link, because a broken image in someone else's guide reads as the whole
+product being broken.
+
 ### Also worth taking from Scribe's editor (observed 30 Jul 2026)
 - **"Merge similar steps"** — a user-triggered fix for repeated clicks on same-labelled
   elements producing identical step text. We hit exactly this.
