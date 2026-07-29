@@ -1,0 +1,11 @@
+# Belt and braces.
+#
+# The Vercel project's Root Directory should be `web`. If it is ever misconfigured
+# to the repo root, this file stops the Chrome extension source, the 60MB voice
+# model and the internal planning docs from being served publicly — which is
+# exactly what happened on the first deploy.
+#
+# Ignore everything, then re-include only the web app.
+*
+!web/
+!web/**
