@@ -141,14 +141,14 @@
     });
   }
 
-  async function uploadImage(blob, uid, guideKey) {
+  async function uploadImage(blob, uid, assetTag) {
     const fd = new FormData();
     fd.append("file", blob);
     fd.append("upload_preset", PRESET);
     // Tags are the only way to find and delete one user's images later via the
     // Admin API. Without them a deletion request is unanswerable.
-    fd.append("tags", ["guidegen", "uid_" + uid, "guide_" + guideKey].join(","));
-    fd.append("context", "uid=" + uid + "|guide=" + guideKey);
+    fd.append("tags", ["guidegen", "uid_" + uid, assetTag].join(","));
+    fd.append("context", "uid=" + uid + "|asset=" + assetTag);
     const r = await fetch(CLD, { method: "POST", body: fd });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.secure_url) {
@@ -176,6 +176,17 @@
     return out;
   }
 
+  // Every published guide gets its own random asset tag, stored on the Firestore
+  // document. That tag is the ONLY way to find this guide's Cloudinary images
+  // again — deletion goes through the Admin API by tag, and the dashboard only
+  // ever knows the remote document id, never the local one. Do not derive this
+  // from a local id: images are uploaded before the document exists.
+  function newAssetTag() {
+    const b = new Uint8Array(12);
+    crypto.getRandomValues(b);
+    return "gg_" + Array.from(b).map((x) => x.toString(36).padStart(2, "0")).join("");
+  }
+
   // ---------- publish ----------
 
   async function publish(guide, steps, opts) {
@@ -185,6 +196,7 @@
     if (!s) throw new Error("Sign in to publish a guide.");
     const token = await getToken();
 
+    const assetTag = newAssetTag();
     const withShots = steps.filter((x) => x.screenshot);
     let done = 0;
     const published = [];
@@ -200,7 +212,7 @@
         prog(0.05 + 0.8 * (done / Math.max(1, withShots.length)),
              "Uploading image " + (done + 1) + " of " + withShots.length + "…");
         const blob = await stepImage(step, i + 1);
-        if (blob) entry.imageUrl = await uploadImage(blob, s.uid, guide.id || "guide");
+        if (blob) entry.imageUrl = await uploadImage(blob, s.uid, assetTag);
         done++;
       }
       published.push(entry);
@@ -214,6 +226,7 @@
         visibility: "link",
         stepCount: published.length,
         steps: published,
+        assetTag: assetTag,
       }),
     };
     // createdAt must be a real timestamp, which enc() can't express
@@ -231,7 +244,7 @@
 
     const remoteId = j.name.split("/").pop();
     prog(1, "Published");
-    return { remoteId, url: SITE + "/g/" + remoteId };
+    return { remoteId, assetTag, url: SITE + "/g/" + remoteId };
   }
 
   async function unpublish(remoteId) {

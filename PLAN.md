@@ -81,7 +81,18 @@ environment variables — never in the repo, never in client code.
 
 Account deletion is the same call with the `uid_<uid>` tag instead.
 
-### BUG to fix first — asset tags are currently unusable for deletion
+### ~~BUG~~ FIXED 30 Jul 2026 — asset tags are now usable for deletion
+
+`sync.js` mints a random `assetTag` (`gg_` + 24 chars from `crypto.getRandomValues`) per
+publish, tags every uploaded image with it, and stores it on the Firestore document.
+Verified on a real publish: doc `PevZmVZFAgNfCqsM9jT5` carries
+`assetTag: gg_1r400n1j1c643n074z3h720d`. Deletion is then one call:
+`DELETE /resources/image/tags/<assetTag>`.
+
+Work item 9 (the Vercel function) is now unblocked. Guides published **before** this fix
+still have unlocatable images — purge the `GuideGen` Cloudinary folder by hand once.
+
+Original problem, for the record:
 
 `sync.js` tags uploads with `guide_<local fs_index id>`, because the Firestore document does
 not exist yet when the images are uploaded. **The dashboard only ever knows the remoteId**,
@@ -106,7 +117,7 @@ by hand once, after the fix lands.
 | 5 | Retire `editor.html` | Redirect to `/app`. Removes the parity problem for good. |
 | 6 | Update-in-place publish | PATCH the existing doc so a shared link never goes stale. |
 | 7 | Store v1.1 | New data declaration, revised privacy policy and listing copy. |
-| 8 | `assetTag` on the guide doc | Prerequisite for deletion. Do this before more guides are published. |
+| ~~8~~ | ~~`assetTag` on the guide doc~~ | **Done 30 Jul 2026**, verified on a real publish. |
 | 9 | `/api/delete-assets` Vercel function | Purge Cloudinary assets on guide or account deletion. Only server-side code in the product. |
 
 ### Also worth taking from Scribe's editor (observed 30 Jul 2026)
