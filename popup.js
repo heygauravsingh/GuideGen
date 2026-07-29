@@ -25,7 +25,7 @@ function render(state) {
     statusTitle.textContent = "Ready to record";
     statusSub.textContent = "Every click becomes a step";
     hint.textContent =
-      "Tip: if a tab was open before you installed FlowScribe, reload it once before recording.";
+      "Tip: if a tab was open before you installed GuideGen, reload it once before recording.";
   }
 }
 

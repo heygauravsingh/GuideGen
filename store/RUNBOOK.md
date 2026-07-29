@@ -1,4 +1,4 @@
-# Launch runbook — submit FlowScribe to the Chrome Web Store today
+# Launch runbook — submit GuideGen to the Chrome Web Store today
 
 Everything you need is in this folder. Work top to bottom; the whole thing is about
 40 minutes of your time, most of it taking screenshots.
@@ -9,25 +9,22 @@ you do can speed that up, so the goal today is a submission with zero loose ends
 
 ---
 
-## Step 0 — decide the name (5 minutes, do this first)
+## Step 0 — the name is settled
 
-The incumbent product in this exact category is **Scribe** (scribehow.com). Shipping a
-competitor called Flow**Scribe** is a real trademark exposure: Google honours Web Store
-takedown requests, and the risk grows once you have users and reviews to lose.
+Done. The product is **GuideGen** everywhere that matters:
 
-This is your call, but it is much cheaper now than later. If you want to rename, pick a
-name and run:
+- `manifest.json` name and toolbar title
+- The extension UI, the editor, and every export footer
+- Firebase project `guidegen-1f938`, Cloudinary folder `GuideGen`
+- GitHub `heygauravsingh/GuideGen`, live at `guide-gen.vercel.app`
 
-```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && grep -rl "FlowScribe" --include="*.js" --include="*.json" --include="*.html" --include="*.css" --include="*.md" . | xargs sed -i '' 's/FlowScribe/YourName/g'
-```
+This also sidesteps the trademark exposure of shipping a product called
+Flow**Scribe** against the incumbent Scribe (scribehow.com).
 
-Then rebuild the zip (step 2). Note this leaves internal identifiers like
-`fs_state`, `flowscribe-pill` and `window.FSRender` alone, which is fine — they're
-invisible to users and renaming them risks breaking things on launch day.
-
-If you'd rather ship as FlowScribe today and deal with it later, that's a legitimate
-call for a free early-access launch. Just don't print business cards.
+Internal identifiers were deliberately left alone — `chrome.storage` keys
+(`fs_state`, `fs_step_*`), the `FSRender`/`FSExport`/`FSTTS` globals, and the
+`flowscribe-pill` CSS class. Renaming storage keys would orphan guides people
+have already recorded; none of these are visible to users.
 
 ---
 
@@ -44,13 +41,13 @@ Load the extension unpacked, record one real guide in uEngage, then capture:
 Any size is fine. Then:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && open store/screenshots-raw
+cd "/Users/apple/Desktop/GuideGen 2" && open store/screenshots-raw
 ```
 
 Drop them in that folder and run:
 
 ```bash
-bash "/Users/apple/Desktop/FlowScribe 2/store/make-screenshots.sh"
+bash "/Users/apple/Desktop/GuideGen 2/store/make-screenshots.sh"
 ```
 
 That converts each one to exactly 1280×800 in `store/screenshots-out/`. Verified
@@ -63,11 +60,11 @@ working — the store rejects wrong dimensions, so don't skip it.
 
 ## Step 2 — build the package
 
-Already built at `../flowscribe-build.zip` (68 MB). If you changed anything since —
+Already built at `../guidegen-build.zip` (68 MB). If you changed anything since —
 including the rename — rebuild it:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../flowscribe-build.zip && zip -r -X ../flowscribe-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js editor.html editor.js editor.css render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
+cd "/Users/apple/Desktop/GuideGen 2" && rm -f ../guidegen-build.zip && zip -r -X ../guidegen-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js editor.html editor.js editor.css render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
 ```
 
 `CLAUDE.md` and `README.md` are deliberately excluded — they describe the project as a
@@ -95,7 +92,7 @@ Keep that URL — it goes in the Privacy tab.
 
 1. Go to <https://chrome.google.com/webstore/devconsole>
 2. **Add new item**
-3. Drag in `flowscribe-build.zip`
+3. Drag in `guidegen-build.zip`
 4. Wait for the upload to process (68 MB — give it a minute)
 
 If it rejects the upload, the message names the reason; the usual causes are a manifest

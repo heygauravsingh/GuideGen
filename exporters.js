@@ -1,4 +1,4 @@
-// FlowScribe — exporters (window.FSExport)
+// GuideGen — exporters (window.FSExport)
 (function () {
   const R = window.FSRender;
 
@@ -9,7 +9,7 @@
     );
   }
   function safeName(s) {
-    return (String(s || "flowscribe-guide").trim() || "flowscribe-guide")
+    return (String(s || "guidegen-guide").trim() || "guidegen-guide")
       .replace(/[^\w\- ]+/g, "")
       .replace(/\s+/g, "-")
       .slice(0, 60);
@@ -92,7 +92,7 @@
       (guide.startUrl ? " · " + esc(guide.startUrl) : "") +
       "</p>" +
       body +
-      "<div class='foot'>Generated with FlowScribe</div></div></body></html>";
+      "<div class='foot'>Generated with GuideGen</div></div></body></html>";
     download(new Blob([doc], { type: "text/html" }), safeName(guide.title) + ".html");
   }
 
@@ -100,7 +100,7 @@
   async function markdown(guide, steps) {
     let md = "# " + (guide.title || "Untitled guide") + "\n\n";
     if (guide.startUrl) md += "> Source: " + guide.startUrl + "\n\n";
-    md += "_" + steps.length + " steps · generated with FlowScribe_\n\n";
+    md += "_" + steps.length + " steps · generated with GuideGen_\n\n";
     for (let i = 0; i < steps.length; i++) {
       const s = steps[i];
       md += "## Step " + (i + 1) + "\n\n" + (s.text || "") + "\n\n";
@@ -134,7 +134,7 @@
     doc.setFontSize(13);
     doc.setTextColor(237, 233, 254);
     doc.text(
-      "Created with FlowScribe · " +
+      "Created with GuideGen · " +
         new Date(guide.createdAt || Date.now()).toLocaleDateString(),
       PW / 2,
       PH / 2 + 20,
@@ -191,7 +191,7 @@
       fontSize: 40, bold: true, color: "FFFFFF", align: "center",
     });
     t.addText(
-      "Created with FlowScribe · " +
+      "Created with GuideGen · " +
         new Date(guide.createdAt || Date.now()).toLocaleDateString(),
       { x: 0.6, y: 4.2, w: 12.1, h: 0.6, fontSize: 16, color: "EDE9FE", align: "center" }
     );
@@ -414,7 +414,7 @@
     lines.forEach((l) => { ctx.fillText(l, W / 2, y); y += lh; });
     ctx.font = Math.round(22 * S) + "px -apple-system, Arial, sans-serif";
     ctx.fillStyle = "#ede9fe";
-    ctx.fillText("A FlowScribe walkthrough", W / 2, H - 90 * S);
+    ctx.fillText("A GuideGen walkthrough", W / 2, H - 90 * S);
   }
 
   // Layout of a step slide. Light, generous, typographic — the old dark bar with

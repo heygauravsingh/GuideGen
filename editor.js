@@ -1,4 +1,4 @@
-// FlowScribe — guide editor
+// GuideGen — guide editor
 (function () {
   const K = {
     index: "fs_index",
@@ -110,7 +110,7 @@
     els.list.innerHTML = "";
     if (!index.length) {
       els.list.innerHTML =
-        '<div class="empty">No guides yet. Click the FlowScribe icon and press <b>Start recording</b>.</div>';
+        '<div class="empty">No guides yet. Click the GuideGen icon and press <b>Start recording</b>.</div>';
       return;
     }
     if (!list.length) {
@@ -141,7 +141,7 @@
         '<div class="no-guides-main">' +
         '<span class="big">' + svg(ICON.film, 22) + "</span>" +
         "<h2>No guide selected</h2>" +
-        "<p>Pick a guide on the left, or record a new one from the FlowScribe toolbar icon.</p>" +
+        "<p>Pick a guide on the left, or record a new one from the GuideGen toolbar icon.</p>" +
         "</div>";
       return;
     }

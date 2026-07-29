@@ -1,4 +1,4 @@
-# FlowScribe — build plan under real constraints
+# GuideGen — build plan under real constraints
 
 **Constraints this plan respects, stated up front:**
 1. **Zero spend** until the product earns money. Not "cheap" — zero.
@@ -16,7 +16,7 @@ Sharing infrastructure is worth building when people ask for it, not before.
 
 Goal: find out whether anyone wants this, before building anything for them.
 
-- [x] Extension is feature-complete and packaged (`../flowscribe-build.zip`)
+- [x] Extension is feature-complete and packaged (`../guidegen-build.zip`)
 - [ ] Submit to Chrome Web Store as **Unlisted** (see `store/RUNBOOK.md`)
 - [ ] Privacy policy on free static hosting (`store/privacy-policy.html`)
 - [ ] Landing page — single static HTML file, free host, free subdomain, **no custom domain**

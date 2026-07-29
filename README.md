@@ -1,6 +1,6 @@
-# FlowScribe
+# GuideGen
 
-A self-hosted, no-subscription replica of Scribe Capture. Record a workflow in your browser and FlowScribe auto-generates a step-by-step guide — an annotated screenshot for every click, with editable step text — then exports it to HTML, Markdown, PDF, PowerPoint, or a narrated video.
+A self-hosted, no-subscription replica of Scribe Capture. Record a workflow in your browser and GuideGen auto-generates a step-by-step guide — an annotated screenshot for every click, with editable step text — then exports it to HTML, Markdown, PDF, PowerPoint, or a narrated video.
 
 Everything runs locally in your browser. No account, no server, no data leaves your machine.
 
@@ -9,17 +9,17 @@ Everything runs locally in your browser. No account, no server, no data leaves y
 1. Open Chrome (or any Chromium browser: Edge, Brave, Arc).
 2. Go to `chrome://extensions`.
 3. Turn on **Developer mode** (top-right).
-4. Click **Load unpacked** and select this `FlowScribe` folder.
-5. Pin the FlowScribe icon from the puzzle-piece menu.
+4. Click **Load unpacked** and select this `GuideGen` folder.
+5. Pin the GuideGen icon from the puzzle-piece menu.
 
 ## Record a guide
 
-1. Open the page/app you want to document. *(If a tab was already open before you installed FlowScribe, reload it once.)*
-2. Click the FlowScribe icon → **Start recording**.
+1. Open the page/app you want to document. *(If a tab was already open before you installed GuideGen, reload it once.)*
+2. Click the GuideGen icon → **Start recording**.
 3. Do your workflow normally. Each click and each form entry becomes a step with a screenshot, the clicked element highlighted, and an auto-written description ("Click the ... button", "Type ... into ...").
 4. A red **Recording** pill sits in the bottom-right and counts steps. Click **Stop & edit** when finished — the editor opens automatically.
 
-When you stop, FlowScribe tidies the guide up: it names it after what you did (e.g. *How to view Journey Tracking in uEngage* — editable, and only when you haven't titled it yourself), and folds "click the field" + "type into that field" into a single step.
+When you stop, GuideGen tidies the guide up: it names it after what you did (e.g. *How to view Journey Tracking in uEngage* — editable, and only when you haven't titled it yourself), and folds "click the field" + "type into that field" into a single step.
 
 ## Edit
 
@@ -43,13 +43,13 @@ Every format crops each screenshot toward the thing you clicked, so the UI is re
 | **Narrated video (.webm)** | Slideshow of your steps, narrated by a built-in offline voice. |
 
 ### About the narrated video
-The video is rendered on a canvas and captured to `.webm`. With narration on, FlowScribe synthesizes the speech itself — a neural voice (Piper) bundled in `lib/` and run in your browser — then mixes it into the recording. Nothing is uploaded and no voice service is called.
+The video is rendered on a canvas and captured to `.webm`. With narration on, GuideGen synthesizes the speech itself — a neural voice (Piper) bundled in `lib/` and run in your browser — then mixes it into the recording. Nothing is uploaded and no voice service is called.
 
 **Pace** — Very fast through Very slow — sets how quickly the voice reads. There's no seconds-per-step setting: each step stays on screen as long as its own text takes to say, so short steps go by quickly and wordy ones get room. The dialog shows the estimated video length as you change pace.
 
 Video is 1080p. Like the other exports, each slide zooms toward the thing you clicked rather than showing the whole browser window — a full desktop viewport is mostly empty margin, and fitting all of it on screen shrinks the actual UI until the text can't be read.
 
-The first narrated export takes a little longer while the voice model loads. Keep the editor tab focused while the video renders: Chrome suspends background tabs, and while FlowScribe keeps the slides advancing anyway, the picture gets choppy. If the voice files are missing from `lib/`, FlowScribe falls back to a **silent captioned** video (every step still shows its text on screen).
+The first narrated export takes a little longer while the voice model loads. Keep the editor tab focused while the video renders: Chrome suspends background tabs, and while GuideGen keeps the slides advancing anyway, the picture gets choppy. If the voice files are missing from `lib/`, GuideGen falls back to a **silent captioned** video (every step still shows its text on screen).
 
 ## How it works (for tinkering)
 

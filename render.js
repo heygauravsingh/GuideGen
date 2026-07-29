@@ -1,4 +1,4 @@
-// FlowScribe — shared annotation renderer (window.FSRender)
+// GuideGen — shared annotation renderer (window.FSRender)
 (function () {
   const BRAND = "#7c3aed";
   const HILITE = "#ef4444";

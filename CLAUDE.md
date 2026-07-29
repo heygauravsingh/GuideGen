@@ -1,9 +1,9 @@
-# CLAUDE.md — FlowScribe
+# CLAUDE.md — GuideGen
 
 Project context for Claude Code. Read this first before making changes.
 
 ## What this is
-FlowScribe is a **self-hosted, local replica of Scribe Capture**, built as a Chrome
+GuideGen is a **self-hosted, local replica of Scribe Capture**, built as a Chrome
 Manifest V3 extension. You record a browser workflow; it auto-generates a step-by-step
 guide (one annotated screenshot per click) and exports to HTML, Markdown, PDF, PowerPoint,
 and a narrated video. Everything runs client-side. No server, no account, no network calls
@@ -19,7 +19,7 @@ except loading the two bundled libraries from disk. Data lives in `chrome.storag
 
 ## How to test a change
 1. Edit files here.
-2. Go to `chrome://extensions` → click the ↻ (reload) on the FlowScribe card.
+2. Go to `chrome://extensions` → click the ↻ (reload) on the GuideGen card.
 3. For content-script (`recorder.js`) changes, also **reload the web page** you're recording.
 4. Logs: the service worker log is behind the "Inspect views: service worker" link on the
    extension card; editor/popup logs are in their own DevTools.

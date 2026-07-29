@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "FlowScribe — Step-by-step guide capture",
+  "name": "GuideGen — Step-by-step guide capture",
   "version": "1.0.0",
   "description": "Record a workflow and auto-generate an annotated step-by-step guide. Export to HTML, Markdown, PDF, PowerPoint, and narrated video.",
   "permissions": [
@@ -20,7 +20,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "FlowScribe",
+    "default_title": "GuideGen",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

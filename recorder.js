@@ -1,4 +1,4 @@
-// FlowScribe — content-script recorder.
+// GuideGen — content-script recorder.
 // Captures clicks and form input while recording, and shows a floating pill.
 (() => {
   if (window.__flowscribeLoaded) return;

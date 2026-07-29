@@ -1,4 +1,4 @@
-// FlowScribe — offline neural narration (window.FSTTS)
+// GuideGen — offline neural narration (window.FSTTS)
 //
 // Piper (VITS) running entirely in-page: espeak-ng compiled to wasm turns text
 // into phoneme ids, onnxruntime-web runs the voice model over them, and we get
