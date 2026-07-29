@@ -18,12 +18,31 @@
 >   `guide-gen.vercel.app/g/Ntcrwjs3m5btw4u5bXTX`.
 > - Everything committed to `github.com/heygauravsingh/GuideGen` (private).
 >
+> **Deliberate difference: the two editors are not the same**
+> The extension's editor is the source of truth and can do everything — edit text,
+> reorder, delete, redact, add notes, re-render annotations. The dashboard editor can
+> change **title and step text only**, and shows each screenshot read-only for context.
+> Images are rendered with annotations baked in at publish time, so changing one means
+> re-publishing from the extension. Don't "unify" these without solving that.
+>
 > **Not done yet**
 > - **v1.1 submission.** The reviewed v1.0 has no sync. Shipping sync means updating the
 >   store data declaration to tick *Authentication information*, *Website content* and
 >   *Web history*, and updating the privacy policy's "current release transmits nothing"
 >   callout. Both are currently accurate for v1.0 — do not ship sync without changing them.
 > - `optional_host_permissions` to clear the broad-permission warning (see RUNBOOK).
+> - **Update-in-place from the extension.** Re-publishing currently creates a *new*
+>   document and a *new* link, so a shared link silently goes stale after a local edit.
+>   `remoteId` is already stored on the `fs_index` entry — the Share dialog needs an
+>   Update action that PATCHes that document instead of POSTing a new one, plus a warning
+>   that it overwrites text edited on the web.
+> - **Title heuristic misfires on prose.** `looksLikeName()` rejects numbers, dates and
+>   generic buttons, but a sentence-shaped label sails through: recording in Gmail produced
+>   *"How to view What if a stay could stay with you? in Mail"* from an email subject.
+>   Needs a rule about question marks and sentence-length labels.
+> - **Duplicate step text.** Two clicks on same-labelled elements produce two identical
+>   step descriptions. Visible in real use; the screenshots are the only way to tell them
+>   apart, which is why the dashboard editor now shows them.
 > - **Untested in the real extension:** whether the auth session survives an editor
 >   reload. The network path is proven; `chrome.storage.local` token persistence is not.
 > - No automated tests. Every bug this session was caught by generating an artefact and

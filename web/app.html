@@ -228,8 +228,14 @@
       html +=
         '<div class="step-edit' + (st.type === "note" ? " is-note" : "") + '">' +
         '<div class="n">' + (i + 1) + "</div>" +
-        '<div class="grow"><textarea rows="1" data-i="' + i + '"></textarea></div>' +
-        "</div>";
+        '<div class="grow"><textarea rows="1" data-i="' + i + '"></textarea>' +
+        (st.imageUrl
+          ? '<figure><img loading="lazy" decoding="async" alt="Step ' + (i + 1) +
+            '" src="' + String(st.imageUrl).replace(/"/g, "&quot;") + '" /></figure>'
+          : st.type === "note"
+            ? ""
+            : '<p class="no-img">No screenshot for this step</p>') +
+        "</div></div>";
     });
     html +=
       '<p class="warn">Screenshots can\'t be changed here — they were rendered when you ' +
