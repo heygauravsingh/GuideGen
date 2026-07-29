@@ -277,6 +277,31 @@ window.GG = (function () {
     });
   }
 
+  // Deletes the guide AND its Cloudinary images, via /api/delete-assets — the only
+  // path that can remove images, since that needs the API secret. If the endpoint
+  // isn't configured yet it falls back to deleting the document only, and says so,
+  // rather than silently claiming the images are gone.
+  function deleteGuideAndAssets(id) {
+    return getToken().then(function (tok) {
+      return fetch("/api/delete-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: tok, guideId: id }),
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (r.ok) return { assetsDeleted: !!j.assetsDeleted, note: j.note || null };
+          if (r.status === 503 || r.status === 404) {
+            // endpoint missing or unconfigured — remove the record at least
+            return deleteGuide(id).then(function () {
+              return { assetsDeleted: false, note: j.detail || j.error || "Images were not removed." };
+            });
+          }
+          throw new Error(j.error || "Couldn't delete that guide.");
+        });
+      });
+    });
+  }
+
   function deleteGuide(id) {
     return getToken().then(function (tok) {
       return fetch(FS + "/guides/" + encodeURIComponent(id), {
@@ -295,7 +320,7 @@ window.GG = (function () {
     getToken: getToken, onChange: onChange, current: load,
     listGuides: listGuides, getPublicGuide: getPublicGuide,
     setVisibility: setVisibility, renameGuide: renameGuide, updateGuide: updateGuide,
-    deleteGuide: deleteGuide,
+    deleteGuide: deleteGuide, deleteGuideAndAssets: deleteGuideAndAssets,
     encodeFields: encodeFields, decodeFields: decodeFields,
   };
 })();
