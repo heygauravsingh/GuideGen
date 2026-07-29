@@ -132,8 +132,10 @@
   <ul>
     <li><strong>Unpublish a guide</strong> and its link stops working immediately.</li>
     <li><strong>Delete a guide</strong> and its record is removed from our database immediately.</li>
-    <li><strong>Delete a guide's images</strong> — image files are removed from our image host on
-      request today; email us and we will action it. Automatic removal on deletion is being added.</li>
+    <li><strong>Delete a guide's images</strong> — deleting a guide also deletes its images from
+      our image host and requests removal from the content delivery network. CDN copies can take
+      up to an hour to clear, and a browser that already downloaded an image may keep its own
+      cached copy.</li>
     <li><strong>Delete your account</strong> — email us and we will remove your account, all your
       published guides and their images within 30 days.</li>
     <li><strong>Local guides</strong> are deleted from the extension itself, or by uninstalling it,

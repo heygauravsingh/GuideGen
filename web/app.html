@@ -209,7 +209,9 @@
       dashSay("Deleting…");
       GG.deleteGuideAndAssets(g.id).then(function (res) {
         loadGuides();
-        if (res.assetsDeleted) toastish("Guide and its images deleted");
+        if (res.assetsDeleted) {
+          toastish("Guide deleted. Images removed — cached copies clear within the hour.");
+        }
         else dashSay("Guide deleted, but its images could not be removed. " + (res.note || ""), "err");
       }).catch(function (e) { b.disabled = false; dashSay(e.message, "err"); });
     }));

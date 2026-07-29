@@ -95,12 +95,21 @@ module.exports = async function handler(req, res) {
     let assetNote = null;
     if (assetTag) {
       const auth = Buffer.from(`${key}:${secret}`).toString("base64");
+      // invalidate=true is NOT optional. Without it Cloudinary removes the asset from
+      // storage but its CDN keeps serving the cached copy — measured at
+      // `max-age=2592000, immutable`, i.e. publicly retrievable for 30 days after a
+      // "successful" delete. That would make this endpoint report a deletion it had
+      // not performed, on the one feature where that matters most.
       const cld = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/resources/image/tags/${encodeURIComponent(assetTag)}`,
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/resources/image/tags/${encodeURIComponent(assetTag)}?invalidate=true`,
         { method: "DELETE", headers: { Authorization: `Basic ${auth}` } }
       );
       if (cld.ok) {
         assetsDeleted = true;
+        // CDN purge is asynchronous — Cloudinary documents up to an hour. Say so
+        // rather than implying the URLs die the instant this returns.
+        assetNote = "Images deleted and CDN invalidation requested. Already-cached " +
+                    "copies can take up to an hour to disappear from the CDN.";
       } else {
         const txt = await cld.text().catch(() => "");
         assetNote = `Cloudinary returned ${cld.status}. ${txt.slice(0, 180)}`;
