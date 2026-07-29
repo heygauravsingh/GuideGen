@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Guides can contain internal SOPs. Never index them. The same header is set
+     in vercel.json for /g/* — belt and braces, since a missing header here would
+     be a disclosure rather than a cosmetic bug. -->
+<meta name="robots" content="noindex, nofollow, noarchive" />
+<meta name="referrer" content="no-referrer" />
+<title>Guide — GuideGen</title>
+<meta property="og:title" content="A GuideGen guide" />
+<meta property="og:description" content="A step-by-step guide shared with you." />
+<link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+
+<header class="site">
+  <div class="row">
+    <a class="brand" href="/">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
+      <span>GuideGen</span>
+    </a>
+    <nav>
+      <button class="btn" id="print-btn" style="padding:8px 13px;font-size:13.5px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg>
+        Print
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap narrow viewer" id="main">
+  <!-- skeleton while loading; replaced wholesale -->
+  <div id="loading">
+    <div class="vskel title"></div>
+    <div class="vskel w40"></div>
+    <div style="margin-top:34px">
+      <div class="vskel w60"></div>
+      <div class="vskel img"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap row">
+    <span>© 2026 GuideGen</span>
+    <span class="spacer"></span>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+  </div>
+</footer>
+
+<script src="/assets/gg.js"></script>
+<script>
+(function () {
+  var main = document.getElementById("main");
+
+  document.getElementById("print-btn").addEventListener("click", function () {
+    window.print();
+  });
+
+  // /g/{id} — also tolerate ?id= for local testing without the rewrite
+  function guideId() {
+    var m = location.pathname.match(/\/g\/([A-Za-z0-9_-]{6,})\/?$/);
+    if (m) return m[1];
+    return new URLSearchParams(location.search).get("id") || "";
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function state(icon, title, body, cta) {
+    main.className = "wrap narrow";
+    main.innerHTML =
+      '<div class="state"><div class="ico">' + icon + "</div>" +
+      "<h1>" + esc(title) + "</h1><p>" + esc(body) + "</p>" +
+      (cta ? '<div class="cta">' + cta + "</div>" : "") + "</div>";
+  }
+
+  var ICON_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+  var ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>';
+
+  function fmtDate(v) {
+    if (!v) return "";
+    try {
+      return new Date(v).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+    } catch (e) { return ""; }
+  }
+
+  function render(g) {
+    var steps = Array.isArray(g.steps) ? g.steps : [];
+    var title = g.title || "Untitled guide";
+    document.title = title + " — GuideGen";
+
+    var html =
+      '<div class="viewer-head"><h1></h1><div class="meta">' +
+      "<span>" + steps.length + (steps.length === 1 ? " step" : " steps") + "</span>" +
+      (g.createdAt ? '<span class="sep"></span><span>' + esc(fmtDate(g.createdAt)) + "</span>" : "") +
+      "</div></div>";
+
+    if (!steps.length) {
+      html += '<p style="color:var(--muted)">This guide has no steps yet.</p>';
+    }
+
+    steps.forEach(function (s, i) {
+      var isNote = s.type === "note";
+      html +=
+        '<div class="vstep' + (isNote ? " note" : "") + '">' +
+        '<div class="n">' + (i + 1) + "</div>" +
+        '<div class="body">' +
+        (isNote ? '<span class="note-tag">Note</span>' : "") +
+        '<p class="txt">' + esc(s.text || "") + "</p>" +
+        (s.imageUrl
+          ? '<figure><img loading="lazy" decoding="async" alt="Step ' + (i + 1) +
+            '" src="' + esc(s.imageUrl) + '" /></figure>'
+          : "") +
+        "</div></div>";
+    });
+
+    html +=
+      '<div class="viewer-foot"><span>Made with GuideGen</span>' +
+      '<span class="spacer"></span>' +
+      '<a class="btn" style="padding:8px 13px;font-size:13.5px" href="/">Make your own guide</a></div>';
+
+    main.className = "wrap narrow viewer";
+    main.innerHTML = html;
+    main.querySelector(".viewer-head h1").textContent = title;
+  }
+
+  var id = guideId();
+  if (!id) {
+    state(ICON_WARN, "No guide specified",
+          "This link doesn't point at a guide. Check that you copied the whole thing.",
+          '<a class="btn" href="/">Go to GuideGen</a>');
+    return;
+  }
+
+  GG.getPublicGuide(id).then(function (g) {
+    // A guide can exist but not be shared; the rules deny the read, so a 403
+    // arrives instead. Belt and braces in case that ever changes.
+    if (g.visibility !== "link") {
+      state(ICON_LOCK, "This guide is private",
+            "The owner hasn't shared this guide, or has since unpublished it. Ask them for a new link.",
+            '<a class="btn" href="/">Go to GuideGen</a>');
+      return;
+    }
+    render(g);
+  }).catch(function (e) {
+    if (e.code === 403 || e.code === 404) {
+      // Firestore returns 403 for both "denied" and "doesn't exist" — on purpose,
+      // so a stranger can't probe which guide ids are real. That means we cannot
+      // tell an unpublished guide from a mistyped link, so the message must not
+      // claim to know which it is.
+      state(ICON_LOCK, "This guide isn't available",
+            "It may have been unpublished or deleted, or the link may be incomplete. " +
+            "Ask whoever shared it for a fresh link.",
+            '<a class="btn" href="/">Go to GuideGen</a>');
+    } else {
+      state(ICON_WARN, "Couldn't load this guide",
+            "Something went wrong fetching it. Refresh to try again.",
+            '<a class="btn" href="">Refresh</a>');
+    }
+  });
+})();
+</script>
+</body>
+</html>
