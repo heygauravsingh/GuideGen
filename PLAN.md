@@ -57,6 +57,44 @@ calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)` and the background worker 
 5. **Guides recorded before auth-gating** must still be readable after the update. Don't
    change the `fs_*` storage keys.
 
+## Asset deletion — the one place a server endpoint is genuinely needed
+
+**Current behaviour: deleting a guide deletes the Firestore document and nothing else.**
+The Cloudinary images persist indefinitely and stay retrievable by anyone holding an image
+URL. Deleting a guide kills the link, not the pixels.
+
+Why this cannot be done client-side: Cloudinary deletion needs the **API secret**, and a
+secret cannot ship in a browser. The `delete_token` returned by unsigned uploads expires
+after ~10 minutes, so it is useless for deleting later. This is a *credential custody*
+problem, not a compute problem — the "everything client-side" rule still holds for
+rendering and export.
+
+**The fix:** a small Vercel function, e.g. `/api/delete-assets`:
+1. Read the caller's Firebase `idToken` from the request.
+2. Validate it (`identitytoolkit:lookup`) to get the uid — do not trust a uid in the body.
+3. Read the guide doc; confirm `ownerUid === uid`.
+4. Call Cloudinary Admin API `delete_resources_by_tag` for that guide's asset tag.
+5. Delete the Firestore doc.
+
+Free on Vercel Hobby (1M invocations). The Cloudinary API key and secret go in Vercel
+environment variables — never in the repo, never in client code.
+
+Account deletion is the same call with the `uid_<uid>` tag instead.
+
+### BUG to fix first — asset tags are currently unusable for deletion
+
+`sync.js` tags uploads with `guide_<local fs_index id>`, because the Firestore document does
+not exist yet when the images are uploaded. **The dashboard only ever knows the remoteId**,
+so it cannot derive that tag. Delete-by-tag would silently match nothing.
+
+Fix: generate a random `assetTag` in the extension at publish time, use it as the Cloudinary
+tag, and **store it as a field on the Firestore document**. Then any client can ask the
+endpoint to purge exactly that guide's assets.
+
+**Anything published before this fix has orphaned images with no way to locate them** —
+including the test guides listed further down. Purge the whole `GuideGen` Cloudinary folder
+by hand once, after the fix lands.
+
 ## Work breakdown
 
 | # | Piece | Notes |
@@ -68,6 +106,16 @@ calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)` and the background worker 
 | 5 | Retire `editor.html` | Redirect to `/app`. Removes the parity problem for good. |
 | 6 | Update-in-place publish | PATCH the existing doc so a shared link never goes stale. |
 | 7 | Store v1.1 | New data declaration, revised privacy policy and listing copy. |
+| 8 | `assetTag` on the guide doc | Prerequisite for deletion. Do this before more guides are published. |
+| 9 | `/api/delete-assets` Vercel function | Purge Cloudinary assets on guide or account deletion. Only server-side code in the product. |
+
+### Also worth taking from Scribe's editor (observed 30 Jul 2026)
+- **"Merge similar steps"** — a user-triggered fix for repeated clicks on same-labelled
+  elements producing identical step text. We hit exactly this.
+- **"Navigate to &lt;URL&gt;"** recorded as a step. We don't capture navigation at all.
+- **ALT text per image**, for accessibility.
+- A short guide description under the title, plus toggles for author / step count /
+  creation time / timestamps.
 
 Keep `render.js`/`exporters.js` single-source: one canonical copy in the repo root, copied
 into `web/assets/` by a small script before commit. Two hand-maintained copies is exactly
