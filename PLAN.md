@@ -1,5 +1,43 @@
 # GuideGen — build plan under real constraints
 
+> ## Where things actually stand — 30 July 2026
+>
+> This plan was written as phases. In practice Phases 0–2 were all built in one push, so
+> read the phase framing below as *rationale*, not as a to-do list.
+>
+> **Live and verified**
+> - Extension submitted to the Chrome Web Store — **Pending review**, id
+>   `pifkelcohogbbocldnkjlfiagjigikjl`, Unlisted. v1.0 has **no** sync in it.
+> - Website live at `guide-gen.vercel.app`: `/` landing + waitlist, `/app` dashboard,
+>   `/g/{id}` public viewer, `/privacy`, `/terms`.
+> - Firebase `guidegen-1f938` (Spark, £0): email/password auth, Firestore, rules
+>   **verified 16/16** by `scratchpad/verify_rules.py` against the live project.
+> - Cloudinary `dqrytwq5e`, unsigned preset `GuideGen_Unsigned`, verified by real upload.
+> - **Publishing works end to end.** Published from the editor → 2 images uploaded as
+>   WebP (~17KB each) → Firestore doc readable anonymously → guide renders at
+>   `guide-gen.vercel.app/g/Ntcrwjs3m5btw4u5bXTX`.
+> - Everything committed to `github.com/heygauravsingh/GuideGen` (private).
+>
+> **Not done yet**
+> - **v1.1 submission.** The reviewed v1.0 has no sync. Shipping sync means updating the
+>   store data declaration to tick *Authentication information*, *Website content* and
+>   *Web history*, and updating the privacy policy's "current release transmits nothing"
+>   callout. Both are currently accurate for v1.0 — do not ship sync without changing them.
+> - `optional_host_permissions` to clear the broad-permission warning (see RUNBOOK).
+> - **Untested in the real extension:** whether the auth session survives an editor
+>   reload. The network path is proven; `chrome.storage.local` token persistence is not.
+> - No automated tests. Every bug this session was caught by generating an artefact and
+>   looking at it — A/V desync, collapsed step text, unstyled dialog inputs, `[hidden]`
+>   being overridden. None were caught by reading code.
+>
+> **Test data to delete** (all created by Claude while verifying, none of it real)
+> - Firebase Auth: `rulestest-owner-*`, `rulestest-other-*`, `dash-test-1785334636701@example.com`
+> - Firestore `guides`: `Es2Kf8zrxbWF7k55EYLc`, `MeB4a1YGdhQ15GBLT87d`, `Ntcrwjs3m5btw4u5bXTX`
+> - Firestore `waitlist`: `landing-test-delete-me@example.com`
+> - Cloudinary `GuideGen` folder: 4 test assets + 2 published WebPs
+>
+> Deleting `Ntcrwjs3m5btw4u5bXTX` breaks the demo link above.
+
 **Constraints this plan respects, stated up front:**
 1. **Zero spend** until the product earns money. Not "cheap" — zero.
 2. **Gaurav is not a developer.** All implementation is done with Claude. The stack must
