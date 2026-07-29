@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Your guides — GuideGen</title>
+<link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+
+<header class="site">
+  <div class="row">
+    <a class="brand" href="/">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
+      <span>GuideGen</span>
+    </a>
+    <nav id="nav-signed-out">
+      <a href="/">Home</a>
+    </nav>
+    <nav id="nav-signed-in" hidden>
+      <span class="acct" id="acct-email"></span>
+      <button class="link-btn" id="sign-out">Sign out</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ signed out ============ -->
+<main class="auth-wrap" id="view-auth" hidden>
+  <div class="auth-card">
+    <h1 id="auth-title">Sign in</h1>
+    <p class="sub" id="auth-sub">Sign in to manage the guides you've published.</p>
+
+    <form id="auth-form" novalidate>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required />
+      </div>
+      <div class="field" id="pw-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required />
+      </div>
+      <button class="btn brand-btn" type="submit" id="auth-submit">Sign in</button>
+    </form>
+
+    <p class="msg" id="auth-msg" role="status" aria-live="polite"></p>
+
+    <div class="auth-alt">
+      <span id="alt-text">New here?</span>
+      <button type="button" id="alt-toggle">Create an account</button>
+    </div>
+    <div class="auth-alt" id="forgot-wrap">
+      <button type="button" class="link-btn" id="forgot">Forgot your password?</button>
+    </div>
+  </div>
+</main>
+
+<!-- ============ signed in ============ -->
+<main class="wrap dash" id="view-dash" hidden>
+  <div class="dash-head">
+    <div>
+      <h1>Your guides</h1>
+      <p id="dash-sub">Guides you've published from the extension.</p>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn" id="refresh">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <div id="list"></div>
+  <p class="msg" id="dash-msg" role="status" aria-live="polite"></p>
+</main>
+
+<footer class="site">
+  <div class="wrap row">
+    <span>© 2026 GuideGen</span>
+    <span class="spacer"></span>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="mailto:gaurav.singh@uengage.in">Contact</a>
+  </div>
+</footer>
+
+<script src="/assets/gg.js"></script>
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+  var mode = "signin";  // or "signup"
+
+  // ---------- auth form ----------
+  function applyMode() {
+    var up = mode === "signup";
+    el("auth-title").textContent = up ? "Create an account" : "Sign in";
+    el("auth-sub").textContent = up
+      ? "An account lets you manage and unpublish the guides you share."
+      : "Sign in to manage the guides you've published.";
+    el("auth-submit").textContent = up ? "Create account" : "Sign in";
+    el("alt-text").textContent = up ? "Already have an account?" : "New here?";
+    el("alt-toggle").textContent = up ? "Sign in" : "Create an account";
+    el("password").autocomplete = up ? "new-password" : "current-password";
+    el("forgot-wrap").hidden = up;
+    say("");
+  }
+  function say(text, kind) {
+    var m = el("auth-msg");
+    m.textContent = text;
+    m.className = "msg" + (kind ? " " + kind : "");
+  }
+  el("alt-toggle").addEventListener("click", function () {
+    mode = mode === "signup" ? "signin" : "signup";
+    applyMode();
+  });
+
+  el("auth-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var email = el("email").value.trim();
+    var pw = el("password").value;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return say("Enter a valid email address.", "err");
+    if (mode === "signup" && pw.length < 6) return say("Password needs at least 6 characters.", "err");
+    if (!pw) return say("Enter your password.", "err");
+
+    el("auth-submit").disabled = true;
+    say(mode === "signup" ? "Creating your account…" : "Signing in…");
+    (mode === "signup" ? GG.signUp(email, pw) : GG.signIn(email, pw))
+      .catch(function (err) { say(err.message, "err"); })
+      .then(function () { el("auth-submit").disabled = false; });
+  });
+
+  el("forgot").addEventListener("click", function () {
+    var email = el("email").value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      return say("Type your email above first, then click this again.", "err");
+    }
+    say("Sending reset email…");
+    GG.sendPasswordReset(email)
+      .then(function () { say("Reset link sent to " + email + ". Check your inbox.", "ok"); })
+      .catch(function (err) { say(err.message, "err"); });
+  });
+
+  el("sign-out").addEventListener("click", function () { GG.signOut(); });
+  el("refresh").addEventListener("click", loadGuides);
+
+  // ---------- dashboard ----------
+  function fmtDate(v) {
+    if (!v) return "";
+    try {
+      var d = new Date(v);
+      var days = Math.floor((Date.now() - d.getTime()) / 86400000);
+      if (days === 0) return "Today";
+      if (days === 1) return "Yesterday";
+      if (days < 7) return days + " days ago";
+      return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    } catch (e) { return ""; }
+  }
+
+  function blankState() {
+    return '<div class="blank">' +
+      '<div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px"><path d="M4 7h16M4 12h11M4 17h7"/></svg></div>' +
+      "<h2>Nothing published yet</h2>" +
+      "<p>Guides live in the extension on your own machine until you publish one. " +
+      "Publishing gives you a link you can share — it's the next thing shipping, " +
+      "and this page is where those guides will appear.</p>" +
+      '<div class="cta"><a class="btn" href="/">Back to home</a></div>' +
+      "</div>";
+  }
+
+  function row(g) {
+    var d = document.createElement("div");
+    d.className = "guide-row";
+    var live = g.visibility === "link";
+    d.innerHTML =
+      '<div class="info"><div class="t"></div>' +
+      '<div class="m">' + (g.stepCount || 0) +
+      (g.stepCount === 1 ? " step · " : " steps · ") + fmtDate(g.createdAt) + "</div></div>" +
+      '<span class="badge' + (live ? " live" : "") + '"><span class="dot"></span>' +
+      (live ? "Shared" : "Private") + "</span>" +
+      '<div class="acts"></div>';
+    d.querySelector(".t").textContent = g.title || "Untitled guide";
+
+    var acts = d.querySelector(".acts");
+    if (live) {
+      acts.appendChild(mk("Copy link", function (b) {
+        var url = location.origin + "/g/" + g.id;
+        (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+          .then(function () { flash(b, "Copied"); })
+          .catch(function () { window.prompt("Copy this link:", url); });
+      }));
+      acts.appendChild(mk("View", function () { window.open("/g/" + g.id, "_blank"); }));
+      acts.appendChild(mk("Unpublish", function (b) {
+        b.disabled = true;
+        GG.setVisibility(g.id, "private").then(loadGuides)
+          .catch(function (e) { b.disabled = false; dashSay(e.message, "err"); });
+      }));
+    } else {
+      acts.appendChild(mk("Publish", function (b) {
+        b.disabled = true;
+        GG.setVisibility(g.id, "link").then(loadGuides)
+          .catch(function (e) { b.disabled = false; dashSay(e.message, "err"); });
+      }, true));
+    }
+    acts.appendChild(mk("Delete", function (b) {
+      if (!window.confirm('Delete "' + (g.title || "Untitled guide") +
+          '"? Anyone with its link will lose access. This cannot be undone.')) return;
+      b.disabled = true;
+      GG.deleteGuide(g.id).then(loadGuides)
+        .catch(function (e) { b.disabled = false; dashSay(e.message, "err"); });
+    }));
+    return d;
+  }
+
+  function mk(label, fn, primary) {
+    var b = document.createElement("button");
+    b.className = "btn" + (primary ? " brand-btn" : "");
+    b.style.padding = "8px 12px";
+    b.style.fontSize = "13.5px";
+    b.textContent = label;
+    b.addEventListener("click", function () { fn(b); });
+    return b;
+  }
+  function flash(btn, text) {
+    var old = btn.textContent;
+    btn.textContent = text;
+    setTimeout(function () { btn.textContent = old; }, 1400);
+  }
+  function dashSay(text, kind) {
+    var m = el("dash-msg");
+    m.textContent = text || "";
+    m.className = "msg" + (kind ? " " + kind : "");
+  }
+
+  function loadGuides() {
+    var list = el("list");
+    list.innerHTML = '<div class="skel"></div><div class="skel"></div>';
+    dashSay("");
+    GG.listGuides().then(function (guides) {
+      list.innerHTML = "";
+      if (!guides.length) { list.innerHTML = blankState(); return; }
+      guides.forEach(function (g) { list.appendChild(row(g)); });
+      el("dash-sub").textContent = guides.length === 1
+        ? "1 guide" : guides.length + " guides";
+    }).catch(function (e) {
+      list.innerHTML = "";
+      dashSay("Couldn't load your guides: " + e.message, "err");
+    });
+  }
+
+  // ---------- route on auth state ----------
+  GG.onChange(function (s) {
+    var signedIn = !!s;
+    el("view-auth").hidden = signedIn;
+    el("view-dash").hidden = !signedIn;
+    el("nav-signed-in").hidden = !signedIn;
+    el("nav-signed-out").hidden = signedIn;
+    if (signedIn) {
+      el("acct-email").textContent = s.email || "";
+      loadGuides();
+    } else {
+      // Always come back to Sign in. Without this the form stays in sign-up mode
+      // after a sign-out, and returning users get "that email already has an
+      // account" when they try to log in with their own credentials.
+      mode = "signin";
+      el("email").value = "";
+      el("password").value = "";
+      applyMode();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -59,6 +59,15 @@
 }
 
 * { box-sizing: border-box; }
+
+/* The hidden attribute has to beat component display rules. The UA stylesheet's
+   [hidden]{display:none} loses on specificity to things like
+   .auth-wrap{display:grid} and header nav{display:flex} — which meant a
+   signed-in user saw the sign-in form AND the dashboard stacked, with both
+   navs in the header. Verified by screenshot; a DOM check on el.hidden passes
+   regardless, so don't trust that alone. */
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
@@ -251,3 +260,87 @@ footer.site .spacer { flex: 1; }
   html { scroll-behavior: auto; }
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- auth screen ---------- */
+.auth-wrap { min-height: calc(100vh - 62px); display: grid; place-items: center; padding: 40px 20px; }
+.auth-card {
+  width: 100%; max-width: 400px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r-xl); padding: 30px 28px; box-shadow: var(--sh-2);
+}
+.auth-card h1 { font-size: 23px; letter-spacing: -0.025em; margin: 0 0 6px; }
+.auth-card .sub { color: var(--muted); font-size: 14.5px; margin: 0 0 22px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink-2); }
+.field input {
+  width: 100%; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  border-radius: var(--r-sm); padding: 11px 13px; font: inherit; font-size: 14.5px;
+  outline: 0; transition: border-color var(--fast), box-shadow var(--fast);
+}
+.field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); background: var(--panel); }
+.auth-card .btn { width: 100%; margin-top: 4px; }
+.auth-alt { margin-top: 18px; font-size: 14px; color: var(--muted); text-align: center; }
+.auth-alt button {
+  background: none; border: 0; color: var(--brand-2); font: inherit; font-weight: 600;
+  cursor: pointer; padding: 0;
+}
+.auth-alt button:hover { text-decoration: underline; }
+.msg { font-size: 13.5px; margin: 12px 0 0; min-height: 19px; line-height: 1.5; }
+.msg.err { color: #c0392b; }
+.msg.ok { color: #197b4a; }
+@media (prefers-color-scheme: dark) {
+  .msg.err { color: #f47c72; }
+  .msg.ok { color: #4ec98a; }
+}
+.link-btn {
+  background: none; border: 0; padding: 0; font: inherit; font-size: 13px;
+  color: var(--muted); cursor: pointer; text-decoration: underline;
+}
+.link-btn:hover { color: var(--ink-2); }
+
+/* ---------- dashboard ---------- */
+.dash { padding: 30px 0 90px; }
+.dash-head { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+.dash-head h1 { font-size: 26px; letter-spacing: -0.028em; margin: 0; }
+.dash-head p { margin: 4px 0 0; color: var(--muted); font-size: 14.5px; }
+.dash-head .spacer { flex: 1; }
+
+.guide-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 15px 17px; margin-bottom: 9px;
+  box-shadow: var(--sh-1);
+}
+.guide-row .info { flex: 1; min-width: 0; }
+.guide-row .t {
+  font-weight: 620; font-size: 15.5px; letter-spacing: -0.012em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.guide-row .m { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.guide-row .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 650; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+}
+.badge.live { background: var(--brand-soft); color: var(--brand-2); border-color: transparent; }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.blank {
+  border: 1px dashed var(--line); border-radius: var(--r-lg);
+  padding: 52px 28px; text-align: center; background: var(--panel-2);
+}
+.blank .ico {
+  width: 44px; height: 44px; border-radius: 13px; margin: 0 auto 14px;
+  background: var(--panel-3, var(--bg-2)); color: var(--faint);
+  display: grid; place-items: center;
+}
+.blank h2 { margin: 0 0 7px; font-size: 17.5px; font-weight: 650; }
+.blank p { margin: 0 auto; color: var(--muted); max-width: 44ch; font-size: 14.5px; }
+.blank .cta { margin-top: 20px; }
+
+.skel { height: 66px; border-radius: var(--r); background: var(--panel-2); margin-bottom: 9px;
+  animation: pulse-skel 1.3s ease-in-out infinite; }
+@keyframes pulse-skel { 0%,100% { opacity: 1 } 50% { opacity: 0.55 } }
+
+.acct { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--muted); }
