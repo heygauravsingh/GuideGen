@@ -27,6 +27,7 @@
     content: document.getElementById("content"),
     exportBtn: document.getElementById("exportBtn"),
     exportMenu: document.getElementById("exportMenu"),
+    shareBtn: document.getElementById("shareBtn"),
     deleteGuide: document.getElementById("deleteGuide"),
     addNote: document.getElementById("addNote"),
     toast: document.getElementById("toast"),
@@ -44,6 +45,8 @@
     check: '<path d="m5 13 4 4L19 7"/>',
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>',
     film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 12h18"/>',
+    link: '<path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 1 1 6 6l-1 1"/><path d="M13 18l-1 1a4 4 0 1 1-6-6l1-1"/>',
+    open: '<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   };
   function svg(path, size) {
     return (
@@ -76,6 +79,16 @@
   async function saveStep(step) {
     await store.set({ [K.step(step.id)]: step });
   }
+  // Remembering the published id is what lets the editor show "already shared"
+  // and offer Unpublish instead of creating a duplicate every time.
+  async function setGuideMeta(patch) {
+    const gi = index.find((g) => g.id === currentId);
+    if (!gi) return;
+    Object.assign(gi, patch);
+    await store.set({ [K.index]: index });
+    renderSidebar();
+  }
+
   async function updateIndexMeta() {
     const gi = index.find((g) => g.id === currentId);
     if (gi) {
@@ -182,7 +195,7 @@
   }
 
   function setActionsEnabled(on) {
-    [els.addNote, els.exportBtn, els.deleteGuide].forEach((b) => {
+    [els.addNote, els.exportBtn, els.deleteGuide, els.shareBtn].forEach((b) => {
       if (on) b.removeAttribute("disabled");
       else b.setAttribute("disabled", "");
     });
@@ -647,6 +660,167 @@
     };
   }
 
+  // ---------- share / publish ----------
+  function openShareModal(guide) {
+    const gi = index.find((g) => g.id === currentId) || {};
+    els.overlay.classList.add("open");
+
+    FSSync.current().then((session) => {
+      if (!session) return renderSignIn();
+      renderPublish(session);
+    });
+
+    function shell(inner) {
+      els.modal.innerHTML = inner;
+      const c = document.getElementById("sh-cancel");
+      if (c) c.onclick = () => closeModal();
+    }
+    function note(text, kind) {
+      const m = document.getElementById("sh-msg");
+      if (!m) return;
+      m.textContent = text || "";
+      m.style.color = kind === "err" ? "var(--danger)" : "var(--muted)";
+    }
+
+    // --- signed out ---
+    let mode = "signin";
+    function renderSignIn() {
+      shell(
+        "<h3>" + (mode === "signup" ? "Create an account" : "Sign in to share") + "</h3>" +
+        "<p>Publishing gives this guide a link anyone can open. Your other guides stay " +
+        "on this machine — only the guide you publish is uploaded.</p>" +
+        '<div class="field"><span class="field-label">Email</span>' +
+        '<input type="email" id="sh-email" autocomplete="email" /></div>' +
+        '<div class="field"><span class="field-label">Password</span>' +
+        '<input type="password" id="sh-pw" /></div>' +
+        '<div class="status-line" id="sh-msg"></div>' +
+        '<div class="row"><button class="btn" id="sh-cancel">Cancel</button>' +
+        '<button class="btn brand" id="sh-go">' +
+        (mode === "signup" ? "Create account" : "Sign in") + "</button></div>" +
+        '<div class="hint" style="text-align:center;margin-top:14px">' +
+        (mode === "signup" ? "Already have an account? " : "New here? ") +
+        '<button id="sh-toggle" style="background:none;border:0;color:var(--brand);' +
+        'font:inherit;font-weight:600;cursor:pointer;padding:0">' +
+        (mode === "signup" ? "Sign in" : "Create one") + "</button></div>"
+      );
+      document.getElementById("sh-toggle").onclick = () => {
+        mode = mode === "signup" ? "signin" : "signup";
+        renderSignIn();
+      };
+      document.getElementById("sh-go").onclick = async () => {
+        const email = document.getElementById("sh-email").value.trim();
+        const pw = document.getElementById("sh-pw").value;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return note("Enter a valid email address.", "err");
+        if (!pw || (mode === "signup" && pw.length < 6)) {
+          return note("Password needs at least 6 characters.", "err");
+        }
+        document.getElementById("sh-go").disabled = true;
+        note(mode === "signup" ? "Creating your account…" : "Signing in…");
+        try {
+          const session = mode === "signup"
+            ? await FSSync.signUp(email, pw)
+            : await FSSync.signIn(email, pw);
+          renderPublish(session);
+        } catch (e) {
+          document.getElementById("sh-go").disabled = false;
+          note(e.message, "err");
+        }
+      };
+    }
+
+    // --- signed in ---
+    function renderPublish(session) {
+      const live = !!gi.remoteId;
+      const url = live ? FSSync.SITE + "/g/" + gi.remoteId : "";
+      const shots = steps.filter((x) => x.screenshot).length;
+
+      shell(
+        "<h3>" + (live ? "Shared" : "Publish this guide") + "</h3>" +
+        (live
+          ? "<p>Anyone with this link can open the guide. Unpublish to switch it off.</p>" +
+            '<div class="field"><input id="sh-url" readonly value="' + escapeHtml(url) + '" /></div>'
+          : "<p>This uploads " + shots + (shots === 1 ? " screenshot" : " screenshots") +
+            " and the step text of <b>this guide only</b>, then gives you a link. " +
+            "Redact anything sensitive first — redactions are burned into the image before upload.</p>") +
+        '<div class="progress" id="sh-prog" style="display:none"><div></div></div>' +
+        '<div class="status-line" id="sh-msg"></div>' +
+        '<div class="row"><button class="btn" id="sh-cancel">Close</button>' +
+        (live
+          ? '<button class="btn" id="sh-unpub">Unpublish</button>' +
+            '<button class="btn" id="sh-open">Open</button>' +
+            '<button class="btn brand" id="sh-copy">Copy link</button>'
+          : '<button class="btn brand" id="sh-go">Publish</button>') +
+        "</div>" +
+        '<div class="hint" style="margin-top:14px">Signed in as ' + escapeHtml(session.email || "") +
+        ' · <button id="sh-out" style="background:none;border:0;color:var(--muted);' +
+        'font:inherit;cursor:pointer;padding:0;text-decoration:underline">Sign out</button></div>'
+      );
+
+      document.getElementById("sh-out").onclick = async () => {
+        await FSSync.signOut();
+        mode = "signin";
+        renderSignIn();
+      };
+
+      if (live) {
+        document.getElementById("sh-copy").onclick = (e) => {
+          const b = e.currentTarget;
+          navigator.clipboard.writeText(url).then(
+            () => { b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy link"), 1400); },
+            () => document.getElementById("sh-url").select()
+          );
+        };
+        document.getElementById("sh-open").onclick = () => window.open(url, "_blank");
+        document.getElementById("sh-unpub").onclick = async (e) => {
+          e.currentTarget.disabled = true;
+          note("Unpublishing…");
+          try {
+            await FSSync.unpublish(gi.remoteId);
+            await setGuideMeta({ remoteId: null, publishedAt: null });
+            gi.remoteId = null;
+            toast("Guide unpublished — the link no longer works");
+            renderPublish(session);
+          } catch (err) {
+            e.currentTarget.disabled = false;
+            note(err.message, "err");
+          }
+        };
+        return;
+      }
+
+      document.getElementById("sh-go").onclick = async () => {
+        const go = document.getElementById("sh-go");
+        const prog = document.getElementById("sh-prog");
+        const bar = prog.firstElementChild;
+        go.disabled = true;
+        prog.style.display = "block";
+        els.overlay.dataset.busy = "1";
+        try {
+          const res = await FSSync.publish(
+            { id: currentId, title: gi.title },
+            steps,
+            { onProgress: (p, m) => { bar.style.width = Math.round(p * 100) + "%"; note(m); } }
+          );
+          await setGuideMeta({ remoteId: res.remoteId, publishedAt: Date.now() });
+          gi.remoteId = res.remoteId;
+          els.overlay.dataset.busy = "0";
+          toast("Published — link copied to your clipboard");
+          navigator.clipboard.writeText(res.url).catch(() => {});
+          renderPublish(session);
+        } catch (e) {
+          console.error(e);
+          go.disabled = false;
+          els.overlay.dataset.busy = "0";
+          note(e.message, "err");
+        }
+      };
+    }
+  }
+
+  els.shareBtn.addEventListener("click", () => {
+    if (!currentId || !steps.length) return toast("Record or add a step first.");
+    openShareModal();
+  });
   els.deleteGuide.addEventListener("click", deleteGuide);
   els.addNote.addEventListener("click", addNote);
 

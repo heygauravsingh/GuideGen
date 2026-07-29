@@ -36,6 +36,7 @@ except loading the two bundled libraries from disk. Data lives in `chrome.storag
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
 | `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration). Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
+| `sync.js` | `window.FSSync`. Publishes one guide to the web: Identity Toolkit REST for email/password auth (tokens in `chrome.storage.local`), annotated steps re-encoded to WebP and uploaded to Cloudinary via an **unsigned** preset, then one Firestore document written with `visibility: "link"`. Needs no new permission — `<all_urls>` already covers those hosts. See Publishing. |
 | `lib/jspdf.umd.min.js` | jsPDF 2.5.1. Global: `window.jspdf.jsPDF`. |
 | `lib/pptxgen.bundle.js` | PptxGenJS 3.12.0. Global: `window.PptxGenJS`. |
 | `lib/ort/` | onnxruntime-web 1.18.0, wasm backend only (`ort.wasm.min.js` + `ort-wasm-simd.wasm`). Global: `window.ort`. |
@@ -197,6 +198,28 @@ control's own label is a compound blob — a clickable card yielded
 
 `onKeyDown` records Enter in fields as its own `key` step; without it a guide jumps from "type"
 straight to the results with nothing explaining what happened.
+
+## Publishing (sync.js)
+Opt-in, per guide, and the extension stays the source of truth. Rules if you touch it:
+
+1. **Only the guide the user pressed Publish on is uploaded.** Never batch, never
+   background-sync. The privacy claim on the site and in the store listing depends on this,
+   and so does the Cloudinary bill.
+2. **Bake annotations in before upload.** `stepImage()` runs `FSRender.renderStep`, crops with
+   `focusRegion` at `ASPECT` 1.6, caps width at 1600 and encodes WebP q0.85. The viewer is then
+   a plain `<img>` — no canvas on the web side, and a published image can't drift from what the
+   editor showed.
+3. **Never use Cloudinary delivery transformations.** They bill 1 credit per 1,000 derived
+   images and would eat the 25-credit monthly allowance. We upload pre-optimised WebP and serve
+   the original. Measured: ~17KB per step image versus ~200-400KB for the PNG equivalent.
+4. **Always send the `uid_` and `guide_` tags.** They're the only way to find and delete one
+   user's images later via the Admin API, which is what makes a deletion request answerable.
+5. **`Overwrite: false` on the Cloudinary preset is load-bearing.** A caller can choose their
+   own `public_id`; with overwrite off that's harmless. Turn it on and someone who learns an
+   image id could replace it on a user's shared page.
+
+`remoteId` is stored on the `fs_index` entry, which is how the editor knows to offer Unpublish
+instead of creating a duplicate on every press.
 
 ## Post-processing on stop
 `background.js → finalizeGuide()` runs once when recording stops, before the editor opens:
