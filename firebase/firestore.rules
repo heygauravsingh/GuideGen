@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// FlowScribe — Firestore security rules.
+//
+// This file IS the authorization model. There is no server-side code checking
+// permissions; if a rule here is wrong, the data is exposed. Anything not
+// matched below is denied by default.
+//
+// Paste into: Firebase console -> Firestore Database -> Rules -> Publish
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Guides -------------------------------------------------------------
+    // The document ID is the public share slug: /g/{guideId}
+    match /guides/{guideId} {
+
+      // Readable by anyone only once the owner has explicitly published it.
+      // The owner can always read their own guides, published or not.
+      allow read: if resource.data.visibility == 'link'
+                  || (request.auth != null
+                      && request.auth.uid == resource.data.ownerUid);
+
+      // Creating: you must be signed in, you must name yourself as the owner,
+      // and you cannot create something already public beyond 'link'.
+      allow create: if request.auth != null
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.visibility in ['private', 'link']
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() <= 300
+                    && request.resource.data.steps is list
+                    && request.resource.data.steps.size() <= 300;
+
+      // Updating: owner only, and ownership can never be reassigned to
+      // someone else — that check is what stops a guide being stolen.
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.ownerUid
+                    && request.resource.data.ownerUid == resource.data.ownerUid
+                    && request.resource.data.visibility in ['private', 'link']
+                    && request.resource.data.steps is list
+                    && request.resource.data.steps.size() <= 300;
+
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.ownerUid;
+    }
+
+    // ---- User profiles ------------------------------------------------------
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---- Waitlist -----------------------------------------------------------
+    // Write-only drop box. Nobody can read it back, including via the client,
+    // so a scraped API key can't harvest the email list.
+    match /waitlist/{docId} {
+      allow create: if request.resource.data.email is string
+                    && request.resource.data.email.size() <= 200
+                    && request.resource.data.keys().hasOnly(['email', 'note', 'createdAt']);
+      allow read, update, delete: if false;
+    }
+
+    // Everything else: denied (implicit, but stated for the next reader).
+  }
+}

@@ -1,0 +1,81 @@
+/* The recording pill is the only FlowScribe UI that lives on someone else's
+   page, so every declaration is !important and nothing inherits from the host.
+   `all: unset` on children first, then restyle — host resets are ruthless. */
+
+.flowscribe-pill {
+  position: fixed !important;
+  bottom: 22px !important;
+  right: 22px !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 11px !important;
+  padding: 8px 8px 8px 14px !important;
+  background: rgba(16, 23, 41, 0.94) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(12px) !important;
+  backdrop-filter: saturate(180%) blur(12px) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  font: 500 13px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif !important;
+  letter-spacing: -0.005em !important;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.09) inset !important;
+  border: 0 !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+  animation: fs-in 260ms cubic-bezier(0.2, 0, 0.2, 1) both !important;
+}
+
+.flowscribe-pill .fs-dot {
+  width: 9px !important;
+  height: 9px !important;
+  min-width: 9px !important;
+  border-radius: 50% !important;
+  background: #e5484d !important;
+  animation: fs-pulse 1.7s ease-in-out infinite !important;
+  flex: none !important;
+}
+/* brief green tick on each captured step */
+.flowscribe-pill.fs-flash .fs-dot {
+  background: #30a46c !important;
+  animation: none !important;
+  transform: scale(1.25) !important;
+}
+
+.flowscribe-pill .fs-count {
+  white-space: nowrap !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  font-size: 12.5px !important;
+}
+.flowscribe-pill .fs-count b {
+  font-weight: 650 !important;
+  color: #fff !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.flowscribe-pill .fs-stop {
+  all: unset !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  background: #7c3aed !important;
+  color: #fff !important;
+  padding: 7px 12px !important;
+  border-radius: 999px !important;
+  font: 650 12.5px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif !important;
+  transition: background 120ms !important;
+}
+.flowscribe-pill .fs-stop:hover { background: #6d28d9 !important; }
+.flowscribe-pill .fs-stop:active { transform: translateY(1px) !important; }
+
+@keyframes fs-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(229, 72, 77, 0); }
+}
+@keyframes fs-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flowscribe-pill,
+  .flowscribe-pill .fs-dot { animation: none !important; }
+}

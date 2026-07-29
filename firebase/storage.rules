@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// ============================================================================
+// NOT IN USE. Kept for reference only — do not paste this anywhere yet.
+//
+// Firebase Cloud Storage requires the Blaze (card-on-file) plan on new projects,
+// confirmed in the console on 29 July 2026. Screenshots go to Cloudinary instead;
+// see firebase/SETUP.md step 5.
+//
+// This file becomes relevant again if you ever upgrade to Blaze, at which point
+// Firebase Storage is the better option (100 GB/month download vs Cloudinary's
+// 25 shared credits).
+// ============================================================================
+//
+// GuideGen — Cloud Storage security rules.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Step screenshots: users/{uid}/guides/{guideId}/{stepId}.webp
+    match /users/{uid}/guides/{guideId}/{fileName} {
+
+      // Public read, deliberately.
+      //
+      // A guide viewer is not signed in, so they must be able to fetch the
+      // images. Security comes from the paths being unguessable (random uid +
+      // random 20-char guideId + random step id) and from those URLs existing
+      // only inside the guide document, which Firestore rules gate.
+      //
+      // The honest limitation: someone who has already copied an image URL
+      // keeps access even after the guide is unpublished. Same model as Scribe
+      // and Notion. If that ever matters to a customer, the fix is signed URLs
+      // with expiry, which needs a server — don't pretend these rules do it.
+      allow read: if true;
+
+      // Only the signed-in owner may write, only images, max 5 MB each.
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/(webp|png|jpeg)');
+    }
+
+    // Nothing else in the bucket is readable or writable.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

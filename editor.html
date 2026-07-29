@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>FlowScribe — Guide editor</title>
+<link rel="stylesheet" href="editor.css" />
+</head>
+<body>
+  <aside>
+    <div class="brand">
+      <span class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 6h10M4 12h16M4 18h7" />
+        </svg>
+      </span>
+      <h1>FlowScribe</h1>
+    </div>
+
+    <div class="side-actions">
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+        <input id="guideSearch" type="search" placeholder="Search guides" autocomplete="off" />
+      </label>
+    </div>
+
+    <div class="lib-head"><span>Your guides</span><span class="count" id="guideCount"></span></div>
+    <div id="guideList"></div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div class="title-wrap">
+        <input id="guideTitle" class="title" placeholder="Untitled guide" />
+        <div class="submeta" id="submeta"></div>
+      </div>
+
+      <button id="addNote" class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        Note
+      </button>
+
+      <div class="export-wrap">
+        <button id="exportBtn" class="btn brand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />
+          </svg>
+          Export
+        </button>
+        <div id="exportMenu" class="menu">
+          <div class="lbl">Documents</div>
+          <button data-x="html">
+            <span class="ico">🌐</span>
+            <span class="txt">Web page<small>Self-contained .html</small></span>
+          </button>
+          <button data-x="md">
+            <span class="ico">📝</span>
+            <span class="txt">Markdown<small>.md with embedded images</small></span>
+          </button>
+          <button data-x="pdf">
+            <span class="ico">📄</span>
+            <span class="txt">PDF document<small>Title page + steps</small></span>
+          </button>
+          <button data-x="pptx">
+            <span class="ico">📊</span>
+            <span class="txt">PowerPoint<small>One slide per step</small></span>
+          </button>
+          <div class="sep"></div>
+          <div class="lbl">Video</div>
+          <button data-x="video">
+            <span class="ico">🎬</span>
+            <span class="txt">Narrated video<small>1080p .webm, offline voice</small></span>
+          </button>
+        </div>
+      </div>
+
+      <button id="deleteGuide" class="btn danger icon" title="Delete this guide" aria-label="Delete this guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+        </svg>
+      </button>
+    </div>
+
+    <div id="content" class="wrap"></div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="overlay" class="overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="lib/jspdf.umd.min.js"></script>
+  <script src="lib/pptxgen.bundle.js"></script>
+  <script src="render.js"></script>
+  <script src="tts.js"></script>
+  <script src="exporters.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

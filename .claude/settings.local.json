@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sSL -m 120 -o mintplex.tgz https://registry.npmjs.org/@mintplex-labs/piper-tts-web/-/piper-tts-web-1.0.4.tgz)",
+      "Bash(mkdir -p mintplex)",
+      "Bash(tar xzf *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{const j=JSON.parse\\(s\\);console.log\\({sr:j.audio.sample_rate,espeak:j.espeak,inference:j.inference,speakers:Object.keys\\(j.speaker_id_map||{}\\).length,num_symbols:j.num_symbols}\\);}\\)')",
+      "Bash(python3 -)",
+      "Bash(pkill -f \"http.server 8777\")",
+      "Bash(node --check exporters.js)",
+      "Bash(node --check tts.js)",
+      "Bash(node --check editor.js)",
+      "Bash(node -e 'JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"manifest.json\",\"utf8\"\\)\\);console.log\\(\"manifest.json valid\"\\)')",
+      "Bash(awk '{print $5\"\\\\t\"$9}')",
+      "WebFetch(domain:scribehow.com)",
+      "Bash(node --check render.js)",
+      "Bash(node --check background.js)",
+      "Bash(node --check recorder.js)"
+    ]
+  }
+}

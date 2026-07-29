@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --brand: #7c3aed;
+    --brand-2: #6d28d9;
+    --rec: #e5484d;
+    --panel: #ffffff;
+    --panel-2: #f4f5f8;
+    --ink: #101729;
+    --ink-2: #3d4657;
+    --muted: #7b8698;
+    --line: #e6e9f0;
+    --r: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --brand: #8b5cf6; --brand-2: #7c3aed; --rec: #f16a6f;
+      --panel: #151924; --panel-2: #1e2431;
+      --ink: #e9ecf3; --ink-2: #b9c1d1; --muted: #8a94a6; --line: #262c3a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    width: 296px; margin: 0;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    color: var(--ink); background: var(--panel);
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex; align-items: center; gap: 9px;
+    padding: 14px 16px 12px;
+  }
+  header .logo {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(140deg, var(--brand), #4c1d95);
+    display: grid; place-items: center; color: #fff; flex: none;
+  }
+  header .logo svg { width: 15px; height: 15px; }
+  header h1 { font-size: 14.5px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+
+  .card {
+    margin: 0 12px; padding: 14px;
+    background: var(--panel-2); border-radius: var(--r);
+    display: flex; align-items: center; gap: 11px;
+  }
+  .card .pip {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--muted); flex: none;
+  }
+  body.rec .card .pip { background: var(--rec); animation: pulse 1.6s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.5); }
+    50% { opacity: 0.75; box-shadow: 0 0 0 5px rgba(229, 72, 77, 0); }
+  }
+  .card .txt { min-width: 0; }
+  .card .txt b { display: block; font-size: 13px; font-weight: 650; }
+  .card .txt small { color: var(--muted); font-size: 11.5px; }
+
+  .actions { padding: 12px; display: grid; gap: 7px; }
+  button {
+    width: 100%; border: 1px solid transparent; border-radius: var(--r);
+    padding: 11px 12px; font: inherit; font-size: 13.5px; font-weight: 650;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 120ms, transform 120ms;
+  }
+  button:active { transform: translateY(1px); }
+  button svg { width: 15px; height: 15px; flex: none; }
+  .primary { background: var(--brand); color: #fff; }
+  .primary:hover { background: var(--brand-2); }
+  body.rec .primary { background: var(--rec); }
+  body.rec .primary:hover { background: #cf3a3f; }
+  .ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
+  .ghost:hover { background: var(--panel-2); }
+
+  .hint {
+    font-size: 11px; color: var(--muted); line-height: 1.5;
+    padding: 2px 16px 14px; margin: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <span class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 6h10M4 12h16M4 18h7" />
+      </svg>
+    </span>
+    <h1>FlowScribe</h1>
+  </header>
+
+  <div class="card">
+    <span class="pip"></span>
+    <span class="txt">
+      <b id="statusTitle">Ready to record</b>
+      <small id="statusSub">Every click becomes a step</small>
+    </span>
+  </div>
+
+  <div class="actions">
+    <button id="toggle" class="primary">
+      <svg id="toggleIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <circle cx="12" cy="12" r="7" />
+      </svg>
+      <span id="toggleLabel">Start recording</span>
+    </button>
+    <button id="library" class="ghost">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 5h7l2 2h7v12H4zM4 9h16" />
+      </svg>
+      Guide library
+    </button>
+  </div>
+
+  <p class="hint" id="hint">
+    Tip: if a tab was open before you installed FlowScribe, reload it once before recording.
+  </p>
+
+  <script src="popup.js"></script>
+</body>
+</html>

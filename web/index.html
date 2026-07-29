@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>GuideGen</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: #f5f6f9; color: #101729;
+  }
+  .card { text-align: center; padding: 40px 28px; }
+  .mark {
+    width: 46px; height: 46px; border-radius: 13px; margin: 0 auto 18px;
+    background: linear-gradient(140deg, #7c3aed, #4c1d95);
+    display: grid; place-items: center; color: #fff;
+  }
+  .mark svg { width: 24px; height: 24px; }
+  h1 { font-size: 25px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  p { margin: 0; color: #7b8698; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d1017; color: #e9ecf3; }
+    p { color: #8a94a6; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 6h10M4 12h16M4 18h7" />
+      </svg>
+    </div>
+    <h1>GuideGen</h1>
+    <p>Turn any workflow into a step-by-step guide.</p>
+  </div>
+</body>
+</html>
