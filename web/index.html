@@ -3,40 +3,280 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="robots" content="noindex" />
-<title>GuideGen</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    margin: 0; min-height: 100vh; display: grid; place-items: center;
-    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-    background: #f5f6f9; color: #101729;
-  }
-  .card { text-align: center; padding: 40px 28px; }
-  .mark {
-    width: 46px; height: 46px; border-radius: 13px; margin: 0 auto 18px;
-    background: linear-gradient(140deg, #7c3aed, #4c1d95);
-    display: grid; place-items: center; color: #fff;
-  }
-  .mark svg { width: 24px; height: 24px; }
-  h1 { font-size: 25px; margin: 0 0 6px; letter-spacing: -0.02em; }
-  p { margin: 0; color: #7b8698; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #0d1017; color: #e9ecf3; }
-    p { color: #8a94a6; }
-  }
-</style>
+<title>GuideGen — turn any workflow into a step-by-step guide</title>
+<meta name="description" content="Record a process once and get a finished step-by-step guide: annotated screenshots, written instructions, and exports to HTML, PDF, PowerPoint and narrated video. Runs entirely on your machine." />
+<meta property="og:title" content="GuideGen — turn any workflow into a step-by-step guide" />
+<meta property="og:description" content="Document a process by doing it once. Everything runs on your machine." />
+<meta property="og:type" content="website" />
+<link rel="stylesheet" href="/assets/site.css" />
 </head>
 <body>
-  <div class="card">
-    <div class="mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 6h10M4 12h16M4 18h7" />
-      </svg>
-    </div>
-    <h1>GuideGen</h1>
-    <p>Turn any workflow into a step-by-step guide.</p>
+
+<header class="site">
+  <div class="row">
+    <a class="brand" href="/">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
+      <span>GuideGen</span>
+    </a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#faq">FAQ</a>
+      <a href="#get" class="btn brand-btn" style="padding:8px 14px;font-size:14px">Get early access</a>
+    </nav>
   </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap">
+      <span class="pill">Free early access</span>
+      <h1 class="big">Document any process by doing it once</h1>
+      <p class="lede">
+        Turn GuideGen on, click through the workflow you want to explain, press stop. You get a
+        finished step-by-step guide — an annotated screenshot for every click, with the instruction
+        already written.
+      </p>
+      <div class="cta-row">
+        <a href="#get" class="btn brand-btn lg">Get early access</a>
+        <a href="#how" class="btn lg">See how it works</a>
+      </div>
+      <p class="cta-note">Chrome, Edge, Brave and Arc · No account needed to record</p>
+    </div>
+  </section>
+
+  <section id="how" class="tint">
+    <div class="wrap">
+      <h2 class="sec">Three steps, and the writing is done for you</h2>
+      <p class="sec-lede">
+        Most documentation dies because writing it is tedious. GuideGen removes the writing.
+      </p>
+      <div class="steps">
+        <div>
+          <h3>Record</h3>
+          <p>Press start and do the task exactly as you normally would. A small pill in the corner
+          counts the steps as you go.</p>
+        </div>
+        <div>
+          <h3>It writes itself</h3>
+          <p>Every click becomes a step with its own screenshot, the target highlighted and numbered,
+          and a sentence describing the action — <em>Click "Rider Management"</em>, <em>Type "Demo"
+          in the "Search" field</em>, <em>Press Enter</em>.</p>
+        </div>
+        <div>
+          <h3>Tidy and export</h3>
+          <p>Fix any wording, reorder or delete steps, hide anything sensitive, then export to the
+          format your team actually reads.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="sec">What you get</h2>
+      <p class="sec-lede">Not a screen recorder. A document you can edit, and a guide someone can follow.</p>
+      <div class="grid">
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h11M4 17h7"/></svg></span>
+          <h3>Instructions, written for you</h3>
+          <p>Step text comes from the control you actually clicked — its label and its role — not a
+          generic "click here". Fields, dropdowns, checkboxes and keystrokes each read the way a
+          person would write them.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M3 16l4-3 3 2 4-4 7 5"/></svg></span>
+          <h3>Screenshots that make sense</h3>
+          <p>Each step is captured at the moment you clicked, with the target lifted out and
+          numbered. Guides crop to the part of the page that matters instead of shrinking the whole
+          window until nobody can read it.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 12h8"/></svg></span>
+          <h3>Redaction that actually redacts</h3>
+          <p>Drag a box over anything sensitive and it is pixelated in every export, permanently.
+          Password fields are masked the moment they are captured.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg></span>
+          <h3>Five export formats</h3>
+          <p>Send it as a web page, drop it in your wiki as Markdown, hand a PDF to someone in
+          training, present the PowerPoint, or share a narrated video.</p>
+          <div class="formats" style="margin-top:13px">
+            <span>.html</span><span>.md</span><span>.pdf</span><span>.pptx</span><span>.webm</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M19 6a8 8 0 0 1 0 12"/></svg></span>
+          <h3>Narration without a cloud</h3>
+          <p>The video export can speak each step aloud in a natural voice. The speech is synthesized
+          on your own computer, so the text of your internal processes is never sent to a
+          text-to-speech service.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <h3>Nothing leaves your machine</h3>
+          <p>No account to record. No server involved. Your screenshots are stored in your own
+          browser and are never uploaded — unless you deliberately publish a guide to get a
+          shareable link.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy" class="tint">
+    <div class="wrap narrow">
+      <h2 class="sec">Built for the screens you can't put in the cloud</h2>
+      <p class="sec-lede">
+        The processes most worth documenting tend to live in admin panels full of real customer data.
+        That is exactly the content people are told not to upload to a third-party tool.
+      </p>
+      <p style="color:var(--muted)">
+        GuideGen records locally and exports locally. Recording needs no account, every export format
+        is generated inside your browser, and even the voiceover is produced on your own machine.
+        If you never publish a guide, we never receive anything — there is nowhere for it to go.
+      </p>
+      <p style="color:var(--muted)">
+        Publishing a guide for a shareable link is a separate, deliberate action, and only that guide
+        is uploaded. Full detail in the <a href="/privacy">privacy policy</a>.
+      </p>
+    </div>
+  </section>
+
+  <section id="get">
+    <div class="wrap narrow">
+      <h2 class="sec">Get early access</h2>
+      <p class="sec-lede">
+        GuideGen is in review with the Chrome Web Store. Leave your email and I'll send the install
+        link the moment it's approved — and tell you when shareable links and team workspaces land.
+      </p>
+
+      <form class="wl" id="wl-form" novalidate>
+        <input type="email" id="wl-email" placeholder="you@company.com" autocomplete="email"
+               aria-label="Email address" required />
+        <button class="btn brand-btn" type="submit" id="wl-btn">Notify me</button>
+      </form>
+      <div class="wl-msg" id="wl-msg" role="status" aria-live="polite"></div>
+
+      <p style="color:var(--faint);font-size:13.5px;margin-top:18px">
+        One email when it's ready, one when sharing ships. Nothing else, and your address goes
+        nowhere near anyone else.
+      </p>
+    </div>
+  </section>
+
+  <section id="faq" class="tint">
+    <div class="wrap">
+      <h2 class="sec">Questions worth asking first</h2>
+      <div class="faq">
+        <details>
+          <summary>Does it work outside the browser?</summary>
+          <p>No. GuideGen documents web applications — anything you can open in a Chromium browser.
+          It cannot capture native desktop software.</p>
+        </details>
+        <details>
+          <summary>Can I share a guide as a link?</summary>
+          <p>Shareable links are the feature being built right now. Today you export a
+          self-contained HTML file — a single file with the images embedded — which you can drop
+          into Google Drive, Notion, SharePoint or an email. Join the list above and I'll tell you
+          when links arrive.</p>
+        </details>
+        <details>
+          <summary>What languages does it handle?</summary>
+          <p>Step descriptions are generated in English at the moment. It will happily record an
+          interface in any language, but the sentences it writes around it are English.</p>
+        </details>
+        <details>
+          <summary>Why does it ask for access to all websites?</summary>
+          <p>Because it cannot know in advance which application you'll want to document — it might
+          be any internal dashboard. The recorder does nothing until you press start, and it reads
+          only the label and position of the element you click.</p>
+        </details>
+        <details>
+          <summary>Is it really free?</summary>
+          <p>Yes, and with no card required. Paid plans may appear later for team features; if that
+          happens, people already using it get notice and a choice rather than a surprise bill.</p>
+        </details>
+        <details>
+          <summary>How big is the install?</summary>
+          <p>Around 68 MB, which is unusual for an extension. Almost all of it is the neural voice
+          model that lets narration run offline instead of sending your text to a server.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap row">
+    <span>© 2026 GuideGen</span>
+    <span class="spacer"></span>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="mailto:gaurav.singh@uengage.in">Contact</a>
+  </div>
+</footer>
+
+<script>
+// Waitlist -> Firestore REST. No SDK, no bundler, nothing external loaded.
+// The rules allow create-only on this collection and forbid reading it back, so a
+// public API key can't be used to harvest the list.
+(function () {
+  var API_KEY = "AIzaSyCihDiLQ51V0C8DS07WTl70FOpC3ACkfJY";
+  var PROJECT = "guidegen-1f938";
+  var ENDPOINT = "https://firestore.googleapis.com/v1/projects/" + PROJECT +
+                 "/databases/(default)/documents/waitlist?key=" + API_KEY;
+
+  var form = document.getElementById("wl-form");
+  var email = document.getElementById("wl-email");
+  var btn = document.getElementById("wl-btn");
+  var msg = document.getElementById("wl-msg");
+
+  function say(text, kind) {
+    msg.textContent = text;
+    msg.className = "wl-msg" + (kind ? " " + kind : "");
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var value = (email.value || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) {
+      say("That doesn't look like an email address.", "err");
+      email.focus();
+      return;
+    }
+    btn.disabled = true;
+    say("Adding you…");
+
+    fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fields: {
+          email: { stringValue: value },
+          note: { stringValue: "landing" },
+          createdAt: { timestampValue: new Date().toISOString() }
+        }
+      })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("status " + r.status);
+      form.style.display = "none";
+      say("You're on the list — I'll email " + value + " when it's ready.", "ok");
+    }).catch(function () {
+      btn.disabled = false;
+      say("Couldn't save that just now. Email gaurav.singh@uengage.in and I'll add you by hand.", "err");
+    });
+  });
+})();
+</script>
 </body>
 </html>

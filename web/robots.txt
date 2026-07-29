@@ -1,0 +1,7 @@
+# Published guides are private-by-link and must never be indexed. Users put
+# internal SOPs behind these URLs.
+User-agent: *
+Disallow: /g/
+Disallow: /app
+
+Sitemap: https://guide-gen.vercel.app/sitemap.xml

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — GuideGen</title>
+<meta name="description" content="How GuideGen handles your data. Guides stay on your machine unless you choose to publish them." />
+<link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+<header class="site">
+  <div class="row">
+    <a class="brand" href="/">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
+      <span>GuideGen</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap narrow doc">
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated 29 July 2026</p>
+
+  <div class="callout">
+    <p><strong>The short version.</strong> The GuideGen browser extension records your workflow and
+    keeps everything on your own computer. Nothing is uploaded unless you deliberately publish a
+    guide to get a shareable link. If you never publish, we never receive your screenshots.</p>
+  </div>
+
+  <p>This policy covers the GuideGen browser extension and the website at
+  <code>guide-gen.vercel.app</code>. It explains what we hold, why, and how to get rid of it.</p>
+
+  <h2>1. The extension: local by default</h2>
+
+  <p>When you record a guide, the extension saves the following to your browser's own extension
+  storage, on your device:</p>
+  <ul>
+    <li>Screenshots of the pages you were on while recording</li>
+    <li>The step description generated for each action, which you can edit</li>
+    <li>The URL and page title of each step</li>
+    <li>The position and size of the element you clicked, used to draw the highlight</li>
+    <li>Your guide titles and step order</li>
+  </ul>
+
+  <p>While a guide is unpublished, none of this leaves your machine. The extension makes no
+  analytics, telemetry or tracking requests at any point.</p>
+
+  <p>Exports — HTML, Markdown, PDF, PowerPoint and video — are generated inside your browser and
+  saved straight to your downloads folder. We never see them. Video narration is synthesized on your
+  own machine by a speech engine bundled in the extension, so the text of your internal processes is
+  never sent to a text-to-speech service.</p>
+
+  <h2>2. What changes when you publish a guide</h2>
+
+  <p>Publishing is an explicit action that creates a shareable link. Only then do we receive:</p>
+  <ul>
+    <li><strong>The guide's screenshots</strong>, uploaded to our image host so a recipient's browser can load them</li>
+    <li><strong>The guide's text and structure</strong> — step descriptions, ordering, titles, and the page URLs and titles recorded with each step</li>
+    <li><strong>Your account identifier</strong>, so the guide belongs to you and only you can change it</li>
+  </ul>
+
+  <p>Unpublished guides are never uploaded. Publishing one guide does not upload the others.</p>
+
+  <div class="callout">
+    <p><strong>Screenshots can contain other people's information.</strong> A screenshot captures
+    whatever was on screen, which may include customer names, addresses, order details or anything
+    else in the application you were documenting.</p>
+    <p>The extension provides a redaction tool that pixelates selected regions permanently, before
+    anything is uploaded, and password fields are masked at capture time. Please redact before
+    publishing. You decide what to record and what to share, and you remain responsible for it under
+    any data-protection obligations that apply to you.</p>
+  </div>
+
+  <h2>3. Account data</h2>
+
+  <p>To publish guides you need an account. We store your email address, an internal user ID, and
+  the timestamps of account creation and sign-in. We do not ask for your name, phone number,
+  company, or payment details. Your password is handled by Google Firebase Authentication and is
+  never visible to us.</p>
+
+  <h2>4. Who processes your data</h2>
+
+  <p>We use two service providers. We do not sell, rent or share your data with anyone else.</p>
+
+  <table>
+    <tr><th>Provider</th><th>What they hold</th><th>Where</th></tr>
+    <tr>
+      <td>Google Firebase</td>
+      <td>Account records and published guide text/structure</td>
+      <td>United States</td>
+    </tr>
+    <tr>
+      <td>Cloudinary</td>
+      <td>Screenshot image files of published guides</td>
+      <td>Global content delivery network</td>
+    </tr>
+  </table>
+
+  <p>If you are in a region with data-transfer rules such as the UK, EU or India, note that
+  publishing a guide involves transferring that guide outside your region. If that is a problem for
+  your organisation, use the extension without publishing — every export format works entirely
+  offline.</p>
+
+  <h2>5. Public links</h2>
+
+  <p>A published guide gets a link containing a long random identifier that cannot practically be
+  guessed. Anyone holding that link can view the guide without signing in — that is the point of it
+  — so treat it as you would any shared document link. Guide pages carry a <code>noindex</code>
+  instruction so search engines do not list them.</p>
+
+  <p>You can unpublish a guide at any time, which immediately stops the link from working.</p>
+
+  <h2>6. No tracking</h2>
+
+  <p>This website sets no advertising or analytics cookies and runs no third-party trackers. If you
+  sign in, your browser stores a session locally so you stay signed in. That is all.</p>
+
+  <h2>7. Retention and deletion</h2>
+
+  <ul>
+    <li><strong>Unpublish a guide</strong> and its link stops working immediately.</li>
+    <li><strong>Delete a guide</strong> and its record is removed from our database immediately.</li>
+    <li><strong>Delete a guide's images</strong> — image files are removed from our image host on
+      request today; email us and we will action it. Automatic removal on deletion is being added.</li>
+    <li><strong>Delete your account</strong> — email us and we will remove your account, all your
+      published guides and their images within 30 days.</li>
+    <li><strong>Local guides</strong> are deleted from the extension itself, or by uninstalling it,
+      which discards its storage. No copy exists elsewhere.</li>
+  </ul>
+
+  <h2>8. Your rights</h2>
+
+  <p>Depending on where you live, you may have the right to access, correct, export or delete your
+  data, or to object to our handling of it. Email us and we will help. You may also complain to
+  your local data-protection authority.</p>
+
+  <h2>9. Permissions the extension requests</h2>
+
+  <p>The extension asks for access to all websites because it cannot know in advance which
+  application you will want to document — it may be any internal dashboard or tool. The recorder
+  does nothing unless you have explicitly started a recording, and it reads only the label and
+  on-screen position of the element you click.</p>
+
+  <h2>10. Children</h2>
+
+  <p>GuideGen is a workplace documentation tool and is not directed at anyone under 16.</p>
+
+  <h2>11. Changes</h2>
+
+  <p>If we add anything that changes what we collect, this page will be updated before that feature
+  ships, and material changes will be announced to registered users by email.</p>
+
+  <h2>12. Contact</h2>
+
+  <p>GuideGen is operated by Gaurav Singh.<br />
+  Email <a href="mailto:gaurav.singh@uengage.in">gaurav.singh@uengage.in</a> for anything in this
+  policy, including data deletion requests.</p>
+</main>
+
+<footer class="site">
+  <div class="wrap row">
+    <span>© 2026 GuideGen</span>
+    <span class="spacer"></span>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="mailto:gaurav.singh@uengage.in">Contact</a>
+  </div>
+</footer>
+</body>
+</html>

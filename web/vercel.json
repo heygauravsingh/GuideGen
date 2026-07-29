@@ -1,8 +1,16 @@
 {
   "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/g/:id", "destination": "/g.html" }
+  ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/g/(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/app",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
     }
   ]
