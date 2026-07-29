@@ -1,5 +1,80 @@
 # GuideGen — build plan under real constraints
 
+# TARGET ARCHITECTURE — agreed 30 July 2026
+
+This supersedes the phase framing further down. Decided by Gaurav; the reasoning and the
+constraints are recorded so neither of us re-litigates it.
+
+## The flow
+
+1. User installs the extension.
+2. Clicking the extension requires **login/signup first**.
+3. Once authenticated the popup offers **Start recording** and **Guide library**.
+4. User records. Steps and screenshots are written to `chrome.storage.local` as now.
+5. On stop, the **guide editor opens on the authenticated dashboard** (`/app`), not in the
+   extension. Assets stay local — nothing is uploaded.
+6. Editing and all five exports run on the **user's own device**. No server compute, ever.
+7. **Publish** is the only thing that uploads, and only that guide.
+8. A published guide can be edited and exported from the dashboard **on any device**.
+
+## Why this is better than what exists now
+
+One editor instead of two. Today `editor.html` and `/app` both edit guides and have to be
+kept in parity by hand — that drift already produced a real bug (dialog inputs styled in
+`site.css` but not `editor.css`). Moving the editor to the web retires `editor.html`
+entirely: `render.js` and `exporters.js` are pure client-side and run identically there.
+
+## The bridge — the one genuinely new piece
+
+A page at `guide-gen.vercel.app` cannot read `chrome.storage.local`. Different origin,
+different sandbox. The link is **`externally_connectable`** in the manifest: the dashboard
+calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)` and the background worker answers.
+
+- Extension id is known: `pifkelcohogbbocldnkjlfiagjigikjl`
+- Manifest needs `"externally_connectable": { "matches": ["https://guide-gen.vercel.app/*"] }`
+- **Fetch step images one at a time, lazily.** Do not send a whole guide in one message —
+  a 10-step guide of full-res PNGs is 10–30MB and `sendMessage` will choke. One step per
+  message, requested as the editor scrolls.
+- This makes **WebP + downscale at capture time mandatory**, not an optimisation. It was
+  already on the list for storage reasons; now the bridge depends on it.
+
+## Constraints that follow — state these to users, don't discover them later
+
+1. **Unpublished guides are device-local.** They live in that browser's extension storage,
+   so they cannot be opened from another device. This is a direct consequence of "nothing
+   syncs until publish" — it is the design working, not a bug. Published guides are the ones
+   that travel.
+2. **The dashboard needs the extension installed** to edit an *unpublished* guide, because
+   that's where the bytes are. Editing a *published* guide needs nothing but a login.
+3. **Redaction on a published guide is additive.** You can pixelate more of a baked image;
+   you cannot un-redact, and you cannot move the highlight ring or re-crop, because those
+   were burned in at publish. Acceptable — and it means no unredacted original is ever
+   uploaded, so the redaction guarantee survives intact.
+4. **Auth-gating the extension changes the store submission.** v1.1 must declare
+   *Authentication information* at minimum, plus *Website content* and *Web history* once
+   publishing ships. "No account needed to record" comes off the landing page, the FAQ and
+   the store description — it will no longer be true.
+5. **Guides recorded before auth-gating** must still be readable after the update. Don't
+   change the `fs_*` storage keys.
+
+## Work breakdown
+
+| # | Piece | Notes |
+|---|---|---|
+| 1 | WebP + downscale at capture | `background.js`. Prerequisite for the bridge. |
+| 2 | Auth in the popup | Reuse `sync.js` auth; popup gates on session. |
+| 3 | `externally_connectable` + message handler | `manifest.json` + `background.js`. Per-step image fetch. |
+| 4 | Dashboard editor | Copy `render.js` + `exporters.js` to `web/assets/`; port the step-card UI from `editor.js`. |
+| 5 | Retire `editor.html` | Redirect to `/app`. Removes the parity problem for good. |
+| 6 | Update-in-place publish | PATCH the existing doc so a shared link never goes stale. |
+| 7 | Store v1.1 | New data declaration, revised privacy policy and listing copy. |
+
+Keep `render.js`/`exporters.js` single-source: one canonical copy in the repo root, copied
+into `web/assets/` by a small script before commit. Two hand-maintained copies is exactly
+how the last drift bug happened.
+
+---
+
 > ## Where things actually stand — 30 July 2026
 >
 > This plan was written as phases. In practice Phases 0–2 were all built in one push, so
