@@ -200,6 +200,7 @@
           .catch(function (e) { b.disabled = false; dashSay(e.message, "err"); });
       }, true));
     }
+    acts.appendChild(mk("Edit", function () { openEditor(d, g); }));
     acts.appendChild(mk("Delete", function (b) {
       if (!window.confirm('Delete "' + (g.title || "Untitled guide") +
           '"? Anyone with its link will lose access. This cannot be undone.')) return;
@@ -209,6 +210,76 @@
     }));
     return d;
   }
+
+  // Editing replaces the row in place. Title and step text only: the images were
+  // rendered with annotations baked in when the guide was published, so changing
+  // them means re-publishing from the extension.
+  function openEditor(rowEl, g) {
+    var steps = Array.isArray(g.steps) ? g.steps.slice() : [];
+    var wrap = document.createElement("div");
+    wrap.className = "guide-row editing";
+
+    var html =
+      '<div class="edit-panel">' +
+      '<label class="lbl" for="ed-title">Guide title</label>' +
+      '<input type="text" id="ed-title" />' +
+      '<label class="lbl">Steps</label>';
+    steps.forEach(function (st, i) {
+      html +=
+        '<div class="step-edit' + (st.type === "note" ? " is-note" : "") + '">' +
+        '<div class="n">' + (i + 1) + "</div>" +
+        '<div class="grow"><textarea rows="1" data-i="' + i + '"></textarea></div>' +
+        "</div>";
+    });
+    html +=
+      '<p class="warn">Screenshots can\'t be changed here — they were rendered when you ' +
+      "published. To change an image, edit the guide in the extension and publish again.</p>" +
+      '<div class="row"><button class="btn" id="ed-cancel">Cancel</button>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn brand-btn" id="ed-save">Save changes</button></div>' +
+      '<p class="msg" id="ed-msg" role="status" aria-live="polite"></p>' +
+      "</div>";
+    wrap.innerHTML = html;
+    rowEl.replaceWith(wrap);
+
+    wrap.querySelector("#ed-title").value = g.title || "";
+    var areas = [].slice.call(wrap.querySelectorAll("textarea"));
+    areas.forEach(function (ta, i) {
+      ta.value = steps[i] && steps[i].text ? steps[i].text : "";
+      grow(ta);
+      ta.addEventListener("input", function () { grow(ta); });
+    });
+    wrap.querySelector("#ed-title").focus();
+
+    function grow(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }
+    function note(t, kind) {
+      var m = wrap.querySelector("#ed-msg");
+      m.textContent = t || "";
+      m.className = "msg" + (kind ? " " + kind : "");
+    }
+
+    wrap.querySelector("#ed-cancel").onclick = loadGuides;
+    wrap.querySelector("#ed-save").onclick = function () {
+      var title = wrap.querySelector("#ed-title").value.trim();
+      if (!title) return note("Give the guide a title.", "err");
+      var next = steps.map(function (st, i) {
+        var copy = {};
+        Object.keys(st).forEach(function (k) { copy[k] = st[k]; });
+        copy.text = areas[i].value.trim();
+        return copy;
+      });
+      wrap.querySelector("#ed-save").disabled = true;
+      note("Saving…");
+      GG.updateGuide(g.id, { title: title, steps: next })
+        .then(function () { loadGuides(); toastish("Changes saved"); })
+        .catch(function (e) {
+          wrap.querySelector("#ed-save").disabled = false;
+          note(e.message, "err");
+        });
+    };
+  }
+
+  function toastish(text) { dashSay(text); setTimeout(function () { dashSay(""); }, 2200); }
 
   function mk(label, fn, primary) {
     var b = document.createElement("button");

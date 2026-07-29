@@ -413,3 +413,35 @@ footer.site .spacer { flex: 1; }
   .vstep figure { border-color: #ccc; }
   a { color: #000; text-decoration: none; }
 }
+
+/* ---------- inline guide editing ---------- */
+.guide-row.editing { display: block; }
+.edit-panel { margin-top: 4px; }
+.edit-panel .lbl {
+  display: block; font-size: 12px; font-weight: 650; color: var(--ink-2);
+  margin: 14px 0 6px;
+}
+.edit-panel input[type=text], .edit-panel textarea {
+  width: 100%; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  border-radius: var(--r-sm); padding: 10px 12px;
+  font-family: inherit; font-size: 14.5px; line-height: 1.5;
+  outline: 0; resize: none; overflow: hidden;
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+.edit-panel input[type=text]:focus, .edit-panel textarea:focus {
+  border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring);
+}
+.edit-panel .step-edit { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 9px; }
+.edit-panel .step-edit .n {
+  width: 25px; height: 25px; min-width: 25px; border-radius: 50%;
+  background: var(--brand); color: #fff; font-size: 12px; font-weight: 700;
+  display: grid; place-items: center; margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.edit-panel .step-edit.is-note .n { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.edit-panel .step-edit .grow { flex: 1; min-width: 0; }
+.edit-panel .row { display: flex; gap: 8px; margin-top: 16px; }
+.edit-panel .row .spacer { flex: 1; }
+.edit-panel .warn {
+  font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.5;
+}
