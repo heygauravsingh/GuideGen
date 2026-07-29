@@ -10,6 +10,6 @@
 
 # Store screenshot working folders — the originals aren't worth versioning
 store/screenshots-raw/*
-store/screenshots-out/*
 !store/screenshots-raw/.gitkeep
-!store/screenshots-out/.gitkeep
+# generated store screenshots ARE worth versioning — they're the listing assets
+!store/screenshots-out/*.png

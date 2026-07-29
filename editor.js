@@ -173,7 +173,11 @@
       return;
     }
     for (let i = 0; i < steps.length; i++) {
-      els.content.appendChild(await renderStepCard(steps[i], i));
+      const card = await renderStepCard(steps[i], i);
+      els.content.appendChild(card);
+      // size the textarea only once it's laid out in the document
+      const ta = card.querySelector("textarea");
+      if (ta) autoGrow(ta);
     }
   }
 
@@ -216,7 +220,10 @@
     ta.spellcheck = true;
     ta.setAttribute("aria-label", "Step " + (i + 1) + " description");
     content.appendChild(ta);
-    requestAnimationFrame(() => autoGrow(ta));
+    // NB: autoGrow is called by renderMain *after* the card is in the document.
+    // Doing it here races the `await renderStep()` below — the callback fires
+    // while the card is still detached, scrollHeight reads 0, and the step text
+    // collapses to nothing.
     ta.addEventListener("input", () => {
       autoGrow(ta);
       step.text = ta.value;
@@ -431,7 +438,7 @@
     renderSidebar();
     await renderMain();
     const last = els.content.querySelector(".step:last-of-type textarea");
-    if (last) { last.focus(); last.select(); }
+    if (last) { autoGrow(last); last.focus(); last.select(); }
   }
 
   async function selectGuide(id) {
