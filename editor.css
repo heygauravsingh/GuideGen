@@ -440,7 +440,7 @@ main { flex: 1; height: 100vh; overflow-y: auto; }
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
   padding: 24px;
-  width: 460px; max-width: 100%;
+  width: 420px; max-width: 100%;
   box-shadow: var(--sh-3);
   animation: pop var(--med) both;
 }
@@ -449,8 +449,52 @@ main { flex: 1; height: 100vh; overflow-y: auto; }
   to { opacity: 1; transform: none; }
 }
 .modal h3 { margin: 0 0 8px; font-size: 18px; font-weight: 680; letter-spacing: -0.015em; }
-.modal p { color: var(--muted); margin: 0 0 18px; line-height: 1.6; }
-.modal .field { margin: 14px 0; }
+.modal p { color: var(--muted); margin: 0 0 16px; line-height: 1.55; font-size: 13.5px; }
+.modal .field { margin: 0 0 13px; }
+
+/* Text inputs inside a dialog. These were unstyled — raw white boxes on a dark
+   panel — because the equivalent rules only existed in the website's stylesheet. */
+.modal .field input,
+.modal input[type="email"],
+.modal input[type="password"],
+.modal input[type="text"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: 0;
+  transition: border-color var(--fast), box-shadow var(--fast), background var(--fast);
+}
+.modal .field input::placeholder { color: var(--faint); }
+.modal .field input:hover:not(:focus) { border-color: var(--muted); }
+.modal .field input:focus {
+  border-color: var(--brand);
+  background: var(--panel);
+  box-shadow: 0 0 0 3px var(--brand-ring);
+}
+.modal .field input[readonly] {
+  background: var(--panel-3);
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: text;
+}
+.modal .field input[readonly]:focus { box-shadow: 0 0 0 3px var(--brand-ring); }
+
+/* the "Already have an account? Sign in" row */
+.modal .alt {
+  text-align: center; margin-top: 15px;
+  font-size: 12.5px; color: var(--muted);
+}
+.modal .alt button {
+  background: none; border: 0; padding: 0; margin-left: 3px;
+  font: inherit; font-weight: 650; color: var(--brand);
+  cursor: pointer;
+}
+.modal .alt button:hover { text-decoration: underline; }
 .modal .field-label {
   display: block; font-size: 12px; font-weight: 650;
   color: var(--ink-2); margin-bottom: 7px;
@@ -501,7 +545,7 @@ main { flex: 1; height: 100vh; overflow-y: auto; }
   box-shadow: var(--sh-1);
 }
 
-.modal .row { display: flex; gap: 8px; margin-top: 22px; justify-content: flex-end; }
+.modal .row { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; flex-wrap: wrap; }
 .progress {
   height: 6px; background: var(--panel-3);
   border-radius: 999px; overflow: hidden; margin: 16px 0 10px;

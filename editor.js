@@ -697,10 +697,9 @@
         '<div class="row"><button class="btn" id="sh-cancel">Cancel</button>' +
         '<button class="btn brand" id="sh-go">' +
         (mode === "signup" ? "Create account" : "Sign in") + "</button></div>" +
-        '<div class="hint" style="text-align:center;margin-top:14px">' +
-        (mode === "signup" ? "Already have an account? " : "New here? ") +
-        '<button id="sh-toggle" style="background:none;border:0;color:var(--brand);' +
-        'font:inherit;font-weight:600;cursor:pointer;padding:0">' +
+        '<div class="alt">' +
+        (mode === "signup" ? "Already have an account?" : "New here?") +
+        '<button id="sh-toggle">' +
         (mode === "signup" ? "Sign in" : "Create one") + "</button></div>"
       );
       document.getElementById("sh-toggle").onclick = () => {

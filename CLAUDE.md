@@ -173,6 +173,12 @@ the card is still detached, `scrollHeight` reads 0, and the step text collapses 
 invisible zero-height box. `renderMain` calls `autoGrow` after `appendChild`. This only
 showed up on the *first* card to decode an image, which made it look intermittent.
 
+**The extension and the website do not share CSS**, and they can't — `editor.css` ships in the
+package while `web/assets/site.css` is served from Vercel. So any component that exists on both
+surfaces has to be styled twice. The sign-in form was styled in `site.css` only, which left the
+extension's dialog inputs falling through to the UA default: a white box with an inset border, on
+a dark panel. If you add a form control to a dialog, check `.modal .field input` covers it.
+
 Icons are inline SVG built in `editor.js` (`ICON` + `svg()`); no icon font, no image files.
 The step number sits above the drag grip in `.gutter` so it lines up with the first line of step
 text — the grip is `opacity: 0` until hover but still occupies its box.
