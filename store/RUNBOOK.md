@@ -3,6 +3,10 @@
 Everything you need is in this folder. Work top to bottom; the whole thing is about
 40 minutes of your time, most of it taking screenshots.
 
+> The project folder on disk is still `~/Desktop/FlowScribe 2` — only the product name
+> changed, not the directory. Renaming it would break your Chrome "Load unpacked" path,
+> so it stays. Everything a user or reviewer sees says GuideGen.
+
 **Set expectations:** you will *submit* today. Google reviews it. A first submission
 with `<all_urls>` host permission usually takes 1–3 days, occasionally longer. Nothing
 you do can speed that up, so the goal today is a submission with zero loose ends.
@@ -41,13 +45,13 @@ Load the extension unpacked, record one real guide in uEngage, then capture:
 Any size is fine. Then:
 
 ```bash
-cd "/Users/apple/Desktop/GuideGen 2" && open store/screenshots-raw
+cd "/Users/apple/Desktop/FlowScribe 2" && open store/screenshots-raw
 ```
 
 Drop them in that folder and run:
 
 ```bash
-bash "/Users/apple/Desktop/GuideGen 2/store/make-screenshots.sh"
+bash "/Users/apple/Desktop/FlowScribe 2/store/make-screenshots.sh"
 ```
 
 That converts each one to exactly 1280×800 in `store/screenshots-out/`. Verified
@@ -64,7 +68,7 @@ Already built at `../guidegen-build.zip` (68 MB). If you changed anything since 
 including the rename — rebuild it:
 
 ```bash
-cd "/Users/apple/Desktop/GuideGen 2" && rm -f ../guidegen-build.zip && zip -r -X ../guidegen-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js editor.html editor.js editor.css render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
+cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../guidegen-build.zip && zip -r -X ../guidegen-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js editor.html editor.js editor.css render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
 ```
 
 `CLAUDE.md` and `README.md` are deliberately excluded — they describe the project as a
@@ -73,18 +77,19 @@ open.
 
 ---
 
-## Step 3 — publish the privacy policy (5 minutes, free)
+## Step 3 — privacy policy: already live
 
-The store requires a reachable privacy-policy URL. `store/privacy-policy.html` is
-written and ready. Free hosting, no card needed:
+Done, hosted on Vercel alongside the landing page:
 
-1. Create a public GitHub repo, e.g. `flowscribe-site`
-2. Upload `store/privacy-policy.html`, renamed to `index.html`
-3. Repo **Settings → Pages → Source: main branch, / (root) → Save**
-4. Wait ~1 minute; your URL is `https://<username>.github.io/flowscribe-site/`
-5. Open it and confirm it loads
+```
+https://guide-gen.vercel.app/privacy
+```
 
-Keep that URL — it goes in the Privacy tab.
+Verified returning 200 with the correct headers. `store/privacy-policy.html` is
+superseded — it was the standalone version before the site existed. Use the URL.
+
+There's a Terms of Service at `/terms` too, which the store doesn't require but which
+you want in place before anyone signs up.
 
 ---
 
@@ -113,7 +118,7 @@ today.
 - Single purpose: paste from LISTING.md
 - A justification for every permission: all six plus the host permission, pasted from LISTING.md
 - Data usage: tick the three certifications; leave **every** data-collection category unchecked
-- Privacy policy URL: your GitHub Pages URL from step 3
+- Privacy policy URL: `https://guide-gen.vercel.app/privacy`
 
 **Distribution** — Free, all regions, and see the next step for visibility.
 
