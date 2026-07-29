@@ -62,7 +62,7 @@ calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)` and the background worker 
 | # | Piece | Notes |
 |---|---|---|
 | 1 | WebP + downscale at capture | `background.js`. Prerequisite for the bridge. |
-| 2 | Auth in the popup | Reuse `sync.js` auth; popup gates on session. |
+| 2 | Auth in the popup | Reuse `sync.js` auth as-is — session persistence is verified working. Popup gates on session. |
 | 3 | `externally_connectable` + message handler | `manifest.json` + `background.js`. Per-step image fetch. |
 | 4 | Dashboard editor | Copy `render.js` + `exporters.js` to `web/assets/`; port the step-card UI from `editor.js`. |
 | 5 | Retire `editor.html` | Redirect to `/app`. Removes the parity problem for good. |
@@ -118,8 +118,11 @@ how the last drift bug happened.
 > - **Duplicate step text.** Two clicks on same-labelled elements produce two identical
 >   step descriptions. Visible in real use; the screenshots are the only way to tell them
 >   apart, which is why the dashboard editor now shows them.
-> - **Untested in the real extension:** whether the auth session survives an editor
->   reload. The network path is proven; `chrome.storage.local` token persistence is not.
+> - ~~Untested: whether the auth session survives an editor reload.~~ **Verified by Gaurav
+>   in the real extension, 30 July 2026 — the session persists.** So `sync.js`'s session
+>   handling (tokens in `chrome.storage.local`, refresh a minute before expiry) can be
+>   reused as-is for the popup auth gate in work item 2. Nothing left unverified in the
+>   current stack.
 > - No automated tests. Every bug this session was caught by generating an artefact and
 >   looking at it — A/V desync, collapsed step text, unstyled dialog inputs, `[hidden]`
 >   being overridden. None were caught by reading code.
