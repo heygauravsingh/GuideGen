@@ -10,7 +10,7 @@ editing except the two `<<< >>>` placeholders.
 **Item name** (max 75 chars)
 
 ```
-FlowScribe — Step-by-step guide capture
+GuideGen — Step-by-step guide capture
 ```
 
 **Short description** (max 132 chars — this is 131, do not add to it)
@@ -29,7 +29,7 @@ sub-category isn't offered)
 ```
 Document any process by simply doing it.
 
-Turn on FlowScribe, click through the workflow you want to explain, and press stop.
+Turn on GuideGen, click through the workflow you want to explain, and press stop.
 You get a finished step-by-step guide: one annotated screenshot per click, with the
 target highlighted and numbered, and a written instruction for every step — "Click
 Rider Management", "Type Demo in the Search field", "Press Enter".
@@ -52,7 +52,7 @@ EXPORT TO
 • Narrated video (.webm) — 1080p, with a spoken voiceover
 
 EVERYTHING STAYS ON YOUR MACHINE
-FlowScribe has no account, no server and no cloud. Your screenshots are stored locally
+GuideGen has no account, no server and no cloud. Your screenshots are stored locally
 in the browser and never uploaded, because there is nowhere for them to be uploaded to.
 
 Even the narration is local: the voice is synthesized on your own machine by a bundled
@@ -60,7 +60,7 @@ neural speech engine, so the text of your internal processes is never sent to a
 text-to-speech service. That is unusual — most tools in this category upload both your
 screenshots and your script.
 
-This makes FlowScribe usable in places cloud tools can't go: regulated industries,
+This makes GuideGen usable in places cloud tools can't go: regulated industries,
 customer data, internal admin panels, anything under an NDA.
 
 GOOD TO KNOW
@@ -68,9 +68,9 @@ GOOD TO KNOW
 • Cannot capture native desktop apps — browser only
 • The first narrated video takes a moment longer while the voice model loads
 • Keep the editor tab in focus while a video renders
-• If a tab was already open when you installed FlowScribe, reload it once before recording
+• If a tab was already open when you installed GuideGen, reload it once before recording
 
-FlowScribe is free while in early access.
+GuideGen is free while in early access.
 ```
 
 ---
@@ -80,7 +80,7 @@ FlowScribe is free while in early access.
 **Single purpose** (one sentence, they are strict about this)
 
 ```
-FlowScribe records the user's own browser interactions in order to generate an editable step-by-step guide document that the user can export as a file.
+GuideGen records the user's own browser interactions in order to generate an editable step-by-step guide document that the user can export as a file.
 ```
 
 **Permission justifications** — paste one per field:
@@ -117,7 +117,7 @@ Used to save the exported guide — HTML, Markdown, PDF, PowerPoint or video —
 
 **Host permission** `<all_urls>`
 ```
-FlowScribe documents whatever web application the user chooses, which cannot be known in advance — it may be any internal admin panel, SaaS dashboard or intranet site. The content script must therefore be able to run on any URL the user decides to record. It is inert unless the user has explicitly started a recording, and it reads only the label and position of the element clicked. No page content is transmitted anywhere.
+GuideGen documents whatever web application the user chooses, which cannot be known in advance — it may be any internal admin panel, SaaS dashboard or intranet site. The content script must therefore be able to run on any URL the user decides to record. It is inert unless the user has explicitly started a recording, and it reads only the label and position of the element clicked. No page content is transmitted anywhere.
 ```
 
 **Data usage — certify all three:**
@@ -125,15 +125,26 @@ FlowScribe documents whatever web application the user chooses, which cannot be 
 - [x] I do not use or transfer user data for purposes that are unrelated to my item's single purpose
 - [x] I do not use or transfer user data to determine creditworthiness or for lending purposes
 
-**Data collection disclosure:** leave every category **unchecked**. FlowScribe
-collects nothing — no analytics, no telemetry, no network requests at all. This is
-true and verifiable from the source; do not check a box "just in case".
+**Data collection disclosure:** leave every category **unchecked**.
 
-**Privacy policy URL**
+This is accurate for the build you are submitting: it makes no network requests of any
+kind, has no analytics and no telemetry, and contains no publishing feature. Verifiable
+from the source. Do not tick a box "just in case" — an over-declaration is as
+inconsistent as an under-declaration.
+
+The hosted privacy policy describes guide publishing because it is being built, and it
+states explicitly that the current release does not upload anything. When publishing does
+ship, that release must update this declaration to include *Authentication information*
+and *Website content*.
+
+**Privacy policy URL** — live and verified:
 
 ```
-<<< paste your published privacy-policy URL here — see store/privacy-policy.html >>>
+https://guide-gen.vercel.app/privacy
 ```
+
+> Note: `store/privacy-policy.html` is now superseded by the hosted page at that URL.
+> Use the URL above; it covers both the extension and the website.
 
 ---
 
