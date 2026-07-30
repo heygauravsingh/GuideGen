@@ -110,15 +110,145 @@ by hand once, after the fix lands.
 
 | # | Piece | Notes |
 |---|---|---|
-| 1 | WebP + downscale at capture | `background.js`. Prerequisite for the bridge. |
-| 2 | Auth in the popup | Reuse `sync.js` auth as-is — session persistence is verified working. Popup gates on session. |
-| 3 | `externally_connectable` + message handler | `manifest.json` + `background.js`. Per-step image fetch. |
-| 4 | Dashboard editor | Copy `render.js` + `exporters.js` to `web/assets/`; port the step-card UI from `editor.js`. |
-| 5 | Retire `editor.html` | Redirect to `/app`. Removes the parity problem for good. |
-| 6 | Update-in-place publish | PATCH the existing doc so a shared link never goes stale. |
-| 7 | Store v1.1 | New data declaration, revised privacy policy and listing copy. |
+| ~~1~~ | ~~WebP + downscale at capture~~ | **Done 30 Jul 2026.** See below. |
+| ~~2~~ | ~~Auth in the popup~~ | **Done 30 Jul 2026.** |
+| ~~3~~ | ~~`externally_connectable` + message handler~~ | **Done 30 Jul 2026.** |
+| ~~4~~ | ~~Dashboard editor~~ | **Done 30 Jul 2026.** |
+| ~~5~~ | ~~Retire `editor.html`~~ | **Done 30 Jul 2026.** Offscreen document keeps narration. |
+| ~~6~~ | ~~Update-in-place publish~~ | **Done 30 Jul 2026.** |
+| ~~7~~ | ~~Store v1.1~~ | **Copy and declarations written 30 Jul 2026 — not submitted.** |
 | ~~8~~ | ~~`assetTag` on the guide doc~~ | **Done 30 Jul 2026**, verified on a real publish. |
 | 9 | `/api/delete-assets` Vercel function | Purge Cloudinary assets on guide or account deletion. Only server-side code in the product. |
+
+### ~~1~~ DONE 30 Jul 2026 — captures are WebP, width-capped at 1600px
+
+`background.js → normalizeShot()` re-encodes every capture to WebP at a 1600px width cap
+(`SHOT`, q0.92) before it is stored, and folds the downscale factor into `step.dpr` so no
+consumer changed. Details and the three rules worth knowing are in CLAUDE.md → *Screenshot
+normalisation*. The bridge (item 3) is unblocked: a step image is now ~100–150KB instead of
+1–3MB, which is a size `sendMessage` can carry one step at a time.
+
+Verified: the encode path run in a real Chrome engine on a synthetic 3024×1700 dashboard —
+output `image/webp`, 1600×899, scale exactly 1600/3024, 686KB → 126KB (5.4×), ~360ms per
+step, and a deliberately corrupt input falls back to the original untouched. The
+orchestration was driven against the real `background.js` with stubbed `chrome` and codec:
+step order, `seq`, the `dpr` fold, and Stop landing mid-encode. Both race assertions were
+checked to fail on the pre-fix code, so they test something.
+
+Two things this changed that were not in the original scope, both consequences rather than
+extras:
+
+- **`fs_capture_step` now acks before the encode.** `recorder.js` hides its pill until that
+  response arrives, so acking afterwards blinked the pill out for ~350ms on every click.
+- **`persistStep` re-reads `fs_state` before updating the step counter.** The old code wrote
+  back the state the step was captured under; with a ~350ms encode, clicking and then
+  immediately pressing Stop would set `recording: true` again. That race existed before at
+  ~70ms odds — it is now closed.
+
+Still true and worth stating: pages where `focusRegion` genuinely crops lose some
+magnification headroom versus a full-retina source. Dense dashboards, where the region is the
+full frame, export at exactly the size they did before.
+
+### ~~2–7~~ DONE 30 Jul 2026 — the architecture above is built
+
+The flow at the top of this document now exists. What shipped, and the decisions that
+weren't in the plan:
+
+**2 — auth in the popup.** `sync.js` was trimmed to auth only and loaded into `popup.html`;
+the popup shows a sign-in/sign-up form until there's a session, then the record controls. It
+gained `sendPasswordReset` so nobody has to leave the popup to recover an account.
+
+**3 — the bridge.** `externally_connectable` names `https://guide-gen.vercel.app/*` and
+nothing else. `onMessageExternal` serves ten one-shot requests; `onConnectExternal` serves a
+`gg_task` port for the video render. Per-step image fetch as specified. Every write validates
+its input as if a stranger sent it, because a web page did — reorders must be a permutation
+of the existing steps, redaction rects must be finite and positive. Details in CLAUDE.md →
+*The bridge*.
+
+**4 — the dashboard editor.** `web/assets/app.js`, full parity with the retired one for local
+guides: title, step text, drag reorder, move up/down, delete, drag-to-redact, clear
+redactions, notes, and the four document exports. Published guides get title and step text,
+with their images read-only and labelled as such. `render.js`/`exporters.js` are mirrored into
+`web/assets/` by `tools/sync-web-assets.mjs` — the plan asked for that script and it has a
+`--check` mode now wired into the RUNBOOK's build step, because a stale mirror is silent.
+
+**5 — `editor.html` retired**, now a redirect carrying `#<guideId>` across as
+`#local-<guideId>`. `editor.js` and `editor.css` are deleted (recoverable from git).
+
+**6 — update-in-place publish.** `GGPublish.republish()` PATCHes the existing document, so a
+shared link never goes stale.
+
+**7 — store v1.1 copy written, not submitted.** `store/LISTING.md` now ticks *Authentication
+information*, *Website content* and *Web history*, with a note that shipping without that
+change would be a false declaration. The listing, the landing page and the FAQ no longer
+claim "no account" or that there is nowhere to upload to. `web/privacy.html` opens with what
+changed in 1.1. The stale standalone `store/privacy-policy.html` was deleted — it predated
+the site and still said "collects nothing, transmits nothing, no account".
+
+#### Decisions taken that the plan didn't cover
+
+- **Narrated video moved to an offscreen document, not to the web.** Retiring `editor.html`
+  would have stranded it: the voice is 88MB in `lib/`, and `.vercelignore` exists precisely to
+  stop that being served — at 88MB a head, Vercel Hobby's 100GB/month is ~1,100 exports.
+  `chrome.offscreen` gives a DOM, an AudioContext and a MediaRecorder with no visible page.
+  Three `exporters.js` options were added for it (`tickMs`, `monitor`, `onBlob`); the first is
+  load-bearing, since `requestAnimationFrame` never fires in a page that is never visible and
+  the video would otherwise render at 10fps. **Side benefit: nobody has to keep a tab focused
+  during a render any more**, which was a listed caveat in the README and the store listing.
+- **Publishing moved to the web rather than staying in the extension.** The plan didn't say
+  where it should live once the editor moved. Keeping it in `sync.js` would have meant two
+  implementations of rules the CLAUDE.md has five numbered warnings about, so `publish()` was
+  removed from `sync.js` and rewritten once in `web/assets/publish.js`. Consequence to accept:
+  publishing needs the machine that holds the guide, which constraint 2 above already implies.
+- **`/api/delete-assets` gained a `purgeTag` mode**, needed by item 6. Re-publishing can't
+  overwrite images — rule 5, `Overwrite: false` — so a new tag is uploaded and the old one has
+  to be purged, or a republish intended to *remove* something sensitive would leave the old
+  image publicly retrievable. It can't authorise from the document (which by then names the
+  new tag), so it checks that every image under the tag carries `uid_<caller>`. Guides now
+  carry `assetTags` (all tags ever used) so a failed purge is still caught at delete time.
+  This also unlocks account-wide deletion by `uid_` tag.
+- **One sign-in, not two.** The extension holds the session and the dashboard adopts it over
+  `gg_session` if it has none of its own. Without this, a user signs in at the popup and is
+  immediately asked again by the editor.
+- **`render.js` now sets `crossOrigin` on http(s) sources.** Exporting a *published* guide
+  draws a Cloudinary image into a canvas, and without CORS that canvas is tainted, so
+  `toDataURL` throws — every export of a shared guide would have failed at the last step.
+- **The viewer's broken-image gap below is fixed for the editor**, not the public viewer:
+  `app.js` swaps a failed baked image for a "no longer available" line. `web/g.html` still
+  needs the same treatment.
+
+#### Verified, and what wasn't
+
+Verified in a real Chrome engine against a served copy of `web/`, with `GG` and `GGBridge`
+stubbed so nothing touched the live Firebase or Cloudinary projects:
+
+- The editor renders a three-step local guide: annotations painted by `FSRender` onto canvas
+  (ring sampled at exactly `#7c3aed`), the redaction rect pixelated, skeletons cleared, note
+  card styled as a note, no monospace leak in the textareas.
+- The library merges a local guide and its published counterpart into **one** row.
+- With no extension: the explanatory note appears and only published guides list, marked
+  "not on this device".
+- A shared-only guide: banner shown, Note hidden, no drag grips and no per-step tools, images
+  labelled read-only, step text still editable.
+
+**Not verified, and needs a real run before submitting:**
+
+1. **Nothing was exercised against the live backend** — no publish, no republish, no delete,
+   no `purgeTag` call, no sign-in. Deliberate: the plan lists leftover test data to clean up
+   and creating more would add to it.
+2. **The bridge has never carried a real message.** It only answers
+   `https://guide-gen.vercel.app`, so a locally served dashboard cannot reach it — this needs
+   the deployed site plus the extension loaded unpacked.
+3. **The offscreen video renderer has never run.** The `tickMs`/`monitor`/`onBlob` reasoning is
+   sound but untested; the specific risks are whether `chrome.offscreen.hasDocument()` behaves
+   as assumed across a worker restart, and whether the `blob:` URL survives the hand-off to
+   `chrome.downloads` on a long render.
+4. **No layout was seen.** The preview viewport measured 0×0, so every geometry number it
+   reported was meaningless and no screenshot was taken. The editor CSS is unreviewed visually.
+
+Worth doing in this order: load unpacked → sign in at the popup → record a short guide → stop
+→ confirm the dashboard opens and lists it → export a PDF → export the video → publish →
+re-publish → delete.
 
 ### Small gap: the viewer has no broken-image handling
 

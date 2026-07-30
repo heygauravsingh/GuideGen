@@ -1,13 +1,23 @@
-const toggle = document.getElementById("toggle");
-const toggleLabel = document.getElementById("toggleLabel");
-const toggleIcon = document.getElementById("toggleIcon");
-const library = document.getElementById("library");
-const statusTitle = document.getElementById("statusTitle");
-const statusSub = document.getElementById("statusSub");
-const hint = document.getElementById("hint");
+// GuideGen — toolbar popup.
+//
+// Two views behind one gate: sign in, or record. The session comes from FSSync
+// (chrome.storage.local), and the dashboard adopts that same session over the
+// bridge, so this is the only place a user types a password.
+
+const el = (id) => document.getElementById(id);
+
+const toggle = el("toggle");
+const toggleLabel = el("toggleLabel");
+const toggleIcon = el("toggleIcon");
+const library = el("library");
+const statusTitle = el("statusTitle");
+const statusSub = el("statusSub");
+const hint = el("hint");
 
 const DOT = '<circle cx="12" cy="12" r="7" />';
 const SQUARE = '<rect x="6" y="6" width="12" height="12" rx="2.5" />';
+
+// ---------- recording view ----------
 
 function render(state) {
   const rec = state && state.recording;
@@ -54,4 +64,100 @@ library.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "fs_open_editor" }, () => window.close());
 });
 
-refresh();
+// ---------- auth view ----------
+
+let mode = "signin"; // or "signup"
+
+function applyMode() {
+  const up = mode === "signup";
+  el("authTitle").textContent = up ? "Create an account" : "Sign in";
+  el("authSub").textContent = up
+    ? "Your guides still stay on this machine — an account is what lets you publish one."
+    : "GuideGen needs an account before it records.";
+  el("authSubmit").textContent = up ? "Create account" : "Sign in";
+  el("altText").textContent = up ? "Already have an account?" : "New here?";
+  el("altToggle").textContent = up ? "Sign in" : "Create an account";
+  el("password").autocomplete = up ? "new-password" : "current-password";
+  el("forgotWrap").hidden = up;
+  say("");
+}
+
+function say(text, kind) {
+  const m = el("authMsg");
+  m.textContent = text || "";
+  m.className = "msg" + (kind ? " " + kind : "");
+}
+
+el("altToggle").addEventListener("click", () => {
+  mode = mode === "signup" ? "signin" : "signup";
+  applyMode();
+});
+
+el("authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = el("email").value.trim();
+  const pw = el("password").value;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return say("Enter a valid email address.", "err");
+  if (!pw) return say("Enter your password.", "err");
+  if (mode === "signup" && pw.length < 6) return say("Password needs at least 6 characters.", "err");
+
+  el("authSubmit").disabled = true;
+  say(mode === "signup" ? "Creating your account…" : "Signing in…");
+  try {
+    const s = mode === "signup"
+      ? await FSSync.signUp(email, pw)
+      : await FSSync.signIn(email, pw);
+    showMain(s);
+  } catch (err) {
+    el("authSubmit").disabled = false;
+    say(err.message, "err");
+  }
+});
+
+el("forgot").addEventListener("click", async () => {
+  const email = el("email").value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    return say("Type your email above first, then click this again.", "err");
+  }
+  say("Sending reset email…");
+  try {
+    await FSSync.sendPasswordReset(email);
+    say("Reset link sent to " + email + ".", "ok");
+  } catch (err) {
+    say(err.message, "err");
+  }
+});
+
+el("signOut").addEventListener("click", async () => {
+  await FSSync.signOut();
+  // Always come back to Sign in. Left in sign-up mode, a returning user gets
+  // "that email already has an account" for their own credentials.
+  mode = "signin";
+  el("email").value = "";
+  el("password").value = "";
+  applyMode();
+  showAuth();
+});
+
+// ---------- routing ----------
+
+function showAuth() {
+  el("viewMain").hidden = true;
+  el("viewAuth").hidden = false;
+  el("email").focus();
+}
+
+function showMain(session) {
+  el("viewAuth").hidden = true;
+  el("viewMain").hidden = false;
+  el("acctEmail").textContent = session.email || "";
+  el("acctEmail").title = session.email || "";
+  refresh();
+}
+
+(async () => {
+  applyMode();
+  const s = await FSSync.current();
+  if (s) showMain(s);
+  else showAuth();
+})();

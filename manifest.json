@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GuideGen — Step-by-step guide capture",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Record a workflow and auto-generate an annotated step-by-step guide. Export to HTML, Markdown, PDF, PowerPoint, and narrated video.",
   "permissions": [
     "activeTab",
@@ -9,9 +9,13 @@
     "storage",
     "unlimitedStorage",
     "tabs",
-    "downloads"
+    "downloads",
+    "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
+  "externally_connectable": {
+    "matches": ["https://guide-gen.vercel.app/*"]
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },

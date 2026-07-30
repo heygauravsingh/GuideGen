@@ -4,10 +4,19 @@ Project context for Claude Code. Read this first before making changes.
 
 ## What this is
 GuideGen is a **self-hosted, local replica of Scribe Capture**, built as a Chrome
-Manifest V3 extension. You record a browser workflow; it auto-generates a step-by-step
-guide (one annotated screenshot per click) and exports to HTML, Markdown, PDF, PowerPoint,
-and a narrated video. Everything runs client-side. No server, no account, no network calls
-except loading the two bundled libraries from disk. Data lives in `chrome.storage.local`.
+Manifest V3 extension plus a static website. You record a browser workflow; it
+auto-generates a step-by-step guide (one annotated screenshot per click) and exports to
+HTML, Markdown, PDF, PowerPoint, and a narrated video.
+
+**The extension records. The website edits.** Since v1.1 the guide editor is a page on
+`guide-gen.vercel.app/app`, not in the extension — one editor to keep good instead of two
+kept in parity by hand, which is what produced the unstyled-dialog bug. The dashboard
+reads the machine's local guides over `externally_connectable` (see The bridge). The
+extension still owns recording, the account session, and the narrated video export.
+
+All rendering and every export still run client-side, on the user's device. Two things
+leave it, both deliberate: sign-in, and the single guide the user presses Publish on.
+Local guide data lives in `chrome.storage.local`.
 
 ## Non-negotiables / constraints
 - **Manifest V3**, vanilla JS only. No build step, no framework, no bundler — files load
@@ -16,27 +25,49 @@ except loading the two bundled libraries from disk. Data lives in `chrome.storag
 - No `localStorage`/`sessionStorage` for app data — use `chrome.storage.local`
   (the manifest already requests `unlimitedStorage`).
 - Keep everything working as "Load unpacked" from this folder.
+- `render.js` and `exporters.js` have **one editable copy, in the repo root.**
+  `web/assets/` holds generated mirrors, written by `tools/sync-web-assets.mjs`. Edit a
+  mirror and the next sync silently reverts you; run `node tools/sync-web-assets.mjs`
+  after touching either file, and `--check` before packaging.
+- **The website may not serve anything from `lib/`.** It is 88MB of voice model and
+  `.vercelignore` exists to stop exactly that. Anything needing those files runs in the
+  extension.
 
 ## How to test a change
 1. Edit files here.
 2. Go to `chrome://extensions` → click the ↻ (reload) on the GuideGen card.
 3. For content-script (`recorder.js`) changes, also **reload the web page** you're recording.
 4. Logs: the service worker log is behind the "Inspect views: service worker" link on the
-   extension card; editor/popup logs are in their own DevTools.
+   extension card; popup logs are in its own DevTools. The **offscreen document** also
+   appears under "Inspect views" while a video is rendering — that is the only way to see
+   an error thrown inside it.
+5. For website changes, serve `web/` locally rather than opening the files: `/app` and
+   `/g/{id}` depend on Vercel's `cleanUrls`, and `file://` breaks the module-free script
+   loading. There's a `site` config in `.claude/launch.json`.
+6. **The bridge only answers `https://guide-gen.vercel.app`.** A locally served dashboard
+   cannot reach the extension, so local guides won't list. Test the bridge against the
+   deployed site with the extension loaded unpacked.
 
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads; host `<all_urls>`. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
-| `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
+| `manifest.json` | MV3 config, v1.1.0. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen; host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. |
 | `recorder.css` | Styles for the recording pill only. Every declaration is `!important` and children start from `all: unset` — this is the one surface that renders inside a stranger's page. |
 | `popup.html/js` | Toolbar popup: status card (idle / recording with live step count) + Start/Stop and Guide library. Self-contained styles, light + dark. |
-| `editor.html/js/css` | Guide library sidebar (with search) + step editor: inline text edit, reorder by buttons or drag handle, delete, drag-to-redact, add note, title edit, export menu, video modal. See UI conventions. |
+| `editor.html` + `redirect.js` | Retired. A redirect to `/app`, carrying `#<guideId>` across as `#local-<guideId>`, so v1.0 bookmarks land somewhere sensible. The editor is `web/assets/app.js`. |
+| `offscreen.html/js` | Never-visible page that renders the narrated video. A service worker has no canvas, AudioContext or MediaRecorder; an offscreen document has all three. Only `chrome.runtime` is available to it, so the guide arrives by message and the finished blob leaves as a `blob:` URL for the worker to download. |
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
 | `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration). Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
-| `sync.js` | `window.FSSync`. Publishes one guide to the web: Identity Toolkit REST for email/password auth (tokens in `chrome.storage.local`), annotated steps re-encoded to WebP and uploaded to Cloudinary via an **unsigned** preset, then one Firestore document written with `visibility: "link"`. Needs no new permission — `<all_urls>` already covers those hosts. See Publishing. |
+| `sync.js` | `window.FSSync`. **Auth only** — Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
+| `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
+| `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
+| `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
+| `web/assets/publish.js` | `window.GGPublish`. `publish()` creates a guide document; `republish()` updates one **in place** so a shared link never goes stale. |
+| `web/assets/gg.js` | `window.GG`. Firebase auth + Firestore over REST for the website. |
+| `web/api/delete-assets.js` | The only server-side code. Deletes Cloudinary images, which needs the API secret. Two modes: delete a guide and its images, or purge one superseded asset tag. |
 | `lib/jspdf.umd.min.js` | jsPDF 2.5.1. Global: `window.jspdf.jsPDF`. |
 | `lib/pptxgen.bundle.js` | PptxGenJS 3.12.0. Global: `window.PptxGenJS`. |
 | `lib/ort/` | onnxruntime-web 1.18.0, wasm backend only (`ort.wasm.min.js` + `ort-wasm-simd.wasm`). Global: `window.ort`. |
@@ -46,7 +77,8 @@ except loading the two bundled libraries from disk. Data lives in `chrome.storag
 
 ## Data model (chrome.storage.local)
 - `fs_state` → `{ recording, guideId, stepCount }`
-- `fs_index` → array of `{ id, title, createdAt, startUrl, stepCount }` (newest first)
+- `fs_index` → array of `{ id, title, createdAt, startUrl, stepCount, remoteId?, publishedAt? }` (newest first)
+- `gg_auth` → the account session `{ uid, email, idToken, refreshToken, expiresAt }`
 - `fs_steporder_<guideId>` → array of step ids (defines order)
 - `fs_step_<stepId>` → one step object
 
@@ -55,25 +87,82 @@ Step object:
 {
   id, guideId, seq, type: "click" | "input" | "key" | "note",
   url, pageTitle, timestamp,
-  dpr,                     // devicePixelRatio at capture
+  dpr,                     // bitmap px per CSS px for this step's screenshot
   point: { x, y },         // click point, CSS px within viewport
   rect:  { x, y, w, h },   // target element bounds, CSS px within viewport
   text,                    // editable description
-  screenshot,              // PNG dataURL of visible viewport (physical px), or null for notes
+  screenshot,              // WebP dataURL of visible viewport, or null for notes
   blurs: [ { x, y, w, h } ] // redaction rects, CSS px
 }
 ```
-Coordinate rule: screenshots from `captureVisibleTab` are at **physical** pixels, so any
-CSS-px value maps onto the bitmap by multiplying by `dpr`. `render.js` relies on this.
+Coordinate rule: any CSS-px value maps onto the bitmap by multiplying by `dpr`. `render.js`,
+`focusRegion` and the editor's redaction maths all rely on exactly this and nothing else.
+
+`dpr` is **not** `devicePixelRatio` — `recorder.js` sends that, and `background.js` then
+multiplies it by however much it downscaled the capture (see Screenshot normalisation). One
+number carries the whole CSS-px → bitmap-px relationship, which is what lets the capture size
+change without touching a single consumer.
 
 ## Recording flow
 popup Start → `background.startRecording` (creates guide, sets state, injects recorder into
 active tab, broadcasts) → `recorder.js` attaches listeners + shows pill → each click/input
 sends `fs_capture_step` → background captures the screenshot and appends the step → pill
-counter updates via `storage.onChanged` → Stop opens the editor for that guide.
+counter updates via `storage.onChanged` → Stop opens `/app#local-<guideId>` — the dashboard,
+not an extension page.
+
+The popup gates on the account session before any of that: no session, no Start button.
+
+## Screenshot normalisation (background.js)
+`captureVisibleTab` hands back a full-retina PNG — ~3024×1700, 1–3 MB per step. Every exporter
+downscales to 1600px anyway, so those bytes were stored and then thrown away. `normalizeShot()`
+re-encodes each capture to **WebP at a 1600px width cap** (`SHOT`, q0.92): measured ~5× smaller
+on a synthetic dashboard, more on real retina captures. It relieves `chrome.storage.local`,
+makes the editor quicker, and it is what makes the dashboard bridge possible at all — a
+full-res guide cannot be moved over `sendMessage`.
+
+Four things to know before touching this:
+
+1. **The width cap matches every consumer's own cap** (`exporters.js` and `sync.js` both use
+   1600). On the common case — a dense dashboard, where `focusRegion` returns the full frame —
+   the exported image comes out at exactly the size it did before. Pages that genuinely crop
+   lose some magnification headroom; that was the trade accepted for the bridge.
+2. **The downscale factor is folded into `step.dpr`**, not stored separately. Every consumer
+   already treats `dpr` as bitmap-px-per-CSS-px, so folding keeps `render.js`, `focusRegion`
+   and the editor's redaction maths correct with no changes of their own, and every annotation
+   lands at the same size *relative to the image*. Don't add a second scale field.
+3. **Three stages, three different serialisations**, and they are not interchangeable:
+   *capture* stays on `captureChain` (serialized and prompt — the page must not move on before
+   its screenshot is taken); *encode* runs off-chain so it overlaps the next capture instead of
+   delaying it; *persistence* is serialized on `stepChain`, claimed in click order. Put the
+   ~300ms encode on the capture chain and screenshots start lagging the clicks that caused
+   them. Take `stepChain` away and steps land in encode-completion order — verified, it
+   reverses a three-click burst.
+4. **`fs_capture_step` is acked as soon as the pixels exist**, before the encode. `recorder.js`
+   hides its pill until that response arrives, so acking after the encode blinks the pill out
+   on every click. The count in the ack is cosmetic and `storage.onChanged` re-syncs it from
+   `fs_state` when the write lands. For the same reason `persistStep` re-reads the live state
+   before updating the counter: Stop can land mid-encode, and writing back the state the step
+   was captured under would set `recording: true` again.
+
+Guides recorded before this change keep their full-res PNGs and a true-`devicePixelRatio`
+`dpr`, and render identically — the fold is per-step, so old and new steps coexist.
 
 ## Narration (video export)
-Narration works and is fully offline. Two rules if you touch it:
+Narration works and is fully offline, and since v1.1 it runs in an **offscreen document**
+driven from the dashboard over the bridge. It has to: the voice is 88MB of model in `lib/`,
+which the website may not serve, and a service worker has no canvas, AudioContext or
+MediaRecorder. Three things that document needs and a visible page didn't:
+
+- `tickMs: 33`. An offscreen document is never visible, so `requestAnimationFrame` never
+  fires there — the 100ms hidden-tab fallback is the *only* clock the picture has, and left
+  at 100ms the whole video renders at 10fps against a `captureStream(30)`.
+- `monitor: false`. Don't connect narration to the speakers. In a visible page that was
+  reassuring feedback; from an invisible document it is a voice from nowhere.
+- `onBlob`. The document only has `chrome.runtime`, so it can't call `chrome.downloads`. It
+  hands back a `blob:` URL and the worker downloads it — then waits for the download to
+  reach `complete` before closing the document, because the blob dies with it.
+
+Rules if you touch the synthesis itself:
 
 1. **Never go back to `speechSynthesis`.** The Web Speech API exposes no audio stream, and on
    macOS its voices are rendered by the OS outside the tab's audio graph — so its output can
@@ -112,8 +201,11 @@ text field it landed on the label the reader was trying to read.
 
 ## Presentation (video)
 Video renders at **1920×1080** and asks MediaRecorder for **12 Mbps**. Both matter: the source
-screenshots are retina-sized (~3024px wide) and full of small UI text, and MediaRecorder's
-default (~0.8 Mbps at 720p) smears it. Don't lower either without measuring text legibility.
+screenshots are full of small UI text, and MediaRecorder's default (~0.8 Mbps at 720p) smears
+it. Don't lower either without measuring text legibility. The figures quoted below were
+measured against the old full-retina (~3024px) capture; captures are now width-capped at
+1600px (see Screenshot normalisation), so treat them as the relative argument they were made
+for, not as current absolute readings.
 
 `FSRender.focusRegion(step, srcW, srcH, aspect, {canvas})` decides what to show. It balances two
 opposite failures, and both have already been shipped and rejected once:
@@ -154,34 +246,41 @@ pinned to the bottom. Slides crossfade (0.4s) and push in slightly (4.5%) toward
 hard cuts between static slides were the main thing that made this read as a slideshow.
 
 ## UI conventions
-`editor.css` starts with design tokens (`--brand`, `--ink`, `--panel*`, `--line`, radii, shadows,
-two easing durations) and everything else consumes them. Three rules:
+`web/assets/site.css` starts with design tokens (`--brand`, `--ink`, `--panel*`, `--line`,
+radii, shadows, easing) and everything else consumes them. The popup carries its own copy of
+the same tokens, because an extension page can't load a stylesheet from the website. Three
+rules:
 
 - **Both colour schemes, always.** Every token is redefined under
-  `@media (prefers-color-scheme: dark)`. Extension pages inherit the OS scheme and a
-  light-only panel looks broken at night. Never hard-code a hex outside the token block.
-- **Honour `prefers-reduced-motion`.** There's a blanket rule at the bottom of `editor.css`
+  `@media (prefers-color-scheme: dark)`. These pages inherit the OS scheme and a light-only
+  panel looks broken at night. Never hard-code a hex outside the token block.
+- **Honour `prefers-reduced-motion`.** There's a blanket rule at the bottom of `site.css`
   killing transitions and animations; keep new motion inside that contract.
 - **Never write `font: <size>/<lh> inherit`.** It's invalid shorthand, so it silently fails and
   the element falls back to the UA default — which is *monospace* for `<textarea>`. Every step
   description in the editor rendered as code until this was fixed. Set `font-family: inherit`
   as its own declaration.
 
-**Grow textareas after the card is in the document.** `renderStepCard` is `async` — it
-awaits the screenshot decode — so a `requestAnimationFrame(autoGrow)` inside it fires while
-the card is still detached, `scrollHeight` reads 0, and the step text collapses to an
-invisible zero-height box. `renderMain` calls `autoGrow` after `appendChild`. This only
-showed up on the *first* card to decode an image, which made it look intermittent.
+**Grow textareas after the card is in the document.** A detached card reads `scrollHeight`
+0, and the step text collapses to an invisible zero-height box. `renderEditor` calls
+`autoGrow` after `appendChild`, never inside the card builder. This originally showed up only
+on the *first* card to decode an image, which made it look intermittent.
 
-**The extension and the website do not share CSS**, and they can't — `editor.css` ships in the
-package while `web/assets/site.css` is served from Vercel. So any component that exists on both
-surfaces has to be styled twice. The sign-in form was styled in `site.css` only, which left the
-extension's dialog inputs falling through to the UA default: a white box with an inset border, on
-a dark panel. If you add a form control to a dialog, check `.modal .field input` covers it.
+**The extension and the website do not share CSS**, and they can't — the popup's styles ship
+in the package while `web/assets/site.css` is served from Vercel. So any component that exists
+on both surfaces has to be styled twice. This already bit once: the sign-in form was styled in
+`site.css` only, which left the extension's dialog inputs falling through to the UA default —
+a white box with an inset border, on a dark panel. The sign-in form now exists on **both**
+surfaces (popup gate and `/app`), so it is exactly the component to check. If you add a form
+control, cover it in `popup.html`'s `.field input` *and* `site.css`'s `.modal .field input`.
 
-Icons are inline SVG built in `editor.js` (`ICON` + `svg()`); no icon font, no image files.
-The step number sits above the drag grip in `.gutter` so it lines up with the first line of step
-text — the grip is `opacity: 0` until hover but still occupies its box.
+Retiring `editor.html` removed the drift *for guide editing*, which is where it hurt. It did
+not remove it for the popup. Two surfaces still exist; there is just no longer a second copy
+of the thing with 700 lines of behaviour in it.
+
+Icons are inline SVG built in `web/assets/app.js` (`ICON` + `svg()`); no icon font, no image
+files. The step number sits above the drag grip in `.gutter` so it lines up with the first line
+of step text — the grip is `opacity: 0` until hover but still occupies its box.
 
 ## Step wording (recorder.js)
 Conventions, chosen to match how a person writes instructions:
@@ -205,8 +304,36 @@ control's own label is a compound blob — a clickable card yielded
 `onKeyDown` records Enter in fields as its own `key` step; without it a guide jumps from "type"
 straight to the results with nothing explaining what happened.
 
-## Publishing (sync.js)
-Opt-in, per guide, and the extension stays the source of truth. Rules if you touch it:
+## The bridge (background.js + web/assets/bridge.js)
+A page on `guide-gen.vercel.app` cannot read `chrome.storage.local` — different origin,
+different sandbox. `externally_connectable` is the only link: the dashboard calls
+`chrome.runtime.sendMessage(EXTENSION_ID, …)` and `onMessageExternal` answers. Extension id
+`pifkelcohogbbocldnkjlfiagjigikjl`, assigned by the store and permanent.
+
+Four rules:
+
+1. **Step images come one at a time**, via `gg_step_image`, as cards scroll into view. Never
+   put a whole guide's screenshots in one response — even width-capped WebP, a 40-step guide
+   is several megabytes, and that is how you find the message-size ceiling in production
+   rather than here. `gg_guide` strips `screenshot` and returns `hasImage` instead.
+2. **Every write is validated as if a stranger sent it**, because a web page did. Reorders
+   must be a permutation of the steps that already exist; redaction rects must be finite and
+   positive. Bridge calls are serialized on `bridgeChain` for the same reason step writes
+   are — several handlers read-modify-write `fs_index`.
+3. **Any script on that origin can read and edit every local guide.** That is inherent to
+   hosting the editor there, not an extra hole — and it is why the match is one exact origin
+   and never a wildcard.
+4. **Narrated video uses a port, not a message.** `onConnectExternal`, port name `gg_task`.
+   Progress has to stream over a render that can take minutes, and an open port is what
+   stops Chrome shutting the service worker down halfway through.
+
+`gg_session` hands the popup's session to the dashboard, which adopts it only if it has none
+of its own. Signing in twice for one product is not a feature.
+
+## Publishing (web/assets/publish.js)
+Opt-in, per guide, and the extension stays the source of truth for the *pixels*. This moved
+out of `sync.js` when the dashboard became the editor — one implementation of these rules,
+not two. If you touch it:
 
 1. **Only the guide the user pressed Publish on is uploaded.** Never batch, never
    background-sync. The privacy claim on the site and in the store listing depends on this,
@@ -224,8 +351,17 @@ Opt-in, per guide, and the extension stays the source of truth. Rules if you tou
    own `public_id`; with overwrite off that's harmless. Turn it on and someone who learns an
    image id could replace it on a user's shared page.
 
-`remoteId` is stored on the `fs_index` entry, which is how the editor knows to offer Unpublish
-instead of creating a duplicate on every press.
+6. **Re-publishing PATCHes the existing document.** `republish()` — this is what stops a
+   shared link going stale. The order is not interchangeable: upload the new images under a
+   **new** tag (rule 5 forbids overwriting), PATCH the document to point at them, and only
+   *then* purge the old tag. Purge first and a failed PATCH leaves a live document pointing
+   at deleted images; don't purge at all and a republish meant to *remove* something
+   sensitive leaves the old image publicly retrievable. Every tag a guide has used stays on
+   `assetTags` until confirmed gone, so a failed purge is still caught at delete time.
+
+`remoteId` is stored on the `fs_index` entry, written back over the bridge after a publish.
+That is how the editor knows to offer Update and Unpublish instead of minting a second
+document — and a second link — on every press.
 
 ## Post-processing on stop
 `background.js → finalizeGuide()` runs once when recording stops, before the editor opens:
@@ -248,16 +384,28 @@ Both are heuristics on generated text. If `recorder.js`'s phrasing changes, re-c
 `stepLabel()`'s regex.
 
 ## Known issues / backlog (do NOT fix unless asked)
-- `requestAnimationFrame` is **suspended**, not merely throttled, while the tab is hidden — the
-  video used to freeze on one slide for its whole length. There's now a `setInterval(draw, 100)`
-  alongside the rAF loop so hidden-tab renders still advance (~1fps, choppy but correct).
-  Focused is still much better; README says so.
+- `requestAnimationFrame` is **suspended**, not merely throttled, in a hidden page — the video
+  used to freeze on one slide for its whole length. The `setInterval(draw, opts.tickMs || 100)`
+  alongside the rAF loop is what keeps it advancing, and in the offscreen renderer it is the
+  only clock (see Narration). No longer a user-facing caveat: nobody has to keep a tab focused.
 - First narrated export pays a one-time cost to load the 60MB voice model into an ONNX session.
 - Web pages only — no native desktop capture (would need an Electron/native companion).
-- No cloud sync, sharing links, or team features (out of scope by design).
+- **Unpublished guides are device-local.** They live in that browser's extension storage, so
+  they can't be opened elsewhere. A direct consequence of not uploading until Publish — the
+  design working, not a bug. Say so to users rather than letting them discover it.
+- **A published guide's images can't be re-annotated from another device.** Redaction is
+  additive on a baked image; moving the ring or re-cropping needs a re-publish from the machine
+  that holds the original. Which is also why no unredacted original is ever uploaded.
+- No team workspaces (out of scope by design).
 
 ## Style
-Keep code readable and dependency-free. Match existing patterns: promelike wrappers around
-`chrome.storage`, small pure helpers, `window.FS*` namespaces for cross-file sharing (no
-modules). When adding an exporter, reuse `FSRender.renderStep` for annotation so all outputs
-stay visually consistent.
+Keep code readable and dependency-free. Match existing patterns: promise-like wrappers around
+`chrome.storage`, small pure helpers, and globals for cross-file sharing rather than modules —
+`window.FS*` in the extension, `window.GG*` on the website. When adding an exporter, reuse
+`FSRender.renderStep` for annotation so all outputs stay visually consistent.
+
+The website's own files (`gg.js`, `bridge.js`, `publish.js`, `app.js`) are written in the
+older idiom — `var`, `function`, promise chains, no arrows — because `gg.js` was, and a file
+set that switches register halfway is harder to read than one that picks a style and holds it.
+There is no technical reason: `render.js` and `exporters.js` are shared verbatim with the
+extension and use modern syntax on both surfaces. Match whichever file you're in.

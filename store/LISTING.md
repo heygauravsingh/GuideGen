@@ -51,9 +51,16 @@ EXPORT TO
 • PowerPoint (.pptx) — one slide per step
 • Narrated video (.webm) — 1080p, with a spoken voiceover
 
-EVERYTHING STAYS ON YOUR MACHINE
-GuideGen has no account, no server and no cloud. Your screenshots are stored locally
-in the browser and never uploaded, because there is nowhere for them to be uploaded to.
+SHARE A LINK, OR DON'T
+• Publish a guide and you get a link anyone can open — only that guide is uploaded
+• Update it in place; the link you already shared keeps working
+• Unpublish and the link stops working and the images are deleted
+
+YOUR SCREENSHOTS STAY PUT UNTIL YOU SAY OTHERWISE
+Guides are saved in your own browser. Nothing is uploaded in the background, for
+processing, or on a schedule — only the single guide you press Publish on. Annotations
+and redactions are burned into the image before it leaves your machine, so no unredacted
+original is ever sent.
 
 Even the narration is local: the voice is synthesized on your own machine by a bundled
 neural speech engine, so the text of your internal processes is never sent to a
@@ -64,10 +71,12 @@ This makes GuideGen usable in places cloud tools can't go: regulated industries,
 customer data, internal admin panels, anything under an NDA.
 
 GOOD TO KNOW
+• A free account is needed — it signs you in to the editor and is what makes publishing work
+• Guides you haven't published live on the machine that recorded them, so they don't
+  appear on your other computers. Published guides do.
 • Works on web pages in Chrome and other Chromium browsers (Edge, Brave, Arc)
 • Cannot capture native desktop apps — browser only
 • The first narrated video takes a moment longer while the voice model loads
-• Keep the editor tab in focus while a video renders
 • If a tab was already open when you installed GuideGen, reload it once before recording
 
 GuideGen is free while in early access.
@@ -80,7 +89,7 @@ GuideGen is free while in early access.
 **Single purpose** (one sentence, they are strict about this)
 
 ```
-GuideGen records the user's own browser interactions in order to generate an editable step-by-step guide document that the user can export as a file.
+GuideGen records the user's own browser interactions in order to generate an editable step-by-step guide that the user can export as a file or publish as a shareable link.
 ```
 
 **Permission justifications** — paste one per field:
@@ -97,17 +106,22 @@ Used to inject the recorder script into the page the user chooses to document, s
 
 `storage`
 ```
-Used to store the user's guides — step text, screenshots and settings — locally in chrome.storage.local. This is the only place guide data exists; nothing is transmitted.
+Used to store the user's guides — step text, screenshots and settings — locally in chrome.storage.local, and to keep the signed-in session. Guide data stays in local storage; nothing is transmitted unless the user explicitly publishes one guide.
 ```
 
 `unlimitedStorage`
 ```
-Screenshots are stored as full-resolution images and a single guide can exceed the default storage quota. This permission prevents guides from being silently truncated.
+Every step stores a full screenshot of the page, so a library of guides quickly exceeds the default storage quota. This permission prevents guides from being silently truncated.
 ```
 
 `tabs`
 ```
-Used to read the URL and title of the tab being recorded, so each step records where it happened and the guide can be given a meaningful title, and to open the guide editor page when recording stops.
+Used to read the URL and title of the tab being recorded, so each step records where it happened and the guide can be given a meaningful title, and to open the guide editor when recording stops.
+```
+
+`offscreen`
+```
+Used to render the narrated video export. Producing the video needs a canvas, a Web Audio context and a MediaRecorder, none of which exist in a service worker. The offscreen document is never visible, exists only while an export is running, and has no access to any page the user visits.
 ```
 
 `downloads`
@@ -117,7 +131,7 @@ Used to save the exported guide — HTML, Markdown, PDF, PowerPoint or video —
 
 **Host permission** `<all_urls>`
 ```
-GuideGen documents whatever web application the user chooses, which cannot be known in advance — it may be any internal admin panel, SaaS dashboard or intranet site. The content script must therefore be able to run on any URL the user decides to record. It is inert unless the user has explicitly started a recording, and it reads only the label and position of the element clicked. No page content is transmitted anywhere.
+GuideGen documents whatever web application the user chooses, which cannot be known in advance — it may be any internal admin panel, SaaS dashboard or intranet site. The content script must therefore be able to run on any URL the user decides to record. It is inert unless the user has explicitly started a recording, and it reads only the label and position of the element clicked. Recorded pages are stored locally and are transmitted only if the user explicitly publishes that one guide to get a shareable link.
 ```
 
 **Data usage — certify all three:**
@@ -125,17 +139,37 @@ GuideGen documents whatever web application the user chooses, which cannot be kn
 - [x] I do not use or transfer user data for purposes that are unrelated to my item's single purpose
 - [x] I do not use or transfer user data to determine creditworthiness or for lending purposes
 
-**Data collection disclosure:** leave every category **unchecked**.
+**Data collection disclosure — v1.1 changes this. Tick exactly these three:**
 
-This is accurate for the build you are submitting: it makes no network requests of any
-kind, has no analytics and no telemetry, and contains no publishing feature. Verifiable
-from the source. Do not tick a box "just in case" — an over-declaration is as
-inconsistent as an under-declaration.
+| Category | Why it applies |
+|---|---|
+| **Authentication information** | The extension signs the user in (email + password, via Firebase Authentication) and holds the session. v1.0 had no account; v1.1 requires one. |
+| **Website content** | Publishing a guide uploads screenshots of the pages the user recorded, plus the step text generated from those pages. Only for the guide the user presses Publish on. |
+| **Web history** | Each step stores the URL and page title of where it happened, and those are included in a published guide. |
 
-The hosted privacy policy describes guide publishing because it is being built, and it
-states explicitly that the current release does not upload anything. When publishing does
-ship, that release must update this declaration to include *Authentication information*
-and *Website content*.
+Leave everything else unchecked — **no** personally identifiable information beyond the
+email covered above, **no** health, financial, location or personal communications data,
+**no** user activity (there is no analytics or telemetry of any kind), and **no** website
+content collected for any purpose other than the guide the user chose to publish.
+
+Do not tick a box "just in case": an over-declaration is as inconsistent with the source
+as an under-declaration, and reviewers check.
+
+**This is the declaration change that gates the v1.1 submission.** v1.0 was reviewed with
+every box unchecked, which was accurate — that build made no network requests at all.
+Shipping v1.1 without updating this would be a false declaration. The hosted privacy
+policy at `/privacy` has been revised to match and now opens with what changed in 1.1.
+
+**Also review before submitting v1.1:**
+- The listing no longer claims "no account" or that there is nowhere to upload to. Both
+  were true of v1.0 and are not true now. Check the description above, the landing page
+  and the FAQ together — they have to agree.
+- `externally_connectable` names `https://guide-gen.vercel.app/*`. This is not a
+  permission and has no justification field, but expect it to draw review attention: the
+  editor is a page on that site and reads the user's local guides over that channel. The
+  privacy policy explains it in section 1.
+- The single-purpose statement below still holds. Publishing is the same purpose — the
+  user's own guide, exported to a link instead of a file.
 
 **Privacy policy URL** — live and verified:
 
@@ -143,7 +177,8 @@ and *Website content*.
 https://guide-gen.vercel.app/privacy
 ```
 
-> Note: `store/privacy-policy.html` is now superseded by the hosted page at that URL.
+> Note: the old standalone `store/privacy-policy.html` has been deleted — the hosted
+> page at that URL is the only privacy policy.
 > Use the URL above; it covers both the extension and the website.
 
 ---

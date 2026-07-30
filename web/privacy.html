@@ -24,7 +24,7 @@
 
 <main class="wrap narrow doc">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated 29 July 2026</p>
+  <p class="updated">Last updated 30 July 2026</p>
 
   <div class="callout">
     <p><strong>The short version.</strong> The GuideGen browser extension records your workflow and
@@ -36,10 +36,11 @@
   <code>guide-gen.vercel.app</code>. It explains what we hold, why, and how to get rid of it.</p>
 
   <div class="callout">
-    <p><strong>Where the current release stands.</strong> The extension available today records and
-    exports guides entirely on your own device and contains no publishing feature — it transmits
-    nothing, to anyone, ever. Guide publishing is described in section 2 because it is being built
-    and this policy is written ahead of it. When it ships it will be opt-in, per guide.</p>
+    <p><strong>What changed in version 1.1.</strong> Earlier releases had no account and no
+    publishing, and transmitted nothing at all. Version 1.1 adds both. Two things now leave your
+    device, and only these two: your email address and password when you sign in, and a guide's
+    images and text at the moment you press Publish on that guide. Recording, editing and all five
+    export formats still run entirely on your own machine.</p>
   </div>
 
   <h2>1. The extension: local by default</h2>
@@ -56,6 +57,14 @@
 
   <p>While a guide is unpublished, none of this leaves your machine. The extension makes no
   analytics, telemetry or tracking requests at any point.</p>
+
+  <p>From version 1.1 the editor is a page on this website rather than a page inside the extension,
+  so that there is one editor to keep good instead of two. When you open it, that page asks the
+  extension directly — browser to browser, over Chrome's <code>externally_connectable</code>
+  channel — for the guides stored on your machine, one screenshot at a time as you scroll.
+  <strong>Those screenshots are read into the page in your browser; they are not sent to our
+  servers.</strong> The extension answers these requests only from this one website address, and
+  from no other page.</p>
 
   <p>Exports — HTML, Markdown, PDF, PowerPoint and video — are generated inside your browser and
   saved straight to your downloads folder. We never see them. Video narration is synthesized on your
@@ -85,10 +94,20 @@
 
   <h2>3. Account data</h2>
 
-  <p>To publish guides you need an account. We store your email address, an internal user ID, and
-  the timestamps of account creation and sign-in. We do not ask for your name, phone number,
-  company, or payment details. Your password is handled by Google Firebase Authentication and is
-  never visible to us.</p>
+  <p>From version 1.1 the extension asks you to sign in before it records. That does two things: it
+  identifies whose guides the editor should show you, and it ties a published guide to you so that
+  you — and nobody else — can update or delete it later. <strong>Signing in does not upload
+  anything.</strong> A guide you have never published stays in your browser's own extension storage,
+  on that machine.</p>
+
+  <p>We store your email address, an internal user ID, and the timestamps of account creation and
+  sign-in. We do not ask for your name, phone number, company, or payment details. Your password is
+  handled by Google Firebase Authentication and is never visible to us. We do not use your email
+  address for marketing.</p>
+
+  <p>One consequence worth stating plainly, because it is a design decision rather than an
+  oversight: <strong>unpublished guides cannot follow you to another computer.</strong> They are not
+  on our servers, so there is nothing for us to sync. Published guides are the ones that travel.</p>
 
   <h2>4. Who processes your data</h2>
 
@@ -136,6 +155,11 @@
       our image host and requests removal from the content delivery network. CDN copies can take
       up to an hour to clear, and a browser that already downloaded an image may keep its own
       cached copy.</li>
+    <li><strong>Re-publish a guide</strong> and the superseded images are deleted from our image
+      host as part of the update, with CDN removal requested. This matters if you re-publish
+      specifically in order to redact something: the old image stops being retrievable. If that
+      deletion fails, the images are still tracked against the guide and are removed when you
+      delete it.</li>
     <li><strong>Delete your account</strong> — email us and we will remove your account, all your
       published guides and their images within 30 days.</li>
     <li><strong>Local guides</strong> are deleted from the extension itself, or by uninstalling it,
@@ -154,6 +178,11 @@
   application you will want to document — it may be any internal dashboard or tool. The recorder
   does nothing unless you have explicitly started a recording, and it reads only the label and
   on-screen position of the element you click.</p>
+
+  <p>It also asks to create an <em>offscreen document</em>. That is a Chrome mechanism for doing work
+  that needs a page but has no need to be seen: it is used to render the narrated video, because
+  that requires a canvas, an audio engine and a video recorder. It has no access to any website you
+  visit.</p>
 
   <h2>10. Children</h2>
 

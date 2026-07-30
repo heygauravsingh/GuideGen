@@ -64,16 +64,30 @@ working — the store rejects wrong dimensions, so don't skip it.
 
 ## Step 2 — build the package
 
-Already built at `../guidegen-build.zip` (68 MB). If you changed anything since —
-including the rename — rebuild it:
+First make sure the website's copies of the shared renderer are current. They are
+generated from the root copies, and a stale one is silent — the site keeps working, it
+just renders last week's annotations:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../guidegen-build.zip && zip -r -X ../guidegen-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js editor.html editor.js editor.css render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
+cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check
 ```
 
-`CLAUDE.md` and `README.md` are deliberately excluded — they describe the project as a
-"replica of Scribe Capture", which should not be sitting inside a package a reviewer can
-open.
+Then rebuild the package:
+
+```bash
+cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../guidegen-build.zip && zip -r -X ../guidegen-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
+```
+
+The file list changed for v1.1, in both directions:
+- **added** `sync.js` (the account session — v1.0 shipped without it, which is why the
+  reviewed build had no sync at all), `offscreen.html` + `offscreen.js` (the narrated
+  video renderer), `redirect.js`
+- **removed** `editor.js` and `editor.css` — the editor moved to the website. `editor.html`
+  stays, as a redirect for v1.0 bookmarks.
+
+`CLAUDE.md`, `README.md`, `PLAN.md`, `tools/` and `web/` are all deliberately excluded.
+The first three describe the project as a "replica of Scribe Capture", which should not be
+sitting inside a package a reviewer can open; the last two aren't part of the extension.
 
 ---
 
@@ -85,8 +99,10 @@ Done, hosted on Vercel alongside the landing page:
 https://guide-gen.vercel.app/privacy
 ```
 
-Verified returning 200 with the correct headers. `store/privacy-policy.html` is
-superseded — it was the standalone version before the site existed. Use the URL.
+Verified returning 200 with the correct headers. The old standalone
+`store/privacy-policy.html` has been deleted: it predated the website, still said
+"collects nothing, transmits nothing, no account", and a superseded copy making claims
+the product no longer meets is worse than no copy. `web/privacy.html` is the only one.
 
 There's a Terms of Service at `/terms` too, which the store doesn't require but which
 you want in place before anyone signs up.

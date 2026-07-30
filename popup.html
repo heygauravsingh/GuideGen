@@ -79,6 +79,56 @@
     font-size: 11px; color: var(--muted); line-height: 1.5;
     padding: 2px 16px 14px; margin: 0;
   }
+
+  /* ---------- auth gate ---------- */
+  [hidden] { display: none !important; }
+  .auth { padding: 4px 16px 14px; }
+  .auth h2 { font-size: 13.5px; font-weight: 650; margin: 0 0 3px; }
+  .auth p { font-size: 11.5px; color: var(--muted); margin: 0 0 13px; line-height: 1.5; }
+  .field { margin-bottom: 9px; }
+  .field label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--ink-2); margin-bottom: 4px;
+  }
+  /* The extension and the website don't share CSS, so every control on both
+     surfaces has to be styled twice. Skipping this is what once left the
+     editor's dialog inputs as a white UA box on a dark panel. */
+  .field input {
+    width: 100%; border: 1px solid var(--line); border-radius: var(--r);
+    background: var(--panel-2); color: var(--ink);
+    padding: 9px 10px; font: inherit; font-size: 13px; outline: 0;
+    transition: border-color 120ms, box-shadow 120ms;
+  }
+  .field input:focus {
+    border-color: var(--brand); background: var(--panel);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.26);
+  }
+  .msg { font-size: 11.5px; line-height: 1.45; margin: 8px 0 0; min-height: 16px; }
+  .msg.err { color: #c0392b; }
+  .msg.ok { color: #197b4a; }
+  @media (prefers-color-scheme: dark) {
+    .msg.err { color: #ff8079; }
+    .msg.ok { color: #5ed39a; }
+  }
+  .alt { margin-top: 11px; font-size: 11.5px; color: var(--muted); text-align: center; }
+  .alt button {
+    display: inline; width: auto; padding: 0; border: 0; background: none;
+    color: var(--brand); font: inherit; font-weight: 650; cursor: pointer;
+  }
+  .alt button:hover { text-decoration: underline; }
+  .acct {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 16px 13px; font-size: 11px; color: var(--muted);
+  }
+  .acct .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct .spacer { flex: 1; }
+  .acct button {
+    display: inline; width: auto; padding: 0; border: 0; background: none;
+    color: var(--muted); font: inherit; cursor: pointer; text-decoration: underline;
+    flex: none;
+  }
+  .acct button:hover { color: var(--ink-2); }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -95,34 +145,72 @@
     <h1>GuideGen</h1>
   </header>
 
-  <div class="card">
-    <span class="pip"></span>
-    <span class="txt">
-      <b id="statusTitle">Ready to record</b>
-      <small id="statusSub">Every click becomes a step</small>
-    </span>
+  <!-- ============ signed out ============ -->
+  <div class="auth" id="viewAuth" hidden>
+    <h2 id="authTitle">Sign in</h2>
+    <p id="authSub">GuideGen needs an account before it records.</p>
+
+    <form id="authForm" novalidate>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required />
+      </div>
+      <button class="primary" type="submit" id="authSubmit">Sign in</button>
+    </form>
+
+    <p class="msg" id="authMsg" role="status" aria-live="polite"></p>
+
+    <div class="alt">
+      <span id="altText">New here?</span>
+      <button type="button" id="altToggle">Create an account</button>
+    </div>
+    <div class="alt" id="forgotWrap">
+      <button type="button" id="forgot">Forgot your password?</button>
+    </div>
   </div>
 
-  <div class="actions">
-    <button id="toggle" class="primary">
-      <svg id="toggleIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <circle cx="12" cy="12" r="7" />
-      </svg>
-      <span id="toggleLabel">Start recording</span>
-    </button>
-    <button id="library" class="ghost">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 5h7l2 2h7v12H4zM4 9h16" />
-      </svg>
-      Guide library
-    </button>
+  <!-- ============ signed in ============ -->
+  <div id="viewMain" hidden>
+    <div class="card">
+      <span class="pip"></span>
+      <span class="txt">
+        <b id="statusTitle">Ready to record</b>
+        <small id="statusSub">Every click becomes a step</small>
+      </span>
+    </div>
+
+    <div class="actions">
+      <button id="toggle" class="primary">
+        <svg id="toggleIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="12" r="7" />
+        </svg>
+        <span id="toggleLabel">Start recording</span>
+      </button>
+      <button id="library" class="ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 5h7l2 2h7v12H4zM4 9h16" />
+        </svg>
+        Guide library
+      </button>
+    </div>
+
+    <p class="hint" id="hint">
+      Tip: if a tab was open before you installed GuideGen, reload it once before recording.
+    </p>
+
+    <div class="acct">
+      <span class="who" id="acctEmail"></span>
+      <span class="spacer"></span>
+      <button type="button" id="signOut">Sign out</button>
+    </div>
   </div>
 
-  <p class="hint" id="hint">
-    Tip: if a tab was open before you installed GuideGen, reload it once before recording.
-  </p>
-
+  <script src="sync.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
-/* GuideGen — shared site styles.
-   Same token approach as the extension's editor.css so the product and the site
-   look like one thing. Light and dark both first class. */
+/* GuideGen — site styles: landing page, guide editor, public viewer.
+   The popup carries its own copy of these tokens, because an extension page can't
+   load a stylesheet from here. Any control on both surfaces has to be styled in
+   both places. Light and dark are both first class. */
 
 :root {
   --brand: #7c3aed;
@@ -414,49 +415,216 @@ footer.site .spacer { flex: 1; }
   a { color: #000; text-decoration: none; }
 }
 
-/* ---------- inline guide editing ---------- */
-.guide-row.editing { display: block; }
-.edit-panel { margin-top: 4px; }
-.edit-panel .lbl {
-  display: block; font-size: 12px; font-weight: 650; color: var(--ink-2);
-  margin: 14px 0 6px;
+/* ---------- notices ---------- */
+.ext-note, .ed-banner {
+  border: 1px solid var(--line); background: var(--panel-2);
+  border-radius: var(--r); padding: 13px 15px; margin-bottom: 18px;
+  font-size: 13.5px; line-height: 1.55; color: var(--ink-2);
 }
-.edit-panel input[type=text], .edit-panel textarea {
+.ext-note b, .ed-banner b { color: var(--ink); }
+
+/* ---------- guide editor ---------- */
+.ed { padding: 26px 0 90px; }
+
+.ed-top {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.ed-top .spacer { flex: 1; }
+.ed-top .title-wrap { min-width: 220px; flex: 1 1 260px; }
+.ed-title {
+  width: 100%; border: 1px solid transparent; background: transparent;
+  color: var(--ink); border-radius: var(--r-sm); padding: 5px 8px;
+  font-family: inherit; font-size: 22px; font-weight: 660; letter-spacing: -0.025em;
+  outline: 0; transition: border-color var(--fast), background var(--fast);
+}
+.ed-title:hover { border-color: var(--line); }
+.ed-title:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring); }
+.ed-top .submeta { color: var(--muted); font-size: 13px; padding: 0 9px; }
+
+.btn.sm { padding: 7px 11px; font-size: 13px; }
+.btn.icon { padding: 8px; }
+.btn.icon.sm { padding: 6px; }
+.btn.icon svg { width: 15px; height: 15px; }
+.btn.danger { color: #c0392b; }
+.btn.danger:hover { background: rgba(192, 57, 43, 0.09); color: #c0392b; }
+@media (prefers-color-scheme: dark) {
+  .btn.danger { color: #ff8079; }
+  .btn.danger:hover { background: rgba(255, 128, 121, 0.12); color: #ff8079; }
+}
+.btn[disabled] { opacity: 0.45; pointer-events: none; }
+
+/* ---------- export menu ---------- */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  min-width: 262px; padding: 7px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--sh-3);
+  display: none;
+}
+.menu.open { display: block; }
+.menu .lbl {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--faint); padding: 7px 9px 5px;
+}
+.menu .sep { height: 1px; background: var(--line); margin: 5px 3px; }
+.menu button {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  border: 0; background: none; color: var(--ink); cursor: pointer;
+  padding: 8px 9px; border-radius: var(--r-sm); font: inherit; text-align: left;
+}
+.menu button:hover { background: var(--panel-2); }
+.menu .ico { font-size: 17px; line-height: 1; flex: none; }
+.menu .txt { display: flex; flex-direction: column; font-size: 14px; font-weight: 560; }
+.menu .txt small { color: var(--muted); font-size: 12px; font-weight: 400; margin-top: 1px; }
+
+/* ---------- step cards ---------- */
+.step {
+  display: flex; gap: 13px; padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.step:first-of-type { border-top: 0; }
+.step.dragging { opacity: 0.4; }
+.step.drop-before { box-shadow: inset 0 2px 0 var(--brand); }
+.step.drop-after { box-shadow: inset 0 -2px 0 var(--brand); }
+
+/* The number sits above the grip so it lines up with the first line of step text.
+   The grip is invisible until hover but still occupies its box, so nothing shifts. */
+.step .gutter { width: 30px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.step .num {
+  width: 27px; height: 27px; border-radius: 50%;
+  background: var(--brand); color: #fff; font-size: 13px; font-weight: 700;
+  display: grid; place-items: center; font-variant-numeric: tabular-nums;
+}
+.step.is-note .num { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.step .grip {
+  color: var(--faint); cursor: grab; opacity: 0; padding: 2px;
+  transition: opacity var(--fast);
+}
+.step .grip svg { width: 15px; height: 15px; }
+.step:hover .grip { opacity: 1; }
+
+.step .content { flex: 1; min-width: 0; }
+.step .note-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--brand-2); background: var(--brand-soft);
+  border-radius: 6px; padding: 3px 7px; margin-bottom: 7px;
+}
+/* Never `font: <size>/<lh> inherit` — that shorthand is invalid, fails silently,
+   and a textarea then falls back to the UA default, which is monospace. */
+.step textarea {
   width: 100%; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
   border-radius: var(--r-sm); padding: 10px 12px;
-  font-family: inherit; font-size: 14.5px; line-height: 1.5;
+  font-family: inherit; font-size: 15.5px; font-weight: 550; line-height: 1.5;
+  letter-spacing: -0.01em;
   outline: 0; resize: none; overflow: hidden;
   transition: border-color var(--fast), box-shadow var(--fast);
 }
-.edit-panel input[type=text]:focus, .edit-panel textarea:focus {
-  border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring);
+.step textarea:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring); }
+.step.is-note textarea { font-weight: 450; }
+
+.step .shot {
+  position: relative; margin-top: 11px; border: 1px solid var(--line);
+  border-radius: var(--r); overflow: hidden; background: var(--panel-2); line-height: 0;
 }
-.edit-panel .step-edit { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 9px; }
-.edit-panel .step-edit .n {
-  width: 25px; height: 25px; min-width: 25px; border-radius: 50%;
-  background: var(--brand); color: #fff; font-size: 12px; font-weight: 700;
-  display: grid; place-items: center; margin-top: 8px;
-  font-variant-numeric: tabular-nums;
+.step .shot canvas { width: 100%; height: auto; display: block; }
+.step .shot.redacting { cursor: crosshair; }
+.step .shot.redacting canvas { pointer-events: none; }
+.step .shot .sel {
+  display: none; position: absolute; z-index: 2;
+  border: 2px solid var(--brand); background: rgba(124, 58, 237, 0.18);
+  pointer-events: none;
 }
-.edit-panel .step-edit.is-note .n { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
-.edit-panel .step-edit .grow { flex: 1; min-width: 0; }
-.edit-panel .step-edit figure {
-  margin: 9px 0 0; border: 1px solid var(--line); border-radius: var(--r-sm);
+.shot-skel {
+  height: 210px; background: var(--panel-2);
+  animation: pulse-skel 1.3s ease-in-out infinite;
+}
+.step figure.baked {
+  margin: 11px 0 0; border: 1px solid var(--line); border-radius: var(--r);
   overflow: hidden; background: var(--panel-2); line-height: 0; position: relative;
 }
-.edit-panel .step-edit figure img { width: 100%; }
-.edit-panel .step-edit figure::after {
-  content: "read-only";
-  position: absolute; top: 7px; right: 7px;
+.step figure.baked img { width: 100%; }
+.step figure.baked:not(.gone)::after {
+  content: "annotations baked in";
+  position: absolute; top: 8px; right: 8px;
   background: rgba(16, 23, 41, 0.72); color: #fff;
   font-size: 10.5px; font-weight: 650; letter-spacing: 0.03em;
   padding: 3px 7px; border-radius: 5px; line-height: 1.3;
 }
-.edit-panel .step-edit .no-img {
-  margin-top: 7px; font-size: 12.5px; color: var(--faint);
+.step .no-img { margin: 9px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.5; }
+
+.step .rowtools { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.step .rowtools .spacer { flex: 1; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
+  background: var(--ink); color: var(--bg);
+  padding: 11px 17px; border-radius: 999px; font-size: 13.5px; font-weight: 550;
+  box-shadow: var(--sh-3); z-index: 90;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--fast), transform var(--fast);
 }
-.edit-panel .row { display: flex; gap: 8px; margin-top: 16px; }
-.edit-panel .row .spacer { flex: 1; }
-.edit-panel .warn {
-  font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.5;
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- modal ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(9, 12, 20, 0.5); backdrop-filter: blur(2px);
+  display: none; place-items: center; padding: 24px;
+}
+.overlay.open { display: grid; }
+.modal {
+  width: 100%; max-width: 470px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--sh-3); padding: 22px;
+}
+.modal h3 { margin: 0 0 7px; font-size: 18px; font-weight: 660; letter-spacing: -0.02em; }
+.modal p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.modal .row { display: flex; gap: 8px; align-items: center; margin-top: 18px; }
+.modal .row .spacer { flex: 1; }
+/* The extension used to style its own copy of this form; the two surfaces don't
+   share CSS, so a control that exists on both has to be styled in both places. */
+.modal .field { margin-bottom: 13px; }
+.modal .field input {
+  width: 100%; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  border-radius: var(--r-sm); padding: 10px 12px; font: inherit; font-size: 14px; outline: 0;
+}
+.modal .field input:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring); }
+.modal .field-label { display: block; font-size: 12px; font-weight: 650; color: var(--ink-2); margin-bottom: 6px; }
+.modal .hint { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+.modal .status-line { font-size: 13px; color: var(--muted); min-height: 18px; margin-top: 10px; line-height: 1.5; }
+
+.segmented { display: flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px; }
+.segmented button {
+  flex: 1; border: 0; background: none; color: var(--ink-2);
+  padding: 7px 10px; border-radius: 7px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.segmented button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: var(--sh-1); }
+
+.switch { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 16px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+  width: 38px; height: 22px; border-radius: 999px; background: var(--line);
+  position: relative; flex: none; margin-top: 2px; transition: background var(--fast);
+}
+.switch .track::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  transition: transform var(--fast);
+}
+.switch input:checked + .track { background: var(--brand); }
+.switch input:checked + .track::after { transform: translateX(16px); }
+.switch input:focus-visible + .track { box-shadow: 0 0 0 3px var(--brand-ring); }
+.switch .label { display: flex; flex-direction: column; font-size: 14px; }
+.switch .label small { color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
+
+.progress { height: 6px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-top: 14px; }
+.progress > div { height: 100%; width: 0; background: var(--brand); transition: width 200ms linear; }
+
+/* Keep new motion inside the reduced-motion contract. */
+@media (prefers-reduced-motion: reduce) {
+  .toast, .progress > div, .step .grip, .switch .track, .switch .track::after { transition: none !important; }
+  .shot-skel, .skel, .vskel { animation: none !important; }
 }

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>GuideGen video renderer</title>
+</head>
+<!--
+  Never visible. This exists so the narrated video export has the three things a
+  service worker doesn't have: a DOM to draw a canvas in, an AudioContext to play
+  Piper's samples through, and a MediaRecorder to mux them.
+
+  No stylesheet and no markup on purpose — nothing here is ever painted to a
+  screen. The canvas the video is recorded from is created in JS and never
+  attached to this document.
+-->
+<body>
+  <script src="render.js"></script>
+  <script src="tts.js"></script>
+  <script src="exporters.js"></script>
+  <script src="offscreen.js"></script>
+</body>
+</html>

@@ -49,24 +49,29 @@ The video is rendered on a canvas and captured to `.webm`. With narration on, Gu
 
 Video is 1080p. Like the other exports, each slide zooms toward the thing you clicked rather than showing the whole browser window — a full desktop viewport is mostly empty margin, and fitting all of it on screen shrinks the actual UI until the text can't be read.
 
-The first narrated export takes a little longer while the voice model loads. Keep the editor tab focused while the video renders: Chrome suspends background tabs, and while GuideGen keeps the slides advancing anyway, the picture gets choppy. If the voice files are missing from `lib/`, GuideGen falls back to a **silent captioned** video (every step still shows its text on screen).
+The first narrated export takes a little longer while the voice model loads. The video is rendered by the extension in an offscreen document, so you can leave the dashboard tab — you no longer have to keep it focused. If the voice files are missing from `lib/`, GuideGen falls back to a **silent captioned** video (every step still shows its text on screen).
 
 ## How it works (for tinkering)
 
 - `manifest.json` — MV3 config and permissions.
 - `background.js` — recording state, `captureVisibleTab` screenshots, storage.
 - `recorder.js` / `recorder.css` — content script: listens for clicks/inputs, builds step descriptions, shows the recording pill.
-- `render.js` — draws annotations (highlight box, numbered marker, click ripple, redaction pixelation) onto a canvas.
-- `editor.html` / `editor.js` / `editor.css` — the guide library + step editor.
+- `render.js` — draws annotations (scrim + spotlight, accent ring, numbered badge, redaction pixelation) onto a canvas.
+- `popup.html` / `popup.js` — the toolbar popup: sign in, start/stop, open the library.
+- `sync.js` — the account session, shared with the dashboard over the bridge.
+- `offscreen.html` / `offscreen.js` — invisible page that renders the narrated video, because a service worker has no canvas, audio engine or recorder.
+- `editor.html` / `redirect.js` — a redirect. The editor itself is now the dashboard at `/app`; see `web/assets/app.js`.
 - `exporters.js` — HTML / Markdown / PDF / PPTX / video generators.
 - `tts.js` — offline speech synthesis for the narrated video.
+- `web/` — the website: landing page, the guide editor at `/app`, the public viewer at `/g/{id}`, and one serverless function for deleting images. `render.js` and `exporters.js` are mirrored into `web/assets/` by `tools/sync-web-assets.mjs`; edit the root copies, never the mirrors.
 - `lib/` — bundled [jsPDF](https://github.com/parallax/jsPDF) (PDF), [PptxGenJS](https://github.com/gitbrent/PptxGenJS) (PowerPoint), and the narration engine: [onnxruntime-web](https://github.com/microsoft/onnxruntime), [piper-phonemize](https://github.com/rhasspy/piper-phonemize) (espeak-ng), and a [Piper](https://github.com/rhasspy/piper) voice. The voice model and its pronunciation dictionary account for nearly all of the folder's ~90MB.
 
 Data lives in `chrome.storage.local` (unlimited storage). To wipe everything, remove the extension or clear its storage.
 
 ## Known limits vs. paid Scribe
 - Captures web pages only (browser clicks/inputs), not native desktop apps.
-- No cloud sync, sharing links, team workspaces, or the AI workflow-analysis features.
+- No team workspaces or AI workflow-analysis features.
 - Screenshots are of the visible viewport at click time.
+- Guides you haven't published stay on the machine that recorded them — nothing syncs until you publish, so there is nothing to open elsewhere. Published guides you can edit and export from any browser.
 
 Built as a personal, local alternative. Bundled libraries retain their own MIT licenses (see `lib/`).
