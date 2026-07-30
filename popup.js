@@ -98,9 +98,29 @@ function applyMode() {
   el("altText").textContent = up ? "Already have an account?" : "New here?";
   el("altToggle").textContent = up ? "Sign in" : "Create an account";
   el("password").autocomplete = up ? "new-password" : "current-password";
+  // Password signups only. Google supplies the name with the token, so asking for
+  // it again would be asking for something we already have.
+  el("nameField").hidden = !up;
   el("forgotWrap").hidden = up;
   say("");
 }
+
+// Hidden unless an OAuth client id is configured — a Google button that can't work
+// is worse than none.
+(function wireGoogle() {
+  if (!FSSync.googleReady()) return;
+  el("googleWrap").hidden = false;
+  el("googleBtn").addEventListener("click", async () => {
+    el("googleBtn").disabled = true;
+    say("Opening Google…");
+    try {
+      showMain(await FSSync.signInWithGoogle());
+    } catch (err) {
+      el("googleBtn").disabled = false;
+      say(err.message, "err");
+    }
+  });
+})();
 
 function say(text, kind) {
   const m = el("authMsg");
@@ -117,6 +137,8 @@ el("authForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = el("email").value.trim();
   const pw = el("password").value;
+  const name = el("fullName").value.trim();
+  if (mode === "signup" && name.length < 2) return say("Enter your full name.", "err");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return say("Enter a valid email address.", "err");
   if (!pw) return say("Enter your password.", "err");
   if (mode === "signup" && pw.length < 6) return say("Password needs at least 6 characters.", "err");
@@ -125,7 +147,7 @@ el("authForm").addEventListener("submit", async (e) => {
   say(mode === "signup" ? "Creating your account…" : "Signing in…");
   try {
     const s = mode === "signup"
-      ? await FSSync.signUp(email, pw)
+      ? await FSSync.signUp(email, pw, name)
       : await FSSync.signIn(email, pw);
     showMain(s);
   } catch (err) {
@@ -155,6 +177,7 @@ el("signOut").addEventListener("click", async () => {
   mode = "signin";
   el("email").value = "";
   el("password").value = "";
+  el("fullName").value = "";
   applyMode();
   showAuth();
 });
@@ -170,7 +193,7 @@ function showAuth() {
 function showMain(session) {
   el("viewAuth").hidden = true;
   el("viewMain").hidden = false;
-  el("acctEmail").textContent = session.email || "";
+  el("acctEmail").textContent = session.name || session.email || "";
   el("acctEmail").title = session.email || "";
   refresh();
 }

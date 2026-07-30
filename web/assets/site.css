@@ -802,3 +802,23 @@ header.site .menu-wrap .menu { top: calc(100% + 8px); }
   color: var(--ink-2); background: var(--panel-2);
   border: 1px solid var(--line); border-radius: var(--r-sm); padding: 11px 13px;
 }
+
+/* ---------- Google sign-in ---------- */
+/* Google's brand guidelines want their own mark and a neutral surface — so this is
+   deliberately NOT the ink primary button. It's a peer to the form below it, not a
+   louder version of it. */
+.google-btn {
+  width: 100%; justify-content: center; gap: 10px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); font-weight: 600;
+}
+.google-btn:hover { background: var(--panel-2); }
+.google-btn svg { flex: none; }
+.or {
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0; color: var(--faint); font-size: 12px;
+}
+.or::before, .or::after {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
+.modal .google-btn { margin-bottom: 0; }

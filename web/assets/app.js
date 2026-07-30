@@ -179,9 +179,28 @@
     el("alt-text").textContent = up ? "Already have an account?" : "New here?";
     el("alt-toggle").textContent = up ? "Sign in" : "Create an account";
     el("password").autocomplete = up ? "new-password" : "current-password";
+    // Only asked when creating an account, and only for the password route —
+    // Google hands the name over with the token, so asking again would be asking
+    // for something we already have.
+    el("name-field").hidden = !up;
     el("forgot-wrap").hidden = up;
     say("auth-msg", "");
   }
+
+  // Hidden entirely until an OAuth client id is configured. A Google button that
+  // always fails is worse than no Google button.
+  (function wireGoogle() {
+    var wrap = el("google-wrap");
+    if (!wrap) return;
+    if (!GG.googleReady()) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    el("google-btn").addEventListener("click", function () {
+      say("auth-msg", "Taking you to Google…");
+      GG.beginGoogle("/app" + location.hash).catch(function (e) {
+        say("auth-msg", e.message, "err");
+      });
+    });
+  })();
 
   el("alt-toggle").addEventListener("click", function () {
     mode = mode === "signup" ? "signin" : "signup";
@@ -192,13 +211,15 @@
     e.preventDefault();
     var email = el("email").value.trim();
     var pw = el("password").value;
+    var name = el("full-name").value.trim();
+    if (mode === "signup" && name.length < 2) return say("auth-msg", "Enter your full name.", "err");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return say("auth-msg", "Enter a valid email address.", "err");
     if (!pw) return say("auth-msg", "Enter your password.", "err");
     if (mode === "signup" && pw.length < 6) return say("auth-msg", "Password needs at least 6 characters.", "err");
 
     el("auth-submit").disabled = true;
     say("auth-msg", mode === "signup" ? "Creating your account…" : "Signing in…");
-    (mode === "signup" ? GG.signUp(email, pw) : GG.signIn(email, pw))
+    (mode === "signup" ? GG.signUp(email, pw, name) : GG.signIn(email, pw))
       .catch(function (err) { say("auth-msg", err.message, "err"); })
       .then(function () { el("auth-submit").disabled = false; });
   });
@@ -1264,10 +1285,14 @@
         mode = "signin";
         el("email").value = "";
         el("password").value = "";
+        el("full-name").value = "";
         applyMode();
         return;
       }
-      el("acct-email").textContent = s.email || "";
+      // Name if we have it, email as the tooltip. A name is what a person
+      // recognises as themselves.
+      el("acct-email").textContent = s.name || s.email || "";
+      el("acct-email").title = s.email || "";
       route();
     });
   });

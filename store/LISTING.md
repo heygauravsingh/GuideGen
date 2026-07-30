@@ -126,6 +126,11 @@ Used to read the URL and title of the tab being recorded, so each step records w
 Used to render the narrated video export. Producing the video needs a canvas, a Web Audio context and a MediaRecorder, none of which exist in a service worker. The offscreen document is never visible, exists only while an export is running, and has no access to any page the user visits.
 ```
 
+`identity`
+```
+Used only for "Continue with Google" sign-in. The extension opens Google's own consent screen through chrome.identity.launchWebAuthFlow and receives an identity token, which is exchanged for a Firebase session. It requests the openid, email and profile scopes and nothing else — no access to Gmail, Drive, contacts or any other Google service.
+```
+
 `downloads`
 ```
 Used to save the exported guide — HTML, Markdown, PDF, PowerPoint or video — to the user's computer when they choose an export format.
@@ -148,6 +153,10 @@ GuideGen documents whatever web application the user chooses, which cannot be kn
 | **Authentication information** | The extension signs the user in (email + password, via Firebase Authentication) and holds the session. v1.0 had no account; v1.1 requires one. |
 | **Website content** | Publishing a guide uploads screenshots of the pages the user recorded, plus the step text generated from those pages. Only for the guide the user presses Publish on. |
 | **Web history** | Each step stores the URL and page title of where it happened, and those are included in a published guide. |
+
+*Name:* signup asks for a full name, and Google sign-in supplies one. It is stored as the
+Firebase Auth `displayName`, which is account data — already covered by *Authentication
+information*. No separate category, and no phone number is collected.
 
 **One more consideration, if guide exports are enabled.** The export log records the email
 address of a *recipient* — someone who may never have installed the extension — and shows it

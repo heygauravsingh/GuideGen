@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<!-- The Google token arrives in the URL fragment. Referrer-Policy stops it leaking
+     into a referer header on any subsequent request. -->
+<meta name="referrer" content="no-referrer" />
+<title>Signing you in — GuideGen</title>
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<script src="/assets/theme.js"></script>
+<link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+
+<main class="wrap narrow" style="min-height:100vh;display:grid;place-items:center;padding:40px 20px">
+  <div class="state" style="padding:0">
+    <div class="ico" id="ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px">
+        <path d="M21 12a9 9 0 1 1-3-6.7"/>
+      </svg>
+    </div>
+    <h1 id="head">Signing you in…</h1>
+    <p id="body">One moment.</p>
+    <div class="cta" id="cta" hidden></div>
+  </div>
+</main>
+
+<script src="/assets/gg.js"></script>
+<script>
+/* The OAuth landing page, and nothing else. It exists so there is ONE redirect URI
+   to register with Google rather than one per page — where the user was is carried
+   in sessionStorage across the redirect, not in the URL.
+
+   The fragment holding the Google token is replaced out of history as soon as it's
+   been used, so it isn't sitting in the back button. */
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+
+  function fail(msg, back) {
+    el("ico").innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px">' +
+      '<path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>';
+    el("head").textContent = "Sign-in didn't complete";
+    el("body").textContent = msg;
+    var cta = el("cta");
+    cta.hidden = false;
+    var a = document.createElement("a");
+    a.className = "btn";
+    a.href = back || "/app";
+    a.textContent = "Try again";
+    cta.appendChild(a);
+  }
+
+  if (!location.hash) {
+    // Somebody opened /auth directly. Nothing to do, and no reason to alarm them.
+    return fail("This page only handles the return trip from Google. Start from the sign-in screen.", "/app");
+  }
+
+  GG.completeGoogle().then(function (r) {
+    // Drop the token out of the address bar and out of history before leaving.
+    try { history.replaceState(null, "", "/auth"); } catch (e) {}
+    location.replace(r.returnTo || "/app");
+  }).catch(function (e) {
+    try { history.replaceState(null, "", "/auth"); } catch (err) {}
+    fail(e.message || "Something went wrong.", e.returnTo);
+  });
+})();
+</script>
+</body>
+</html>

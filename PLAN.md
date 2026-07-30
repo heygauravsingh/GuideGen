@@ -337,6 +337,38 @@ file mints a new id and the page then points at the old build with nothing to wa
 
 Delete `/install` and revert the landing CTAs once the store listing is public.
 
+### Google sign-in + full name — built 30 Jul 2026, NEEDS CONSOLE SETUP
+
+On all three surfaces: popup, `/app`, and the viewer's export gate. Full name captured on
+password signup only — Google supplies it in the token.
+
+Decisions worth not re-litigating:
+
+- **Plain OAuth redirect, not Google Identity Services.** `gg.js` states the site loads nothing
+  from an external host, and GIS is a remote script. A redirect costs one page load.
+- **One Web OAuth client, three redirect URIs.** `/auth` plus `chromiumapp.org` for *each*
+  extension id. Registering only the store id makes Google sign-in fail silently on the dev
+  build — same class of trap as the bridge extension-id bug.
+- **`state` and `nonce` both checked.** Verified: state mismatch, nonce replay, user cancel and
+  a direct visit to `/auth` are all rejected with the right message and the right return path.
+- **Unset client id hides every Google button.** Same principle as the Drive link on `/install`.
+- **The export log still stores email only, not the name.** `email` is checkable against
+  `request.auth.token.email` in the rules; a name isn't reliably (the claim is absent until a
+  token minted after `displayName` is set). An unverifiable name in a log the owner reads is
+  worse than no name.
+- **Phone number dropped.** Would have added *Personally identifiable information* to the store
+  declaration and a privacy-policy section, for a field most people skip.
+
+Verified locally: the redirect URL carries the right client id, redirect_uri, scopes and
+`prompt=select_account`; state/nonce are stashed and match; the happy path saves a session with
+the Google display name; and the viewer resumes the export it was interrupted for —
+`?export=pdf` produced a real 4.8MB PDF with no second prompt and stripped the param afterwards.
+
+**Console work, and nothing works until it's done** — RUNBOOK step 2c. Notably
+*Authentication → Settings → one account per email address*, which decides whether a
+password account and a Google account with the same address link or fork. Fork means two
+libraries under one email and no merge path. Set it before anyone signs up twice.
+
 ### Small gap: the viewer has no broken-image handling
 
 `web/g.html` renders each step's `imageUrl` as a plain `<img>` with no `onerror`. If an image

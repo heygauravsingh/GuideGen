@@ -14,6 +14,49 @@ window.GG = (function () {
            "/databases/(default)/documents";
   var STORE_KEY = "gg_auth";
 
+  /* Google sign-in.
+   *
+   * Done as a plain OAuth redirect, NOT with Google Identity Services, because the
+   * rule at the top of this file is that the site loads nothing from an external
+   * host — and GIS is a remote script. A redirect costs one page load and keeps
+   * that intact.
+   *
+   * Paste the OAuth 2.0 *Web application* client id below. One client covers every
+   * surface; it needs three authorised redirect URIs:
+   *
+   *   https://guide-gen.vercel.app/auth                     (this site)
+   *   https://<store-extension-id>.chromiumapp.org/         (the popup)
+   *   https://<unpacked-extension-id>.chromiumapp.org/      (your dev build)
+   *
+   * Until it's set, googleReady() is false and every Google button stays hidden.
+   * A visible button that always fails is worse than no button. */
+  var GOOGLE_CLIENT_ID = "PASTE_GOOGLE_WEB_CLIENT_ID_HERE";
+  var OAUTH_KEY = "gg_oauth";
+
+  function googleReady() {
+    return /^[0-9][0-9a-z-]*\.apps\.googleusercontent\.com$/.test(GOOGLE_CLIENT_ID);
+  }
+
+  function rand(n) {
+    var b = new Uint8Array(n);
+    crypto.getRandomValues(b);
+    return Array.prototype.map.call(b, function (x) {
+      return x.toString(36).padStart(2, "0");
+    }).join("");
+  }
+
+  // Reads the payload without verifying the signature — Firebase does that when it
+  // exchanges the token. This is only here to check the nonce we sent came back.
+  function jwtPayload(tok) {
+    try {
+      var b64 = String(tok).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      var json = decodeURIComponent(atob(b64).split("").map(function (c) {
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(""));
+      return JSON.parse(json);
+    } catch (e) { return null; }
+  }
+
   // ---------- session ----------
 
   function load() {
@@ -32,6 +75,9 @@ window.GG = (function () {
     return {
       uid: body.localId || body.user_id,
       email: body.email || (load() || {}).email,
+      // Refresh responses carry no profile, so fall back to what we already had
+      // rather than blanking the name on every token refresh.
+      name: body.displayName || (load() || {}).name || "",
       idToken: body.idToken || body.id_token,
       refreshToken: body.refreshToken || body.refresh_token,
       // refresh a minute early rather than discovering expiry mid-request
@@ -81,11 +127,21 @@ window.GG = (function () {
     });
   }
 
-  function signUp(email, password) {
+  function signUp(email, password, name) {
     return post(IDT + ":signUp?key=" + API_KEY,
                 { email: email, password: password, returnSecureToken: true })
       .then(function (b) {
-        var s = session(b); s.email = email; save(s); return s;
+        var s = session(b);
+        s.email = email;
+        s.name = (name || "").trim();
+        save(s);
+        if (!s.name) return s;
+        // Write it to the account too, so it survives a sign-out and shows up for
+        // anything that reads the profile rather than our local copy. Never fail a
+        // signup over it — the account exists by this point either way.
+        return post(IDT + ":update?key=" + API_KEY,
+                    { idToken: s.idToken, displayName: s.name, returnSecureToken: false })
+          .then(function () { return s; }, function () { return s; });
       });
   }
 
@@ -95,6 +151,88 @@ window.GG = (function () {
       .then(function (b) {
         var s = session(b); s.email = email; save(s); return s;
       });
+  }
+
+  // Step one: hand off to Google. Nothing is stored except what we need to verify
+  // the round trip, and that lives in sessionStorage so it dies with the tab.
+  function beginGoogle(returnTo) {
+    if (!googleReady()) {
+      return Promise.reject(new Error("Google sign-in isn't set up on this deployment yet."));
+    }
+    var state = rand(16);
+    var nonce = rand(16);
+    try {
+      sessionStorage.setItem(OAUTH_KEY, JSON.stringify({
+        state: state,
+        nonce: nonce,
+        returnTo: returnTo || (location.pathname + location.search + location.hash),
+      }));
+    } catch (e) {
+      return Promise.reject(new Error("Your browser is blocking session storage, which Google sign-in needs."));
+    }
+    location.assign(
+      "https://accounts.google.com/o/oauth2/v2/auth" +
+      "?client_id=" + encodeURIComponent(GOOGLE_CLIENT_ID) +
+      "&redirect_uri=" + encodeURIComponent(location.origin + "/auth") +
+      "&response_type=id_token" +
+      "&scope=" + encodeURIComponent("openid email profile") +
+      "&nonce=" + encodeURIComponent(nonce) +
+      "&state=" + encodeURIComponent(state) +
+      // So someone with several Google accounts isn't silently signed in as the
+      // wrong one, which is very hard to notice and annoying to undo.
+      "&prompt=select_account"
+    );
+    return new Promise(function () {});   // navigating away; never settles
+  }
+
+  // Step two, on /auth: verify the round trip, then trade the Google token for a
+  // Firebase session. Resolves with where to send the user back to.
+  function completeGoogle() {
+    var frag = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
+    var saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(OAUTH_KEY) || "null"); } catch (e) {}
+    try { sessionStorage.removeItem(OAUTH_KEY); } catch (e) {}
+    var back = (saved && saved.returnTo) || "/app";
+
+    var fail = function (msg) {
+      var e = new Error(msg);
+      e.returnTo = back;
+      return Promise.reject(e);
+    };
+
+    var err = frag.get("error");
+    if (err) {
+      return fail(err === "access_denied"
+        ? "Google sign-in was cancelled."
+        : "Google turned that sign-in down.");
+    }
+
+    var idToken = frag.get("id_token");
+    // state proves the response belongs to a request this tab made; nonce proves
+    // the token itself isn't a replay of an older one.
+    if (!idToken || !saved || frag.get("state") !== saved.state) {
+      return fail("That sign-in couldn't be verified. Please start again.");
+    }
+    var claims = jwtPayload(idToken);
+    if (!claims || claims.nonce !== saved.nonce) {
+      return fail("That sign-in couldn't be verified. Please start again.");
+    }
+
+    return post(IDT + ":signInWithIdp?key=" + API_KEY, {
+      postBody: "id_token=" + encodeURIComponent(idToken) + "&providerId=google.com",
+      requestUri: location.origin,
+      returnIdpCredential: true,
+      returnSecureToken: true,
+    }).then(function (b) {
+      var s = session(b);
+      s.email = b.email || s.email;
+      s.name = b.displayName || (claims && claims.name) || s.name || "";
+      save(s);
+      return { session: s, returnTo: back };
+    }, function (e) {
+      e.returnTo = back;
+      throw e;
+    });
   }
 
   function signOut() { save(null); }
@@ -446,6 +584,7 @@ window.GG = (function () {
 
   return {
     signUp: signUp, signIn: signIn, signOut: signOut, adopt: adopt,
+    googleReady: googleReady, beginGoogle: beginGoogle, completeGoogle: completeGoogle,
     sendPasswordReset: sendPasswordReset,
     getToken: getToken, onChange: onChange, current: load,
     listGuides: listGuides, getPublicGuide: getPublicGuide, getGuide: getGuide,

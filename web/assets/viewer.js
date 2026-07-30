@@ -200,6 +200,20 @@
         "They see your email address, which format you chose and when. Nothing else, " +
         "and nothing about anything else you do." +
         "</div>" +
+        (GG.googleReady()
+          ? '<button type="button" class="btn google-btn" id="si-google">' +
+            '<svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">' +
+            '<path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>' +
+            '<path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.34A9 9 0 0 0 9 18z"/>' +
+            '<path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.01-2.34z"/>' +
+            '<path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>' +
+            "</svg>Continue with Google</button>" +
+            '<div class="or"><span>or</span></div>'
+          : "") +
+        (up
+          ? '<div class="field"><span class="field-label">Full name</span>' +
+            '<input type="text" id="si-name" autocomplete="name" /></div>'
+          : "") +
         '<div class="field"><span class="field-label">Email</span>' +
         '<input type="email" id="si-email" autocomplete="email" /></div>' +
         '<div class="field"><span class="field-label">Password</span>' +
@@ -222,6 +236,16 @@
       document.getElementById("si-pw").onkeydown = function (e) {
         if (e.key === "Enter") submit();
       };
+      var g = document.getElementById("si-google");
+      if (g) {
+        g.onclick = function () {
+          note("Taking you to Google…");
+          // Come back to this guide, and to the format they asked for, so signing in
+          // doesn't lose their place or make them pick again.
+          GG.beginGoogle(location.pathname + "?export=" + encodeURIComponent(kind))
+            .catch(function (e) { note(e.message); });
+        };
+      }
       document.getElementById("si-email").focus();
     }
 
@@ -230,12 +254,15 @@
     function submit() {
       var email = document.getElementById("si-email").value.trim();
       var pw = document.getElementById("si-pw").value;
+      var nameEl = document.getElementById("si-name");
+      var name = nameEl ? nameEl.value.trim() : "";
+      if (mode === "signup" && name.length < 2) return note("Enter your full name.");
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return note("Enter a valid email address.");
       if (!pw) return note("Enter your password.");
       if (mode === "signup" && pw.length < 6) return note("Password needs at least 6 characters.");
       document.getElementById("si-go").disabled = true;
       note(mode === "signup" ? "Creating your account…" : "Signing in…");
-      (mode === "signup" ? GG.signUp(email, pw) : GG.signIn(email, pw))
+      (mode === "signup" ? GG.signUp(email, pw, name) : GG.signIn(email, pw))
         .then(function () {
           closeModal();
           renderExportBar();
@@ -452,6 +479,13 @@
     }
     guide = g;
     render(g);
+    // Back from Google mid-export: pick up where they left off rather than making
+    // them find the menu again.
+    var want = new URLSearchParams(location.search).get("export");
+    if (want && GG.current() && LABEL[want]) {
+      try { history.replaceState(null, "", location.pathname); } catch (err) {}
+      runExport(want);
+    }
   }).catch(function (e) {
     if (e.code === 403 || e.code === 404) {
       // Firestore returns 403 for both "denied" and "doesn't exist" — on purpose,

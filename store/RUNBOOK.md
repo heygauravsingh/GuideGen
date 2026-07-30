@@ -166,6 +166,39 @@ Two notes on the link itself:
 Delete `/install` and revert the landing-page CTAs once the store listing is public — the
 callouts on that page are written on the assumption that it's temporary.
 
+## Step 2c — Google sign-in: three console tasks
+
+Code is done and hidden until configured. `GOOGLE_CLIENT_ID` sits in **two** places (the two
+surfaces don't share a bundle): `web/assets/gg.js` and `sync.js`. Same value in both.
+
+**1. Firebase Console → Authentication → Sign-in method → Google → Enable.**
+Set the project support email while you're there; Google requires one.
+
+**2. Firebase Console → Authentication → Settings → "one account per email address".**
+Do this *before* anyone signs up twice. It decides what happens when someone registers with a
+password as `x@y.com` and later clicks Continue with Google as the same address: link the two,
+or create a second account. A second account means a second, empty guide library under the same
+email address, and no way to merge them.
+
+**3. Google Cloud Console → APIs & Services → Credentials → Create OAuth client ID →
+Web application.** One client covers everything. Add three authorised redirect URIs:
+
+```
+https://guide-gen.vercel.app/auth
+https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/
+https://<your-unpacked-extension-id>.chromiumapp.org/
+```
+
+The third one matters: an unpacked build has a different id from the store build, so without it
+Google sign-in works from the store version and fails silently on your dev build. Get the id
+from `chrome://extensions` with developer mode on.
+
+Then paste the client id into both files and deploy.
+
+**OAuth consent screen.** Scopes are `openid email profile` — all non-sensitive, so **no Google
+review is required**. But an unpublished consent screen stays in *Testing*, which only lets 100
+named test users sign in. Hit **Publish app** or real users get "access blocked".
+
 ## Step 3 — privacy policy: already live
 
 Done, hosted on Vercel alongside the landing page:

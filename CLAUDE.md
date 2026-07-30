@@ -61,13 +61,14 @@ Local guide data lives in `chrome.storage.local`.
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
 | `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration). Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
-| `sync.js` | `window.FSSync`. **Auth only** — Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
+| `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
 | `web/assets/publish.js` | `window.GGPublish`. `publish()` creates a guide document; `republish()` updates one **in place** so a shared link never goes stale. |
-| `web/assets/gg.js` | `window.GG`. Firebase auth + Firestore over REST for the website. |
+| `web/assets/gg.js` | `window.GG`. Firebase auth + Firestore over REST for the website, including the Google OAuth redirect flow (see Google sign-in). |
+| `web/auth.html` | The OAuth landing page, and nothing else. One redirect URI to register instead of one per page. |
 | `web/g.html` + `web/assets/viewer.js` | The public guide page. Read-only, plus exports if the owner allowed them. render.js, exporters.js, the bridge and the two exporter libs are all injected on demand — a reader who only reads shouldn't download an exporter. |
 | `web/api/delete-assets.js` | The only server-side code. Deletes Cloudinary images, which needs the API secret. Two modes: delete a guide and its images, or purge one superseded asset tag. |
 | `lib/jspdf.umd.min.js` | jsPDF 2.5.1. Global: `window.jspdf.jsPDF`. |
@@ -381,6 +382,39 @@ Four rules:
 
 `gg_session` hands the popup's session to the dashboard, which adopts it only if it has none
 of its own. Signing in twice for one product is not a feature.
+
+## Google sign-in (gg.js + sync.js + web/auth.html)
+Offered on all three surfaces. Four things not to undo:
+
+1. **No Google Identity Services.** `gg.js`'s own header rule is that the site loads nothing
+   from an external host, and GIS is a remote script. So it's a plain OAuth redirect →
+   `id_token` → Identity Toolkit `signInWithIdp`. Costs one page load; keeps the rule.
+2. **One OAuth *Web application* client, three redirect URIs.** `/auth` for the site, plus
+   `https://<id>.chromiumapp.org/` for **each** extension id — an unpacked build has a
+   different id from the store build, so registering only one makes Google sign-in work in
+   one and fail in the other. `chrome.identity.getRedirectURL()` reports the right one.
+3. **`state` and `nonce` both get checked.** `state` proves the response answers a request
+   this tab made; `nonce` proves the token isn't a replay. Both live in `sessionStorage`, so
+   they die with the tab. `jwtPayload()` does not verify the signature and isn't trying to —
+   Firebase does that on exchange.
+4. **`GOOGLE_CLIENT_ID` unset ⇒ every Google button hidden**, on all three surfaces. A
+   visible button that always fails is worse than no button. Same reasoning as the Drive link
+   on `/install`.
+
+`web/auth.html` exists so there is one redirect URI to register rather than one per page.
+Where the user was going is carried in `sessionStorage`, not the URL, and the token fragment
+is `replaceState`d out of history as soon as it's spent. The viewer adds `?export=<kind>` to
+its return path so a reader lands back on the guide with the export they asked for already
+running, rather than having to find the menu again.
+
+**Full name** is captured on password signup only — Google supplies it in the token, so asking
+twice would be asking for something we already have. Stored as the Firebase Auth `displayName`,
+not in Firestore; `users/{uid}` still has rules and still nothing writes it.
+
+**The export log deliberately does not store the name.** `email` can be checked against
+`request.auth.token.email` in the rules; a name cannot be checked reliably (the claim is absent
+until a token is minted after `displayName` is set). An unverifiable name in an audit log a
+guide owner reads is worse than no name.
 
 ## Publishing (web/assets/publish.js)
 Opt-in, per guide, and the extension stays the source of truth for the *pixels*. This moved

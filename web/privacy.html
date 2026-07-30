@@ -110,10 +110,16 @@
   anything.</strong> A guide you have never published stays in your browser's own extension storage,
   on that machine.</p>
 
-  <p>We store your email address, an internal user ID, and the timestamps of account creation and
-  sign-in. We do not ask for your name, phone number, company, or payment details. Your password is
-  handled by Google Firebase Authentication and is never visible to us. We do not use your email
-  address for marketing.</p>
+  <p>We store your email address, your name, an internal user ID, and the timestamps of account
+  creation and sign-in. We do not ask for a phone number, a company, or payment details. We do not
+  use your email address for marketing.</p>
+
+  <p>You can sign in two ways. With <strong>email and password</strong>, the password is handled by
+  Google Firebase Authentication and is never visible to us. With <strong>Continue with
+  Google</strong>, we never see a password at all — Google confirms who you are and tells us your
+  email address and name, nothing else. We ask Google for three things (<code>openid</code>,
+  <code>email</code>, <code>profile</code>) and no access to Gmail, Drive, contacts or anything
+  else in your Google account.</p>
 
   <p>One consequence worth stating plainly, because it is a design decision rather than an
   oversight: <strong>unpublished guides cannot follow you to another computer.</strong> They are not

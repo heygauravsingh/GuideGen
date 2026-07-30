@@ -122,6 +122,20 @@
     border-color: var(--brand); background: var(--panel);
     box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.24);
   }
+  /* Google's guidelines want their mark on a neutral surface, so this is a peer to
+     the form rather than a second primary button. Styled here as well as in
+     site.css — the two surfaces don't share CSS. */
+  .google-btn {
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); font-weight: 600; font-size: 12.5px;
+  }
+  .google-btn:hover { background: var(--panel-2); }
+  .google-btn svg { flex: none; }
+  .or {
+    display: flex; align-items: center; gap: 10px;
+    margin: 11px 0; color: var(--muted); font-size: 10.5px;
+  }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .msg { font-size: 11.5px; line-height: 1.45; margin: 8px 0 0; min-height: 16px; }
   .msg.err { color: var(--err); }
   .msg.ok { color: var(--ok); }
@@ -165,7 +179,24 @@
     <h2 id="authTitle">Sign in</h2>
     <p id="authSub">GuideGen needs an account before it records.</p>
 
+    <div id="googleWrap" hidden>
+      <button type="button" class="google-btn" id="googleBtn">
+        <svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.34A9 9 0 0 0 9 18z"/>
+          <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.01-2.34z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="or"><span>or</span></div>
+    </div>
+
     <form id="authForm" novalidate>
+      <div class="field" id="nameField" hidden>
+        <label for="fullName">Full name</label>
+        <input type="text" id="fullName" autocomplete="name" />
+      </div>
       <div class="field">
         <label for="email">Email</label>
         <input type="email" id="email" autocomplete="email" required />
