@@ -302,6 +302,41 @@ Still open:
    token email, cannot create with someone else's, cannot create when `allowExport` is false,
    cannot read the log, owner can read and delete, nobody can update.
 
+### Early-access distribution — /install, added 30 Jul 2026
+
+The funnel was broken: the landing page said "Get early access" and there was nothing to get,
+because the store listing is Unlisted and pending review. `/install` fixes that — the ZIP plus
+a six-step walkthrough — and the landing CTAs now point at it instead of the waitlist.
+
+**Hosted on Google Drive, not Vercel.** Gaurav's call, and the right one: `.vercelignore` exists
+to stop `lib/` being served, and a 68MB archive of exactly that would reintroduce the problem
+that file was written to prevent — plus 68MB in git forever, since the site has no build step
+and the file would have to be committed to be served. Drive costs nothing, caps nothing, and
+lets testers have the *full* build with narration rather than a lite one.
+
+Three things the page has to say, and does:
+
+1. **The developer-mode nag is about the install method, not the extension.** Chrome shows it
+   for anything loaded from a folder. Without explaining it, it reads as a warning about us.
+2. **A folder-loaded extension has a different identity from the store build.** Chrome treats
+   them as two extensions, so guides recorded now won't appear after switching to the store
+   version — they're in the other extension's storage. Publish anything worth keeping first.
+   This is the one thing on that page that can cost someone work.
+3. **Reload any tab that was already open.** Pre-existing tabs haven't loaded the recorder.
+
+Two ZIPs, and they are not interchangeable: the store requires `manifest.json` at the archive
+root, so `guidegen-build.zip` is flat; a human unzipping a flat archive gets loose files and
+"pick the folder" then means nothing, so `guidegen-install.zip` wraps everything in
+`guidegen/`. Both commands are in RUNBOOK step 2 and 2b.
+
+Open: **paste the Drive link into `DOWNLOAD_URL` in `web/install.html`.** Until then the page
+hides the button and says the link is being set up, so it is safe to be live — but the funnel
+isn't complete. Updating the build later means Drive → right-click the file → *Manage versions*
+→ *Upload new version*, which keeps the file id and therefore the link stable; uploading a fresh
+file mints a new id and the page then points at the old build with nothing to warn you.
+
+Delete `/install` and revert the landing CTAs once the store listing is public.
+
 ### Small gap: the viewer has no broken-image handling
 
 `web/g.html` renders each step's `imageUrl` as a plain `<img>` with no `onerror`. If an image

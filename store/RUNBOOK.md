@@ -114,6 +114,58 @@ sitting inside a package a reviewer can open; the last two aren't part of the ex
 
 ---
 
+## Step 2b — early-access distribution over Google Drive
+
+While the store review is pending, `/install` on the site hands testers the same ZIP that
+gets submitted. **It is hosted on Google Drive, not on Vercel, and that is deliberate:**
+`.vercelignore` exists to stop `lib/` being served, and a 68MB archive of exactly that would
+reintroduce the problem it was written to prevent — plus 68MB committed to git forever, in
+every clone, since the site has no build step and the file would have to be checked in.
+
+**The tester ZIP is not the store ZIP.** The store requires `manifest.json` at the archive
+root, so `guidegen-build.zip` is flat. A human unzipping a flat archive gets loose files
+scattered into whatever folder they were in, and then "pick the folder" means nothing. So the
+tester build wraps everything in a `guidegen/` directory:
+
+```bash
+cd "/Users/apple/Desktop/FlowScribe 2" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib; do cp -R "$f" /tmp/gg-stage/guidegen/; done && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/guidegen-install.zip guidegen) && mv -f /tmp/guidegen-install.zip ../guidegen-install.zip && rm -rf /tmp/gg-stage && ls -lh ../guidegen-install.zip
+```
+
+First time:
+
+1. Run both builds — `Step 2` for `../guidegen-build.zip` (the store), and the command above
+   for `../guidegen-install.zip` (~68MB, what testers get).
+2. Upload **`guidegen-install.zip`** to Drive.
+3. Share → **Anyone with the link** → **Viewer**. Without this, testers get a request-access
+   screen instead of a download.
+4. Copy the link and paste it into `web/install.html` — one line, near the top of the inline
+   script at the bottom of the download card:
+
+   ```js
+   var DOWNLOAD_URL = "PASTE_GOOGLE_DRIVE_LINK_HERE";
+   ```
+
+   Until that's a real `https://` URL the page hides the button and shows "the download link is
+   being set up, email me" instead. That's deliberate: the page is safe to have live before the
+   link exists, and it can never ship with a button that 404s.
+
+**Every time after that — do NOT upload a new file.** Right-click the existing file in Drive →
+**Manage versions** → **Upload new version**. That keeps the same file id, so the link in
+`install.html` never changes and you never have to remember to update the site. Uploading a
+fresh file mints a new id, and the page then points at the old build with no error to tell you.
+
+Two notes on the link itself:
+
+- The plain share link (`/file/d/<id>/view`) opens Drive's preview page with a Download button.
+  One extra click, but it always works and it shows the file size, which reads as more
+  trustworthy than an unexplained 68MB binary starting to download.
+- A direct download is `https://drive.usercontent.google.com/download?id=<id>&export=download`.
+  Drive interposes a virus-scan warning above ~100MB; at 68MB it shouldn't, but that threshold
+  is Google's to move, so the preview link is the safer default.
+
+Delete `/install` and revert the landing-page CTAs once the store listing is public — the
+callouts on that page are written on the assumption that it's temporary.
+
 ## Step 3 — privacy policy: already live
 
 Done, hosted on Vercel alongside the landing page:

@@ -747,3 +747,58 @@ header.site .menu-wrap .menu { top: calc(100% + 8px); }
 @media (max-width: 560px) {
   header.site .menu-wrap .menu { right: -60px; min-width: 240px; }
 }
+
+/* ---------- install page ---------- */
+.install .updated { margin-bottom: 26px; }
+.dl {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  border: 1px solid var(--line); background: var(--panel);
+  border-radius: var(--r-lg); padding: 20px 22px; margin: 26px 0 34px;
+  box-shadow: var(--sh-1);
+}
+.dl .dl-main { flex: 1; min-width: 220px; }
+.dl .dl-h { font-size: 17px; font-weight: 660; margin: 0 0 4px; letter-spacing: -0.018em; }
+.dl .dl-sub { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+
+/* Numbered steps. counter-reset on the list rather than a marker, so the number can
+   sit in an ochre disc without the browser's own list styling fighting it. */
+.steps-num { list-style: none; counter-reset: st; padding: 0; margin: 0 0 30px; }
+.steps-num > li {
+  counter-increment: st; position: relative;
+  padding: 0 0 16px 42px; color: var(--ink-2); line-height: 1.65;
+}
+.steps-num > li::before {
+  content: counter(st);
+  position: absolute; left: 0; top: 1px;
+  width: 27px; height: 27px; border-radius: 50%;
+  background: var(--brand); color: var(--on-brand);
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  display: grid; place-items: center;
+}
+.steps-num > li b { color: var(--ink); font-weight: 650; }
+.steps-num.tight > li { padding-bottom: 9px; }
+
+/* A callout that needs to be read, not skimmed past. Warm rather than red — it's a
+   consequence to understand, not an error. */
+/* Two weights of callout, because a page with two identical tinted boxes has no
+   emphasis — it just has two boxes. `.note` is context you can skim; the default
+   brand tint is the one that has to be read. `.warn` is the default plus a solid
+   accent bar, for the one consequence on a page that will cost someone data. */
+.doc .callout.note {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+.doc .callout.warn {
+  border-left: 4px solid var(--brand);
+  border-top-left-radius: 3px; border-bottom-left-radius: 3px;
+}
+.doc .callout.warn > p:first-child { color: var(--ink); }
+.install .closing {
+  margin-top: 34px; padding-top: 20px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 14px;
+}
+.dl .dl-pending {
+  flex: 1 1 260px; margin: 0; font-size: 13.5px; line-height: 1.55;
+  color: var(--ink-2); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 11px 13px;
+}
