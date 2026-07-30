@@ -63,6 +63,7 @@ Local guide data lives in `chrome.storage.local`.
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
+| `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
@@ -389,10 +390,12 @@ Offered on all three surfaces. Four things not to undo:
 1. **No Google Identity Services.** `gg.js`'s own header rule is that the site loads nothing
    from an external host, and GIS is a remote script. So it's a plain OAuth redirect →
    `id_token` → Identity Toolkit `signInWithIdp`. Costs one page load; keeps the rule.
-2. **One OAuth *Web application* client, three redirect URIs.** `/auth` for the site, plus
-   `https://<id>.chromiumapp.org/` for **each** extension id — an unpacked build has a
-   different id from the store build, so registering only one makes Google sign-in work in
-   one and fail in the other. `chrome.identity.getRedirectURL()` reports the right one.
+2. **One OAuth *Web application* client, two redirect URIs** — `/auth` for the site and
+   `https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/` for the popup. Two rather than
+   one per install *only* because `manifest.json` pins the id with `key`
+   (`tools/set-extension-key.mjs`). Remove that and an unpacked build's id comes from the
+   folder path, differs per machine, and Google sign-in silently fails for every tester while
+   working for you. `chrome.identity.getRedirectURL()` always reports the running build's.
 3. **`state` and `nonce` both get checked.** `state` proves the response answers a request
    this tab made; `nonce` proves the token isn't a replay. Both live in `sessionStorage`, so
    they die with the tab. `jwtPayload()` does not verify the signature and isn't trying to —

@@ -17,18 +17,21 @@
 window.GGBridge = (function () {
   /* Which extension to talk to.
    *
-   * The Web Store assigned `pifkel…` on 29 Jul 2026 and that is permanent — but it
-   * is only the id of the *packaged* build. An extension loaded unpacked gets an id
-   * Chrome derives locally, and there is no way for this page to know it in advance.
-   * Hardcoding the store id therefore fails for every developer install, and fails
-   * in the most misleading way possible: `sendMessage` sets lastError exactly as it
-   * does for "not installed", so the page reports the extension missing while it sits
-   * there in the toolbar.
+   * `pifkel…` is the id the Web Store assigned on 29 Jul 2026, and with the store
+   * item's public key pinned in the extension's manifest (`key`, see RUNBOOK step
+   * 2c) an unpacked build loads under that same id too. So the store id is normally
+   * the right answer everywhere.
    *
-   * So the id is discovered rather than assumed. `background.js` appends its own
-   * `chrome.runtime.id` as `?ext=` whenever it opens this page, and whichever
-   * candidate actually answers a ping is remembered. Both installs work, and
-   * switching between them fixes itself on the next Stop.
+   * The discovery below is kept anyway, because the failure it guards against is
+   * silent and expensive. Without a pinned key, Chrome derives an unpacked id from
+   * the folder's absolute path — different on every machine — and `sendMessage` to
+   * the wrong id sets lastError exactly as it does for "not installed". The page
+   * would report the extension missing while it sat there in the toolbar. That
+   * happened, and it cost a debugging session.
+   *
+   * So: `background.js` appends its own `chrome.runtime.id` as `?ext=` when it opens
+   * this page, and whichever candidate answers a ping is remembered. Costs one ping
+   * on first load and makes the un-pinned case work regardless.
    */
   var STORE_ID = "pifkelcohogbbocldnkjlfiagjigikjl";
   var LS_KEY = "gg_ext_id";

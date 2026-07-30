@@ -346,9 +346,16 @@ Decisions worth not re-litigating:
 
 - **Plain OAuth redirect, not Google Identity Services.** `gg.js` states the site loads nothing
   from an external host, and GIS is a remote script. A redirect costs one page load.
-- **One Web OAuth client, three redirect URIs.** `/auth` plus `chromiumapp.org` for *each*
-  extension id. Registering only the store id makes Google sign-in fail silently on the dev
-  build — same class of trap as the bridge extension-id bug.
+- **Extension id pinned with `key`, so it's one OAuth client and two redirect URIs.** Chrome
+  derives an unpacked id from the folder's *absolute path*, so it's stable per machine and
+  different across machines — meaning every tester would need their own redirect URI, which
+  isn't possible. `tools/set-extension-key.mjs` writes the store item's public key into the
+  manifest and Chrome then derives the store id everywhere. The script checks the key against
+  the known store id and refuses a mismatch: a key from the wrong item would mint a third id
+  and break OAuth *and* the dashboard bridge simultaneously. Cross-checked the id derivation
+  (SHA-256 of the DER key, first 16 bytes, nibbles mapped to a–p) against an independent
+  implementation, and confirmed a wrong key is refused without touching the manifest.
+  **Needs the public key from the Web Store dashboard — Package → View public key.**
 - **`state` and `nonce` both checked.** Verified: state mismatch, nonce replay, user cancel and
   a direct visit to `/auth` are all rejected with the right message and the right return path.
 - **Unset client id hides every Google button.** Same principle as the Drive link on `/install`.

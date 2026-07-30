@@ -88,12 +88,13 @@ First check the two things that are generated and go stale silently — the webs
 copies of the shared renderer, and the icons:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check
+cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check && node tools/set-extension-key.mjs --check
 ```
 
 A stale renderer mirror keeps the site working while rendering last week's annotations.
 A stale icon doesn't show up in a grep for a hex value at all — which is exactly how the
-purple bullseye survived the repalette.
+purple bullseye survived the repalette. A missing `key` doesn't show up anywhere until a
+tester's Google sign-in fails on their machine and works on yours.
 
 Then rebuild the package:
 
@@ -185,20 +186,41 @@ Google account who tries the password form gets `EMAIL_EXISTS` on signup and
 `INVALID_LOGIN_CREDENTIALS` on sign-in — both dead ends unless the message names the way out.
 All three of those errors now say "use Continue with Google instead".
 
-**3. Google Cloud Console → APIs & Services → Credentials → Create OAuth client ID →
-Web application.** One client covers everything. Add three authorised redirect URIs:
+**3. Pin the extension id first** — do this before creating the OAuth client, or you'll have
+to come back and edit it.
+
+Chrome derives an unpacked extension's id from the **absolute path of the folder** it was loaded
+from. Stable across reloads, different on every machine. So every tester's install has a
+different id, and anything registered against an id — the OAuth redirect URI above all — would
+work only for whoever registered it. Registering one per tester is not possible.
+
+Fix: put the store item's public key in `manifest.json`. Chrome then derives the id from the key
+instead of the path, and the unpacked build loads as `pifkel…` everywhere.
+
+1. Web Store dashboard → your item → **Package** → **View public key**
+2. Copy the whole PEM block, then:
+
+```bash
+cd "/Users/apple/Desktop/FlowScribe 2" && pbpaste | node tools/set-extension-key.mjs -
+```
+
+The script checks the key against the id the store already assigned and **refuses** if they
+don't match — a key from the wrong item would give every install a third id and break the OAuth
+redirect and the dashboard bridge at once. `--check` re-verifies later; it's in the build step.
+
+**4. Google Cloud Console → APIs & Services → Credentials → Create OAuth client ID →
+Web application.** One client, **two** redirect URIs now:
 
 ```
 https://guide-gen.vercel.app/auth
 https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/
-https://<your-unpacked-extension-id>.chromiumapp.org/
 ```
 
-The third one matters: an unpacked build has a different id from the store build, so without it
-Google sign-in works from the store version and fails silently on your dev build. Get the id
-from `chrome://extensions` with developer mode on.
+Then paste the client id into `web/assets/gg.js` and `sync.js` and deploy.
 
-Then paste the client id into both files and deploy.
+*If a store upload ever rejects the manifest over `key`:* it shouldn't, since the key is that
+item's own, but if it does, strip `key` from the store zip only — the tester zip keeps it, and
+the tester zip is the one where the id matters.
 
 **OAuth consent screen.** Scopes are `openid email profile` — all non-sensitive, so **no Google
 review is required**. But an unpublished consent screen stays in *Testing*, which only lets 100
