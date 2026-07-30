@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "GuideGen \u2014 Step-by-step guide capture",
+  "name": "GuideGen — Step-by-step guide capture",
   "version": "1.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApuFgEs01A0v5n5MPKzcBj3iHwbBUYtqW3zumgCjp0E5dVF3rNIo5RWilscxvFBGypYpfCPNSS2iNiwFXrb2jmnLV9837Ow9z8FkMzVgTog92NIrRPC2n988egwcbByNtmVFoMYItNNnb4U8NQAKP2lKhlt1zAtWkmgUSbX4Ih6fv4QOQNHSZRdgjtSvusSa4aW/kimCHvtkFN9S8l+woH+CSAfhqiMLDb0MFu7WNrB6U5tKms2MXmi2R22YO2wNrI0ERobOGLJ23bSqyGP9lKXapvcrUe0GPWK543rtpVhhuAQaBc06EDpjgvRow3QRr+pn1NQG3vzi+XfCZlL3LhwIDAQAB",
   "description": "Record a workflow and auto-generate an annotated step-by-step guide. Export to HTML, Markdown, PDF, PowerPoint, and narrated video.",
   "permissions": [
     "activeTab",

@@ -186,8 +186,11 @@ Google account who tries the password form gets `EMAIL_EXISTS` on signup and
 `INVALID_LOGIN_CREDENTIALS` on sign-in — both dead ends unless the message names the way out.
 All three of those errors now say "use Continue with Google instead".
 
-**3. Pin the extension id first** — do this before creating the OAuth client, or you'll have
-to come back and edit it.
+**3. Pin the extension id.** ✅ **Done 31 Jul 2026** — `manifest.json` carries the store item's
+public key, verified to derive `pifkelcohogbbocldnkjlfiagjigikjl`. Nothing to do unless the
+manifest's `key` goes missing; `node tools/set-extension-key.mjs --check` says so if it does.
+
+Kept here because it explains why there are two redirect URIs below and not one per machine:
 
 Chrome derives an unpacked extension's id from the **absolute path of the folder** it was loaded
 from. Stable across reloads, different on every machine. So every tester's install has a

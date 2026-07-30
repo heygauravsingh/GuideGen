@@ -355,7 +355,7 @@ Decisions worth not re-litigating:
   and break OAuth *and* the dashboard bridge simultaneously. Cross-checked the id derivation
   (SHA-256 of the DER key, first 16 bytes, nibbles mapped to a–p) against an independent
   implementation, and confirmed a wrong key is refused without touching the manifest.
-  **Needs the public key from the Web Store dashboard — Package → View public key.**
+  **Done 31 Jul 2026** — key in `manifest.json`, `--check` confirms it derives the store id.
 - **`state` and `nonce` both checked.** Verified: state mismatch, nonce replay, user cancel and
   a direct visit to `/auth` are all rejected with the right message and the right return path.
 - **Unset client id hides every Google button.** Same principle as the Drive link on `/install`.

@@ -90,9 +90,10 @@ window.GGBridge = (function () {
 
   function notFound(ids) {
     return new Error(
-      "No GuideGen extension answered (tried " + ids.join(", ") + "). If you loaded " +
-      "it unpacked, Chrome gave it a different id than the Web Store build — record a " +
-      "guide and press Stop, which reopens this page with the right id attached."
+      "No GuideGen extension answered (tried " + ids.join(", ") + "). Check it's " +
+      "installed and enabled. If it is, record a guide and press Stop — that reopens " +
+      "this page with the extension's own id attached, which covers a build whose id " +
+      "isn't pinned to the store one."
     );
   }
 
