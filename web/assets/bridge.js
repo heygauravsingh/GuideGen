@@ -144,6 +144,11 @@ window.GGBridge = (function () {
   function session() {
     return send({ type: "gg_session" }).then(function (r) { return r.session; });
   }
+  // Carries the dashboard's light/dark choice to the popup, which can't read this
+  // origin's localStorage.
+  function setTheme(mode) {
+    return send({ type: "gg_set_theme", mode: mode });
+  }
   function guides() {
     return send({ type: "gg_guides" }).then(function (r) { return r.guides || []; });
   }
@@ -220,7 +225,7 @@ window.GGBridge = (function () {
 
   return {
     available: available, isInstalled: isInstalled, ping: ping, id: id,
-    session: session,
+    session: session, setTheme: setTheme,
     guides: guides, guide: guide, stepImage: stepImage,
     updateGuide: updateGuide, updateStep: updateStep, reorder: reorder,
     deleteStep: deleteStep, addNote: addNote, deleteGuide: deleteGuide,

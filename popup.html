@@ -23,18 +23,25 @@
     --ok: #16643f;
     --err: #a8321f;
     --r: 9px;
+    color-scheme: light;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --brand: #e08a4f; --brand-2: #eb9c65; --on-brand: #21180f;
-      --pri: #f2ede3; --pri-2: #ffffff; --pri-fg: #15130f;
-      --rec: #ef7a72;
-      --panel: #17150f; --panel-2: #201d17;
-      --ink: #f2ede3; --ink-2: #cbc2b1; --muted: #9a9080; --line: #332e26;
-      --ok: #63c08e; --err: #f0897c;
-    }
+  /* Dark is whatever the dashboard was set to, not what the OS says — popup.js
+     stamps data-theme from chrome.storage before the first paint. Without this the
+     popup sat in dark mode while the editor was light, on the same screen.
+     The OS media query is the fallback for anyone who has never set a preference. */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --brand: #e08a4f; --brand-2: #eb9c65; --on-brand: #21180f;
+    --pri: #f2ede3; --pri-2: #ffffff; --pri-fg: #15130f;
+    --rec: #ef7a72;
+    --panel: #17150f; --panel-2: #201d17;
+    --ink: #f2ede3; --ink-2: #cbc2b1; --muted: #9a9080; --line: #332e26;
+    --ok: #63c08e; --err: #f0897c;
   }
   * { box-sizing: border-box; }
+  /* One frame of the wrong colours is very visible in a 296px panel. popup.js
+     removes this as soon as it has stamped data-theme. */
+  body.pre-theme { visibility: hidden; }
   body {
     width: 296px; margin: 0;
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
@@ -142,7 +149,7 @@
   }
 </style>
 </head>
-<body>
+<body class="pre-theme">
   <header>
     <span class="logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"

@@ -284,8 +284,23 @@ carries its own copy, because an extension page can't load a stylesheet from the
 Three more rules:
 
 - **Both colour schemes, always.** Every token is redefined under
-  `@media (prefers-color-scheme: dark)`. These pages inherit the OS scheme and a light-only
-  panel looks broken at night. Never hard-code a hex outside the token block.
+  `:root[data-theme="dark"]`. Never hard-code a hex outside the token block — and grep for
+  `rgba(` too, not just `#`: the purple glow under the primary button and the cool-slate
+  screenshot scrim both survived a hex-only sweep of the repalette.
+- **Theme is a choice, not an OS reading, and the default is light.**
+  `web/assets/theme.js` loads *synchronously in `<head>`, above the stylesheet* — that
+  placement is the whole trick. It stamps `data-theme` before the first paint, so there is no
+  flash and `site.css` needs one dark block instead of duplicated values behind a media query.
+  Move that script tag below the `<link>` and you get a visible flash of the wrong theme.
+  Three modes (`light` / `dark` / `auto`) in `gg_theme`; `auto` is stored as `auto`, never
+  flattened to the resolved value, so it keeps following the OS.
+  Light is the default rather than the OS setting because every artefact this product makes is
+  light — HTML export, PDF, published guide, video slides — so the editor matching the thing
+  you're building beats one that flips with the time of day.
+  The popup can't read that `localStorage`, so the dashboard pushes the choice over the bridge
+  (`gg_set_theme` → `gg_theme` in `chrome.storage.local`) and `popup.js` stamps it before
+  paint behind a `body.pre-theme { visibility: hidden }`. One frame of the wrong colours is
+  very visible in a 296px panel.
 - **Honour `prefers-reduced-motion`.** There's a blanket rule at the bottom of `site.css`
   killing transitions and animations; keep new motion inside that contract.
 - **Never write `font: <size>/<lh> inherit`.** It's invalid shorthand, so it silently fails and

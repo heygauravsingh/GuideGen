@@ -56,7 +56,7 @@
     ctx.imageSmoothingEnabled = smooth;
     // subtle overlay so it reads as intentionally redacted
     ctx.save();
-    ctx.fillStyle = "rgba(17,24,39,0.10)";
+    ctx.fillStyle = "rgba(26,23,19,0.10)";
     ctx.fillRect(x, y, w, h);
     ctx.restore();
   }
@@ -108,7 +108,7 @@
       // grey; the ring and badge already carry the emphasis, so the scrim only
       // needs to take the surroundings a shade back.
       ctx.save();
-      ctx.fillStyle = "rgba(15,23,42,0.07)";
+      ctx.fillStyle = "rgba(26,23,19,0.07)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
 
@@ -150,7 +150,7 @@
     ctx.fillStyle = BRAND;
     ctx.strokeStyle = ON_BRAND;
     ctx.lineWidth = 3 * scale;
-    ctx.shadowColor = "rgba(15,23,42,0.35)";
+    ctx.shadowColor = "rgba(26,23,19,0.35)";
     ctx.shadowBlur = 8 * scale;
     ctx.beginPath();
     ctx.arc(cx, cy, rr, 0, Math.PI * 2);

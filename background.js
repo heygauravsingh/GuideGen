@@ -443,6 +443,14 @@ async function bridge(msg) {
     case "gg_session":
       return { ok: true, session: (await get("gg_auth", null)) || null };
 
+    // The dashboard owns the light/dark choice; the popup follows it. Without this
+    // the popup sat in dark mode while the editor next to it was light.
+    case "gg_set_theme": {
+      const mode = ["light", "dark", "auto"].indexOf(msg.mode) !== -1 ? msg.mode : "light";
+      await set({ gg_theme: mode });
+      return { ok: true };
+    }
+
     case "gg_guides":
       return { ok: true, guides: await get(K.index, []) };
 

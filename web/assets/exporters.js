@@ -496,7 +496,7 @@
     } else {
       // note step: a quiet card, matching the light slide
       ctx.save();
-      ctx.shadowColor = "rgba(15,23,42,0.14)";
+      ctx.shadowColor = "rgba(26,23,19,0.14)";
       ctx.shadowBlur = 30 * S;
       ctx.shadowOffsetY = 8 * S;
       ctx.fillStyle = "#ffffff";

@@ -62,43 +62,57 @@
 
   --fast: 130ms cubic-bezier(0.2, 0, 0.2, 1);
   --wrap: 1080px;
+
+  /* native scrollbars, date pickers and form widgets follow this */
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Warm near-black, not navy. Same reasoning as the light scale. */
-    --brand: #e08a4f;
-    --brand-2: #eb9c65;
-    --brand-soft: #2c2318;
-    --brand-ring: rgba(224, 138, 79, 0.30);
-    --on-brand: #21180f;
+/* Dark is a *choice* now, not an OS reading.
+   assets/theme.js resolves light | dark | auto and stamps data-theme on <html>
+   before the first paint, so there is exactly one dark block here and no
+   duplicated values. The site already can't work without JS — the whole
+   dashboard and the public viewer are JS — so relying on it costs nothing, and
+   if theme.js ever fails to load the page falls back to light, which is safe.
 
-    --pri: #f2ede3;
-    --pri-2: #ffffff;
-    --pri-fg: #15130f;
+   The default is LIGHT, not the OS setting. Every artefact this product makes is
+   light — the HTML export, the PDF, the published guide, the video slides — so an
+   editor that matches the thing you're building is more coherent than one that
+   flips with the time of day. "Auto" is one click away for anyone who wants it. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-    --bg: #15130f;
-    --bg-2: #1a1712;
-    --panel: #1c1a15;
-    --panel-2: #23201a;
+  /* Warm near-black, not navy. Same reasoning as the light scale. */
+  --brand: #e08a4f;
+  --brand-2: #eb9c65;
+  --brand-soft: #2c2318;
+  --brand-ring: rgba(224, 138, 79, 0.30);
+  --on-brand: #21180f;
 
-    --ink: #f2ede3;
-    --ink-2: #cbc2b1;
-    --muted: #9a9080;
-    --faint: #746b5d;
+  --pri: #f2ede3;
+  --pri-2: #ffffff;
+  --pri-fg: #15130f;
 
-    --line: #332e26;
+  --bg: #15130f;
+  --bg-2: #1a1712;
+  --panel: #1c1a15;
+  --panel-2: #23201a;
 
-    --ok: #63c08e;
-    --err: #f0897c;
-    --rec: #ef7a72;
-    --live-fg: #88bd99;
-    --live-bg: #1f2a20;
+  --ink: #f2ede3;
+  --ink-2: #cbc2b1;
+  --muted: #9a9080;
+  --faint: #746b5d;
 
-    --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --sh-2: 0 6px 20px rgba(0, 0, 0, 0.45);
-    --sh-3: 0 22px 60px rgba(0, 0, 0, 0.6);
-  }
+  --line: #332e26;
+
+  --ok: #63c08e;
+  --err: #f0897c;
+  --rec: #ef7a72;
+  --live-fg: #88bd99;
+  --live-bg: #1f2a20;
+
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-2: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --sh-3: 0 22px 60px rgba(0, 0, 0, 0.6);
 }
 
 * { box-sizing: border-box; }
@@ -145,7 +159,7 @@ header.site .row {
 }
 .brand .mark svg { width: 15px; height: 15px; }
 .brand span { letter-spacing: -0.015em; }
-header.site nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+header.site nav { display: flex; align-items: center; gap: 6px; }
 header.site nav a { color: var(--ink-2); font-size: 14px; font-weight: 550; padding: 7px 10px; border-radius: var(--r-sm); }
 header.site nav a:hover { background: var(--panel-2); text-decoration: none; color: var(--ink); }
 
@@ -163,7 +177,7 @@ header.site nav a:hover { background: var(--panel-2); text-decoration: none; col
 .btn svg { width: 16px; height: 16px; flex: none; }
 .btn.brand-btn {
   background: var(--pri); color: var(--pri-fg); border-color: transparent;
-  box-shadow: 0 2px 10px rgba(76, 29, 149, 0.28);
+  box-shadow: 0 2px 8px rgba(26, 23, 19, 0.20);
 }
 .btn.brand-btn:hover { background: var(--pri-2); color: var(--pri-fg); }
 .btn.lg { padding: 14px 22px; font-size: 15.5px; }
@@ -569,7 +583,7 @@ footer.site .spacer { flex: 1; }
 .step .shot.redacting canvas { pointer-events: none; }
 .step .shot .sel {
   display: none; position: absolute; z-index: 2;
-  border: 2px solid var(--brand); background: rgba(124, 58, 237, 0.18);
+  border: 2px solid var(--brand); background: rgba(194, 65, 12, 0.16);
   pointer-events: none;
 }
 .shot-skel {
@@ -663,4 +677,34 @@ footer.site .spacer { flex: 1; }
 @media (prefers-reduced-motion: reduce) {
   .toast, .progress > div, .step .grip, .switch .track, .switch .track::after { transition: none !important; }
   .shot-skel, .skel, .vskel { animation: none !important; }
+}
+
+/* ---------- theme toggle ---------- */
+/* Three states shown at once rather than a cycling button: a single icon that
+   rotates through light -> dark -> auto never tells you what pressing it will do. */
+.theme-toggle {
+  display: flex; gap: 2px; margin-left: auto;
+  padding: 2px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel-2);
+}
+header.site nav { margin-left: 10px; }
+.theme-toggle button {
+  width: 27px; height: 27px; padding: 0; flex: none;
+  display: grid; place-items: center; cursor: pointer;
+  border: 0; background: none; border-radius: 999px;
+  color: var(--faint);
+  transition: color var(--fast), background var(--fast);
+}
+.theme-toggle button svg { width: 14px; height: 14px; }
+.theme-toggle button:hover { color: var(--ink-2); }
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--panel); color: var(--ink); box-shadow: var(--sh-1);
+}
+.theme-toggle button:focus-visible {
+  outline: 0; box-shadow: 0 0 0 3px var(--brand-ring);
+}
+/* On a narrow screen the wordmark, the toggle and the account row won't all fit. */
+@media (max-width: 560px) {
+  .theme-toggle { order: 3; margin-left: 0; }
+  header.site .row { flex-wrap: wrap; row-gap: 8px; }
 }

@@ -6,6 +6,26 @@
 
 const el = (id) => document.getElementById(id);
 
+// ---------- theme ----------
+// The dashboard owns this choice and pushes it here over the bridge (gg_set_theme),
+// because a 296px panel is not the place to put a third copy of the control. Read
+// it before anything paints; fall back to the OS for anyone who has never chosen.
+(function theme() {
+  const done = (mode) => {
+    const dark = mode === "dark" ||
+      (mode !== "light" &&
+       window.matchMedia &&
+       window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    document.body.classList.remove("pre-theme");
+  };
+  try {
+    chrome.storage.local.get("gg_theme", (o) => done((o && o.gg_theme) || "light"));
+  } catch (e) {
+    done("light");
+  }
+})();
+
 const toggle = el("toggle");
 const toggleLabel = el("toggleLabel");
 const toggleIcon = el("toggleIcon");
