@@ -491,7 +491,13 @@
           R.focusRegion(f.step, f.anno.width, f.anno.height, aw / ah, { canvas: f.anno }) ||
           { x: 0, y: 0, w: f.anno.width, h: f.anno.height };
       }
-      const roi = pushIn(f.roi, f.step, f.anno.width, f.anno.height, local);
+      // No push-in on a baked image. The drift ends 4.5% tighter than it started,
+      // which on an already-cropped frame eats into the number badge sitting near
+      // the edge. There is also nothing to push *toward* — a baked step has no
+      // rect, so the movement would have no subject.
+      const roi = f.step.baked
+        ? f.roi
+        : pushIn(f.roi, f.step, f.anno.width, f.anno.height, local);
       drawSource(ctx, f.anno, roi, ax, ay, aw, ah, S);
     } else {
       // note step: a quiet card, matching the light slide

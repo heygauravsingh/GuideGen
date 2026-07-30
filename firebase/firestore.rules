@@ -42,6 +42,43 @@ service cloud.firestore {
 
       allow delete: if request.auth != null
                     && request.auth.uid == resource.data.ownerUid;
+
+      // ---- Export log -------------------------------------------------------
+      // One document per export a *recipient* performs from the public page.
+      // This is the only place a non-owner writes anything, so it is the only
+      // place a stranger's input reaches storage. Four things make that safe:
+      //
+      //  1. `uid` must be the caller's own. Taken from the token, not the body.
+      //  2. `email` must equal the token's email. Without this a recipient could
+      //     log an export as anyone they liked, which is worse than no log —
+      //     the owner would be reading fabricated names.
+      //  3. There is no client timestamp. The time comes from the document's
+      //     createTime, which the server sets and no client can forge. Do not
+      //     add an `at` field; it would be a lie waiting to happen.
+      //  4. Only readable by the guide's owner, and only creatable while the
+      //     owner still has exports switched on.
+      match /exports/{exportId} {
+        allow create: if request.auth != null
+                      && request.resource.data.keys().hasOnly(['uid', 'email', 'kind'])
+                      && request.resource.data.uid == request.auth.uid
+                      && request.resource.data.email == request.auth.token.email
+                      && request.resource.data.kind in ['html', 'markdown', 'pdf', 'pptx', 'video']
+                      && get(/databases/$(database)/documents/guides/$(guideId)).data.allowExport == true;
+
+        allow read: if request.auth != null
+                    && request.auth.uid ==
+                       get(/databases/$(database)/documents/guides/$(guideId)).data.ownerUid;
+
+        // Append-only for recipients: nobody edits a log entry, ever. The owner
+        // can delete — it holds other people's email addresses, so they must be
+        // able to clear it, and deleting the guide clears it too (the
+        // /api/delete-assets endpoint sweeps the subcollection, because
+        // Firestore does not cascade).
+        allow update: if false;
+        allow delete: if request.auth != null
+                      && request.auth.uid ==
+                         get(/databases/$(database)/documents/guides/$(guideId)).data.ownerUid;
+      }
     }
 
     // ---- User profiles ------------------------------------------------------

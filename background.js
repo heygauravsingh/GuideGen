@@ -583,6 +583,38 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
 // visible, so requestAnimationFrame never fires there (see exporters.js tickMs).
 const OFF_DOC = "offscreen.html";
 
+// Steps handed over by the dashboard for a guide this machine has never recorded.
+// Everything is clamped rather than trusted: a web page is on the other end, and
+// this data goes straight into a canvas and a MediaRecorder.
+const PUSHED_MAX_STEPS = 300;             // matches the Firestore rules' cap
+const PUSHED_MAX_BYTES = 24 * 1024 * 1024;
+
+function pushedSteps(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  let bytes = 0;
+  for (const s of raw.slice(0, PUSHED_MAX_STEPS)) {
+    if (!s || typeof s !== "object") continue;
+    const shot = typeof s.screenshot === "string" && /^data:image\//.test(s.screenshot)
+      ? s.screenshot : null;
+    if (shot) {
+      bytes += shot.length;
+      if (bytes > PUSHED_MAX_BYTES) break;
+    }
+    out.push({
+      seq: out.length + 1,
+      type: s.type === "note" ? "note" : "click",
+      text: typeof s.text === "string" ? s.text.slice(0, 2000) : "",
+      screenshot: shot,
+      // Already annotated and cropped at publish time. render.js and exporters.js
+      // both key off this to leave the image alone — see focusRegion.
+      baked: true,
+      blurs: [],
+    });
+  }
+  return out;
+}
+
 async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
@@ -661,9 +693,28 @@ chrome.runtime.onConnectExternal.addListener((port) => {
       }
       task = { port };
       try {
-        const gi = (await get(K.index, [])).find((g) => g.id === m.guideId);
-        if (!gi) throw new Error("That guide isn't on this device.");
-        const steps = await readSteps(m.guideId);
+        let gi, steps;
+        if (m.steps) {
+          // A guide the page already holds, rather than one on this machine —
+          // a recipient exporting someone else's *published* guide. Their copy
+          // of the extension has never seen it, so the images come in the
+          // message. Cheap: published images are ~17KB each, so a 40-step guide
+          // is about a megabyte.
+          //
+          // Validated as hostile input, because it is web-page input. The size
+          // bound is the point — an unbounded array here would take the offscreen
+          // document out of memory rather than fail cleanly.
+          gi = {
+            title: typeof m.guide === "string" ? m.guide.slice(0, 300) : "Untitled guide",
+            createdAt: Date.now(),
+          };
+          steps = pushedSteps(m.steps);
+          if (!steps.length) throw new Error("No usable steps were sent.");
+        } else {
+          gi = (await get(K.index, [])).find((g) => g.id === m.guideId);
+          if (!gi) throw new Error("That guide isn't on this device.");
+          steps = await readSteps(m.guideId);
+        }
         if (!steps.length) throw new Error("That guide has no steps.");
         port.postMessage({ type: "progress", p: 0.02, msg: "Starting the renderer…" });
         await ensureOffscreen();

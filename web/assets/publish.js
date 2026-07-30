@@ -126,6 +126,10 @@ window.GGPublish = (function () {
         steps: published,
         assetTag: assetTag,
         assetTags: [assetTag],
+        // Off until the owner says otherwise. The rules read this field when a
+        // recipient tries to log an export, so it wants to exist from the start
+        // rather than being absent and coerced.
+        allowExport: false,
       });
     }).then(function (remoteId) {
       prog(1, "Published");

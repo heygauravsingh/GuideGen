@@ -183,13 +183,36 @@ module.exports = async function handler(req, res) {
     if (failed.length) {
       return json(res, 502, { error: "Couldn't delete the images, so the guide was kept.", detail: assetNote });
     }
+    // 5a. Sweep the export log first. Firestore does not cascade, so without this
+    //     the subcollection outlives its parent — and it holds other people's email
+    //     addresses, which is the last thing that should linger after a delete.
+    //     Best effort: failing to clear it must not block deleting the guide, and
+    //     the rules let the owner remove entries later either way.
+    let logsCleared = 0;
+    try {
+      const logRes = await fetch(
+        `${FS}/guides/${encodeURIComponent(guideId)}/exports?pageSize=300`,
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+      if (logRes.ok) {
+        const docs = (await logRes.json()).documents || [];
+        for (const d of docs) {
+          const r = await fetch(`https://firestore.googleapis.com/v1/${d.name}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${idToken}` },
+          });
+          if (r.ok) logsCleared++;
+        }
+      }
+    } catch (e) { /* fall through — the guide still goes */ }
+
     const del = await fetch(`${FS}/guides/${encodeURIComponent(guideId)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${idToken}` },
     });
     if (!del.ok) return json(res, 502, { error: "Images were deleted but the guide record wasn't." });
 
-    return json(res, 200, { ok: true, assetsDeleted, note: assetNote });
+    return json(res, 200, { ok: true, assetsDeleted, logsCleared, note: assetNote });
   } catch (e) {
     return json(res, 500, { error: "Deletion failed.", detail: String(e && e.message).slice(0, 200) });
   }

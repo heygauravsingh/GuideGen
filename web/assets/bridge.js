@@ -213,12 +213,21 @@ window.GGBridge = (function () {
         // The worker was replaced, or the extension was reloaded mid-render.
         reject(new Error("Lost contact with the extension before the video finished."));
       });
-      port.postMessage({
+      // Either a guide on this machine (guideId), or one the page is handing
+      // over wholesale (steps) — a recipient exporting a published guide their
+      // own extension has never seen.
+      var msg = {
         task: "video",
-        guideId: guideId,
         pace: opts && opts.pace,
         narrate: !(opts && opts.narrate === false),
-      });
+      };
+      if (opts && opts.steps) {
+        msg.steps = opts.steps;
+        msg.guide = (opts && opts.title) || "Untitled guide";
+      } else {
+        msg.guideId = guideId;
+      }
+      port.postMessage(msg);
       });
     });
   }

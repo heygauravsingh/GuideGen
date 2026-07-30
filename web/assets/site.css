@@ -708,3 +708,42 @@ header.site nav { margin-left: 10px; }
   .theme-toggle { order: 3; margin-left: 0; }
   header.site .row { flex-wrap: wrap; row-gap: 8px; }
 }
+
+/* ---------- export activity (owner) ---------- */
+.activity {
+  margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--line);
+}
+.activity h2 { font-size: 15.5px; font-weight: 660; margin: 0 0 4px; letter-spacing: -0.015em; }
+.activity .act-empty { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; line-height: 1.55; max-width: 70ch; }
+.act-list { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.act-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 13px; font-size: 13.5px;
+  border-top: 1px solid var(--line); background: var(--panel);
+}
+.act-row:first-child { border-top: 0; }
+.act-row .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.act-row .kind {
+  flex: none; font-size: 11px; font-weight: 650; letter-spacing: 0.02em;
+  text-transform: uppercase; color: var(--brand-2); background: var(--brand-soft);
+  padding: 3px 7px; border-radius: 5px;
+}
+.act-row .when { flex: none; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* ---------- consent notice (viewer sign-in) ---------- */
+/* Deliberately not styled as a warning. It is a plain statement of what the owner
+   will see, and dressing it as an alert would make an honest disclosure look like
+   a problem. */
+.consent {
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 11px 13px; margin: 0 0 15px;
+  font-size: 12.5px; line-height: 1.55; color: var(--ink-2);
+}
+.consent b { color: var(--ink); }
+
+/* The viewer's export menu hangs off the header, which is sticky and sits above
+   the page — so it needs to escape rather than be clipped. */
+header.site .menu-wrap .menu { top: calc(100% + 8px); }
+@media (max-width: 560px) {
+  header.site .menu-wrap .menu { right: -60px; min-width: 240px; }
+}

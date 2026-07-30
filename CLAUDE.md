@@ -68,6 +68,7 @@ Local guide data lives in `chrome.storage.local`.
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
 | `web/assets/publish.js` | `window.GGPublish`. `publish()` creates a guide document; `republish()` updates one **in place** so a shared link never goes stale. |
 | `web/assets/gg.js` | `window.GG`. Firebase auth + Firestore over REST for the website. |
+| `web/g.html` + `web/assets/viewer.js` | The public guide page. Read-only, plus exports if the owner allowed them. render.js, exporters.js, the bridge and the two exporter libs are all injected on demand — a reader who only reads shouldn't download an exporter. |
 | `web/api/delete-assets.js` | The only server-side code. Deletes Cloudinary images, which needs the API secret. Two modes: delete a guide and its images, or purge one superseded asset tag. |
 | `lib/jspdf.umd.min.js` | jsPDF 2.5.1. Global: `window.jspdf.jsPDF`. |
 | `lib/pptxgen.bundle.js` | PptxGenJS 3.12.0. Global: `window.PptxGenJS`. |
@@ -410,6 +411,33 @@ not two. If you touch it:
 `remoteId` is stored on the `fs_index` entry, written back over the bridge after a publish.
 That is how the editor knows to offer Update and Unpublish instead of minting a second
 document — and a second link — on every press.
+
+## Exports from a public guide (viewer.js)
+The owner can switch on `allowExport`, and a signed-in reader then builds the guide as a
+document on their own machine. Four things govern it:
+
+1. **`step.baked` is the whole trick.** A published image is already annotated and cropped at
+   1.6. `focusRegion` short-circuits to the full frame when `baked` is set, and the video
+   skips `pushIn`. Without it PPTX asks for a 2.0 crop of a 1.6 image and slices the number
+   badge off every slide — which it *was doing* for published guides before this landed, on
+   the dashboard as well as the viewer. Any new consumer of a published image must set it.
+2. **The switch is not an access control, and must never be described as one.** The step
+   images are already public URLs; print, right-click-save and screenshot all work whether
+   exports are on or off. It governs whether a button appears. The privacy policy says so in
+   a callout, and the switch's own label says so.
+3. **The log is the only place a non-owner writes to the database.** The rules check `uid` and
+   `email` against the caller's *token* — a client-supplied email would let a recipient log an
+   export as anyone they liked, which is worse than having no log. There is deliberately no
+   client timestamp: the time is the document's `createTime`. Don't add an `at` field.
+4. **Logging is best-effort and must never fail an export.** The file is already on the
+   reader's disk by the time we try to record it. `record()` swallows errors for exactly this
+   reason — and it's what makes the feature degrade sanely if the rules aren't published yet.
+
+Narrated video is the one format the page can't build, so the page hands the baked images to
+the extension over the `gg_task` port (`steps`, not `guideId` — the recipient's extension has
+never seen the guide). That's affordable *because* published images are ~17KB each; a 40-step
+guide is about a megabyte. `pushedSteps()` in background.js clamps it, because a web page is
+on the other end.
 
 ## Post-processing on stop
 `background.js → finalizeGuide()` runs once when recording stops, before the editor opens:

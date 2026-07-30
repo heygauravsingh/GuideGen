@@ -55,6 +55,8 @@ SHARE A LINK, OR DON'T
 • Publish a guide and you get a link anyone can open — only that guide is uploaded
 • Update it in place; the link you already shared keeps working
 • Unpublish and the link stops working and the images are deleted
+• Optionally let readers export it themselves — their browser builds the file, and you
+  see who exported what
 
 YOUR SCREENSHOTS STAY PUT UNTIL YOU SAY OTHERWISE
 Guides are saved in your own browser. Nothing is uploaded in the background, for
@@ -146,6 +148,17 @@ GuideGen documents whatever web application the user chooses, which cannot be kn
 | **Authentication information** | The extension signs the user in (email + password, via Firebase Authentication) and holds the session. v1.0 had no account; v1.1 requires one. |
 | **Website content** | Publishing a guide uploads screenshots of the pages the user recorded, plus the step text generated from those pages. Only for the guide the user presses Publish on. |
 | **Web history** | Each step stores the URL and page title of where it happened, and those are included in a published guide. |
+
+**One more consideration, if guide exports are enabled.** The export log records the email
+address of a *recipient* — someone who may never have installed the extension — and shows it
+to the guide's owner. That is still *Authentication information* / *Personally identifiable
+information* rather than a new category, but two things follow:
+
+- The recipient must be told before they sign in. The public page does this, above the form.
+- It is disclosed to a third party (the guide owner) by design, which is a use the
+  "I do not sell or transfer user data to third parties" certification permits, because the
+  user is told and it is the purpose of the feature. Read the certification wording again
+  before ticking it if this changes.
 
 Leave everything else unchecked — **no** personally identifiable information beyond the
 email covered above, **no** health, financial, location or personal communications data,

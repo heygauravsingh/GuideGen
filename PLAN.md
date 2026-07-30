@@ -255,6 +255,53 @@ Worth doing in this order: load unpacked → sign in at the popup → record a s
 → confirm the dashboard opens and lists it → export a PDF → export the video → publish →
 re-publish → delete.
 
+### Exports from a public guide — built 30 Jul 2026, NEEDS RULES PUBLISHED
+
+The flow Gaurav specified: owner switches exports on per guide → a reader signs in on the
+public page → the file is built on the reader's machine → the owner sees who exported what.
+
+Built and verified locally end to end. **It will not fully work until the new Firestore rules
+are published in the console** — the export log needs the `guides/{id}/exports` block from
+`firebase/firestore.rules`. Everything else works without it; logging fails silently by
+design, because the file is already on the reader's disk by the time we try to record it.
+
+What was decided along the way:
+
+- **Narrated video does work for a recipient**, contrary to my first assessment. I was wrong
+  about the cost: published images are ~17KB each, so the page can hand a 40-step guide to the
+  extension in about a megabyte over the existing `gg_task` port. The recipient does need the
+  extension installed, and the page explains why rather than just failing.
+- **`step.baked` is now a first-class concept** in render.js and exporters.js: the image is
+  already annotated and cropped, so don't touch it. This fixed a real defect that was already
+  live — PPTX crops to 2.0 and published images are 1.6, so exporting a published guide to
+  PowerPoint *from the dashboard* was slicing the number badge off every slide. Verified with a
+  control: real screenshots still crop to 1.5× maxZoom, baked ones pass through.
+- **The log stores no client timestamp.** `createTime` is server-set and unforgeable; an `at`
+  field would be a lie waiting to happen. `email` is checked against `request.auth.token.email`
+  in the rules — without that a recipient could log an export as anyone they liked, which is
+  worse than no log at all.
+- **The switch is labelled as a convenience, not a lock**, in the UI and in the privacy policy.
+  Published images are public URLs; print and right-click-save work whether it's on or off.
+  Getting this wrong would let someone share something sensitive believing it was protected.
+- **Deleting a guide sweeps its export log.** Firestore doesn't cascade, and the log holds
+  other people's email addresses — the last thing that should outlive the guide.
+
+Still open:
+
+1. **Google sign-in is the conversion blocker for this feature.** "Create an account with a
+   password to download a PDF" converts badly, and the whole growth argument for the sign-in
+   gate depends on it being one tap. The OAuth redirect URI is already known:
+   `https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/`. Higher value than anything
+   else on this list.
+2. **A recipient can't actually install the extension yet** — the store listing is Unlisted and
+   pending review, so the "Get the extension" link in the video panel won't resolve for anyone
+   who doesn't already have it. Fine while testing with your own machines; blocks the video
+   path for real recipients until v1.1 is public.
+3. **The rules need re-verifying.** `scratchpad/verify_rules.py` covered 16 cases against the
+   old ruleset; the exports subcollection adds at least: recipient can create with their own
+   token email, cannot create with someone else's, cannot create when `allowExport` is false,
+   cannot read the log, owner can read and delete, nobody can update.
+
 ### Small gap: the viewer has no broken-image handling
 
 `web/g.html` renders each step's `imageUrl` as a plain `<img>` with no `onerror`. If an image

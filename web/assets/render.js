@@ -242,6 +242,15 @@
   // fits inside it with margin, and cap how far we're willing to zoom.
   function focusRegion(step, srcW, srcH, aspect, opts) {
     opts = opts || {};
+
+    // `baked` means the image already IS the final crop, with its ring, badge and
+    // redactions burned in — a published guide's image, in other words. Cropping
+    // it again is not a smaller improvement, it is damage: the baked images are
+    // 1.6 and PPTX asks for 2.0, so re-cropping sliced the number badge and the
+    // top of the highlight off every slide. Nothing to choose here, so return the
+    // whole frame and let the caller letterbox it.
+    if (step && step.baked) return { x: 0, y: 0, w: srcW, h: srcH };
+
     const maxZoom = opts.maxZoom || 1.5; // never magnify more than this
     const dpr = step.dpr || 1;
     const canvas = opts.canvas || null;

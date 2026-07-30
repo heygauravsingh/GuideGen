@@ -334,6 +334,57 @@ window.GG = (function () {
     });
   }
 
+  // ---------- exports: the owner's switch, and the log ----------
+
+  // Whether recipients are offered one-click exports on the public page.
+  //
+  // This is NOT an access control and must never be described as one. The step
+  // images are already publicly retrievable at their own URLs — anyone with the
+  // link can right-click-save them, print the page, or screenshot it, switch off
+  // or on. All this governs is whether the convenience button appears.
+  function setAllowExport(id, allowed) {
+    return patchGuide(id, { allowExport: !!allowed });
+  }
+
+  // Recorded by the *recipient* after a successful export, so it is the one write
+  // in the product performed by someone who doesn't own the document. uid and
+  // email are both checked against the caller's token by the rules, and there is
+  // deliberately no client timestamp — the time is the document's createTime,
+  // which a client cannot forge.
+  function logExport(guideId, kind) {
+    var s = load();
+    if (!s) return Promise.reject(new Error("not signed in"));
+    return getToken().then(function (tok) {
+      return post(FS + "/guides/" + encodeURIComponent(guideId) + "/exports", {
+        fields: encodeFields({ uid: s.uid, email: s.email || "", kind: kind }),
+      }, tok);
+    });
+  }
+
+  // The owner's view of that log. Readable only by them, per the rules.
+  function listExports(guideId) {
+    return getToken().then(function (tok) {
+      return fetch(FS + "/guides/" + encodeURIComponent(guideId) +
+                   "/exports?pageSize=300", {
+        headers: { Authorization: "Bearer " + tok },
+      }).then(function (r) {
+        if (r.status === 403) throw new Error("That log isn't yours to read.");
+        if (!r.ok) throw new Error("Couldn't load the export activity.");
+        return r.json();
+      }).then(function (j) {
+        return (j.documents || []).map(function (d) {
+          var f = decodeFields(d.fields || {});
+          // createTime, not a field: the server stamped it.
+          f.at = d.createTime;
+          f.id = d.name.split("/").pop();
+          return f;
+        }).sort(function (a, b) {
+          return String(b.at || "").localeCompare(String(a.at || ""));
+        });
+      });
+    });
+  }
+
   // Purge one Cloudinary asset tag without touching the document. Used when
   // re-publishing replaces a guide's images: the new set is uploaded under a new
   // tag, the document is patched to point at it, and then the superseded images
@@ -400,6 +451,7 @@ window.GG = (function () {
     listGuides: listGuides, getPublicGuide: getPublicGuide, getGuide: getGuide,
     setVisibility: setVisibility, renameGuide: renameGuide, updateGuide: updateGuide,
     createGuide: createGuide, patchGuide: patchGuide, purgeAssetTag: purgeAssetTag,
+    setAllowExport: setAllowExport, logExport: logExport, listExports: listExports,
     deleteGuide: deleteGuide, deleteGuideAndAssets: deleteGuideAndAssets,
     encodeFields: encodeFields, decodeFields: decodeFields,
   };

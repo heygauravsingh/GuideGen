@@ -406,6 +406,56 @@
       if (ta) autoGrow(ta);
     });
     if (isLocal) hydrateImages();
+    renderActivity();
+  }
+
+  // Who exported this guide, and when. Only rendered for a published guide,
+  // because there is nothing to export from otherwise. Readable only by the owner
+  // — that's enforced by the rules, not here.
+  function renderActivity() {
+    var host = el("ed-activity");
+    var remoteId = cur.kind === "remote" ? cur.id : cur.guide.remoteId;
+    if (!remoteId) { host.hidden = true; host.innerHTML = ""; return; }
+
+    host.hidden = false;
+    host.innerHTML = '<h2>Export activity</h2><p class="act-empty">Loading…</p>';
+
+    GG.listExports(remoteId).then(function (rows) {
+      if (!rows.length) {
+        host.innerHTML = '<h2>Export activity</h2>' +
+          '<p class="act-empty">' + (cur.guide.allowExport
+            ? "Nobody has exported this guide yet. You'll see an entry here when they do."
+            : "Exports are switched off for this guide. Turn them on in Share if you want " +
+              "readers to be able to download it.") + "</p>";
+        return;
+      }
+      host.innerHTML = '<h2>Export activity</h2>' +
+        '<p class="act-empty">' + rows.length +
+        (rows.length === 1 ? " export" : " exports") + " so far.</p>" +
+        '<div class="act-list">' + rows.map(function (r) {
+          return '<div class="act-row"><span class="who"></span>' +
+            '<span class="kind">' + escapeHtml(r.kind || "?") + "</span>" +
+            '<span class="when">' + escapeHtml(fmtWhen(r.at)) + "</span></div>";
+        }).join("") + "</div>";
+      var whos = host.querySelectorAll(".act-row .who");
+      rows.forEach(function (r, i) { whos[i].textContent = r.email || "(unknown)"; });
+    }).catch(function (e) {
+      // A 403 here almost certainly means the rules for the exports subcollection
+      // haven't been published yet. Say so rather than showing a bare error.
+      host.innerHTML = '<h2>Export activity</h2><p class="act-empty">' +
+        escapeHtml(e.message) +
+        " If this says the log isn't yours, the Firestore rules for export logging " +
+        "may not be published yet.</p>";
+    });
+  }
+
+  function fmtWhen(v) {
+    if (!v) return "";
+    try {
+      var d = new Date(v);
+      return d.toLocaleDateString([], { day: "numeric", month: "short" }) + ", " +
+             d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    } catch (e) { return ""; }
   }
 
   function stepShell(step, i) {
@@ -1033,7 +1083,19 @@
         '<div class="field"><input id="sh-url" readonly value="' + escapeHtml(url) + '" /></div>';
     }
 
-    el("modal").innerHTML = body +
+    // Exports are only meaningful once there is a public page to export from.
+    var exportRow = remoteId
+      ? '<label class="switch" style="margin:16px 0 4px">' +
+        '<input type="checkbox" id="sh-allow"' + (cur.guide.allowExport ? " checked" : "") + " />" +
+        '<span class="track"></span><span class="label">' +
+        "<b>Let readers export this guide</b>" +
+        "<small>Adds an Export button to the shared page. They sign in first, and you " +
+        "see who exported what, below. It doesn't stop anyone saving the guide — the " +
+        "images are already public, so printing and right-click-save work either way.</small>" +
+        "</span></label>"
+      : "";
+
+    el("modal").innerHTML = body + exportRow +
       '<div class="progress" id="sh-prog" style="display:none"><div></div></div>' +
       '<div class="status-line" id="sh-msg"></div>' +
       '<div class="row"><button class="btn" id="sh-close">Close</button><span class="spacer"></span>' +
@@ -1052,6 +1114,22 @@
       m.style.color = kind === "err" ? "var(--err)" : "var(--muted)";
     };
     el("sh-close").onclick = function () { closeModal(); };
+
+    if (el("sh-allow")) {
+      el("sh-allow").addEventListener("change", function (e) {
+        var on = e.target.checked;
+        cur.guide.allowExport = on;
+        note(on ? "Saving…" : "Turning exports off…");
+        GG.setAllowExport(remoteId, on).then(function () {
+          note(on ? "Readers can export this guide." : "Export button removed from the shared page.");
+          renderEditor();
+        }).catch(function (err) {
+          e.target.checked = !on;
+          cur.guide.allowExport = !on;
+          note(err.message, "err");
+        });
+      });
+    }
 
     if (!remoteId) {
       el("sh-go").onclick = function () { doPublish(null, note); };
