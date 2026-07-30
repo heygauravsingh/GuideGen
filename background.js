@@ -366,8 +366,14 @@ async function captureStep(step, sender) {
 const WEB_ORIGIN = "https://guide-gen.vercel.app";
 const DASHBOARD = WEB_ORIGIN + "/app";
 
+// Hand the dashboard our own extension id. It cannot know it otherwise: an
+// extension loaded unpacked gets an id Chrome derives locally, not the permanent
+// one the Web Store assigned, and a page targeting the wrong id gets an error
+// indistinguishable from "not installed" (see web/assets/bridge.js).
 function openEditor(guideId) {
-  chrome.tabs.create({ url: DASHBOARD + (guideId ? "#local-" + guideId : "") });
+  const url = DASHBOARD + "?ext=" + encodeURIComponent(chrome.runtime.id) +
+              (guideId ? "#local-" + guideId : "");
+  chrome.tabs.create({ url });
 }
 
 // ---- The dashboard bridge ----------------------------------------------------

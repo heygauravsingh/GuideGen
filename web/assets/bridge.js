@@ -15,45 +15,131 @@
  *     the message-size ceiling in front of a user.
  */
 window.GGBridge = (function () {
-  // Assigned by the Chrome Web Store on 29 Jul 2026 and permanent.
-  var EXT_ID = "pifkelcohogbbocldnkjlfiagjigikjl";
+  /* Which extension to talk to.
+   *
+   * The Web Store assigned `pifkel…` on 29 Jul 2026 and that is permanent — but it
+   * is only the id of the *packaged* build. An extension loaded unpacked gets an id
+   * Chrome derives locally, and there is no way for this page to know it in advance.
+   * Hardcoding the store id therefore fails for every developer install, and fails
+   * in the most misleading way possible: `sendMessage` sets lastError exactly as it
+   * does for "not installed", so the page reports the extension missing while it sits
+   * there in the toolbar.
+   *
+   * So the id is discovered rather than assumed. `background.js` appends its own
+   * `chrome.runtime.id` as `?ext=` whenever it opens this page, and whichever
+   * candidate actually answers a ping is remembered. Both installs work, and
+   * switching between them fixes itself on the next Stop.
+   */
+  var STORE_ID = "pifkelcohogbbocldnkjlfiagjigikjl";
+  var LS_KEY = "gg_ext_id";
+  var VALID = /^[a-p]{32}$/;   // Chrome extension ids are 32 chars from a–p
 
-  // chrome.runtime exists on this page only because the extension's manifest lists
-  // this origin. No extension, no object — so this is also the install check.
+  function fromUrl() {
+    try {
+      var v = new URLSearchParams(location.search).get("ext");
+      return v && VALID.test(v) ? v : null;
+    } catch (e) { return null; }
+  }
+  function remembered() {
+    try {
+      var v = localStorage.getItem(LS_KEY);
+      return v && VALID.test(v) ? v : null;
+    } catch (e) { return null; }
+  }
+  function remember(id) {
+    try { localStorage.setItem(LS_KEY, id); } catch (e) { /* private mode */ }
+  }
+
+  // Ordered by how likely each is to be the one running right now.
+  function candidates() {
+    var out = [];
+    [fromUrl(), remembered(), STORE_ID].forEach(function (id) {
+      if (id && out.indexOf(id) === -1) out.push(id);
+    });
+    return out;
+  }
+
+  // chrome.runtime exists on this page only because *some* installed extension
+  // names this origin in externally_connectable. It's a necessary condition, not a
+  // sufficient one — the id still has to match.
   function available() {
     return !!(window.chrome && chrome.runtime && chrome.runtime.sendMessage);
   }
 
   var installed = null; // null = not asked yet
 
-  function send(msg) {
+  function raw(id, msg) {
     return new Promise(function (resolve, reject) {
-      if (!available()) return reject(new Error("The GuideGen extension isn't available on this browser."));
+      if (!available()) return reject(new Error("This browser has no GuideGen extension."));
       try {
-        chrome.runtime.sendMessage(EXT_ID, msg, function (resp) {
-          // lastError is how "not installed" and "disabled" both surface. Reading
-          // it is also what stops Chrome logging it as an unchecked error.
+        chrome.runtime.sendMessage(id, msg, function (resp) {
+          // Reading lastError is also what stops Chrome logging it as unchecked.
           var err = chrome.runtime.lastError;
-          if (err) {
-            installed = false;
-            return reject(new Error("The GuideGen extension isn't installed in this browser."));
-          }
-          installed = true;
+          if (err) return reject(new Error(err.message || "no answer"));
           if (!resp) return reject(new Error("The extension didn't answer."));
-          if (!resp.ok) return reject(new Error(resp.error || "The extension refused that."));
           resolve(resp);
         });
       } catch (e) {
-        installed = false;
-        reject(new Error("The GuideGen extension isn't installed in this browser."));
+        reject(new Error(String((e && e.message) || e)));
       }
     });
+  }
+
+  function notFound(ids) {
+    return new Error(
+      "No GuideGen extension answered (tried " + ids.join(", ") + "). If you loaded " +
+      "it unpacked, Chrome gave it a different id than the Web Store build — record a " +
+      "guide and press Stop, which reopens this page with the right id attached."
+    );
+  }
+
+  var resolvedId = null;
+  var resolving = null;
+
+  // Pings each candidate in turn and keeps the one that answers. Runs once per page
+  // load; every later call reuses the result.
+  function extensionId() {
+    if (resolvedId) return Promise.resolve(resolvedId);
+    if (resolving) return resolving;
+    if (!available()) return Promise.reject(new Error("This browser has no GuideGen extension."));
+
+    var ids = candidates();
+    resolving = ids.reduce(function (chain, id) {
+      return chain.then(function (found) {
+        if (found) return found;
+        return raw(id, { type: "gg_ping" }).then(
+          function () { return id; },
+          function () { return null; }
+        );
+      });
+    }, Promise.resolve(null)).then(function (found) {
+      resolving = null;
+      if (!found) { installed = false; throw notFound(ids); }
+      resolvedId = found;
+      installed = true;
+      remember(found);
+      return found;
+    }, function (e) {
+      resolving = null;
+      throw e;
+    });
+    return resolving;
+  }
+
+  function send(msg) {
+    return extensionId()
+      .then(function (id) { return raw(id, msg); })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error(resp.error || "The extension refused that.");
+        return resp;
+      });
   }
 
   function ping() {
     return send({ type: "gg_ping" }).then(function (r) { return r.version; });
   }
   function isInstalled() { return installed; }
+  function id() { return resolvedId; }
 
   function session() {
     return send({ type: "gg_session" }).then(function (r) { return r.session; });
@@ -98,13 +184,15 @@ window.GGBridge = (function () {
    * Chrome shutting the extension's service worker down halfway through.
    */
   function renderVideo(guideId, opts, onProgress) {
-    return new Promise(function (resolve, reject) {
-      if (!available()) return reject(new Error("The GuideGen extension isn't available on this browser."));
+    // Resolve the id first: connect() to a wrong id looks like a port that opens and
+    // immediately disconnects, which is indistinguishable from the renderer dying.
+    return extensionId().then(function (extId) {
+      return new Promise(function (resolve, reject) {
       var port;
       try {
-        port = chrome.runtime.connect(EXT_ID, { name: "gg_task" });
+        port = chrome.runtime.connect(extId, { name: "gg_task" });
       } catch (e) {
-        return reject(new Error("The GuideGen extension isn't installed in this browser."));
+        return reject(new Error("Couldn't reach the GuideGen extension."));
       }
       var settled = false;
       port.onMessage.addListener(function (m) {
@@ -126,16 +214,17 @@ window.GGBridge = (function () {
         pace: opts && opts.pace,
         narrate: !(opts && opts.narrate === false),
       });
+      });
     });
   }
 
   return {
-    available: available, isInstalled: isInstalled, ping: ping,
+    available: available, isInstalled: isInstalled, ping: ping, id: id,
     session: session,
     guides: guides, guide: guide, stepImage: stepImage,
     updateGuide: updateGuide, updateStep: updateStep, reorder: reorder,
     deleteStep: deleteStep, addNote: addNote, deleteGuide: deleteGuide,
     renderVideo: renderVideo,
-    EXT_ID: EXT_ID,
+    STORE_ID: STORE_ID,
   };
 })();

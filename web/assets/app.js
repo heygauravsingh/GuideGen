@@ -248,9 +248,9 @@
       note.innerHTML =
         "<b>Guides recorded on this device aren't listed.</b> " +
         escapeHtml(lib.extError) +
-        " Unpublished guides live in the extension's own storage, so this page needs it " +
-        "installed to reach them. Guides you've already shared are listed below and " +
-        "work from any browser.";
+        "<br><br>Unpublished guides live in the extension's own storage, so this page has " +
+        "to reach the extension to show them. Guides you've already shared are listed " +
+        "below and work from any browser.";
     } else {
       note.hidden = true;
     }
