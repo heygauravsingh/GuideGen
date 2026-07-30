@@ -62,15 +62,38 @@ working — the store rejects wrong dimensions, so don't skip it.
 
 ---
 
+## Step 1b — the listing screenshots are stale (BLOCKS v1.1)
+
+`store/screenshots-out/*.png` — all five — show the **retired extension editor**: the old
+purple palette, the sidebar guide list, `editor.html`. That page no longer exists; the editor
+is the dashboard at `/app`. Submitting these would show reviewers and users a product that
+isn't what installs.
+
+They have to be retaken, and they can't be faked from placeholder data — the RUNBOOK's own
+rule above applies, and a store listing is the wrong place to invent a screenshot. Record two
+or three real guides, then capture:
+
+1. the dashboard editor with a guide open (replaces `1-editor.png`)
+2. the export menu open (replaces `2-export.png`)
+3. the narrated-video dialog (replaces `3-video.png`)
+4. a redaction in progress (replaces `4-redact.png`)
+5. the recording pill on a real page (`5-pill.png` — still accurate in composition, wrong
+   colours: the pill is warm near-black now, not blue-black, and Stop is ink not purple)
+
+`store/make-screenshots.sh` still frames them; check it doesn't reference `editor.html`.
+
 ## Step 2 — build the package
 
-First make sure the website's copies of the shared renderer are current. They are
-generated from the root copies, and a stale one is silent — the site keeps working, it
-just renders last week's annotations:
+First check the two things that are generated and go stale silently — the website's
+copies of the shared renderer, and the icons:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check
+cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check
 ```
+
+A stale renderer mirror keeps the site working while rendering last week's annotations.
+A stale icon doesn't show up in a grep for a hex value at all — which is exactly how the
+purple bullseye survived the repalette.
 
 Then rebuild the package:
 
