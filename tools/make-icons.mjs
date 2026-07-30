@@ -141,22 +141,85 @@ function png(size, rgba) {
   ]);
 }
 
+// ---- ICO (a container around PNGs, which Vista+ accepts) ----
+// Only here for /favicon.ico. Explicit <link rel="icon"> tags cover every browser
+// that matters, but bots, feed readers and the odd embedder request /favicon.ico
+// directly whatever the markup says — and a 404 on it was showing up in the logs.
+function ico(sizes) {
+  const imgs = sizes.map((s) => png(s, draw(s)));
+  const dir = Buffer.alloc(6 + 16 * imgs.length);
+  dir.writeUInt16LE(0, 0);            // reserved
+  dir.writeUInt16LE(1, 2);            // type 1 = icon
+  dir.writeUInt16LE(imgs.length, 4);
+  let offset = dir.length;
+  imgs.forEach((buf, i) => {
+    const p = 6 + i * 16;
+    dir[p] = sizes[i] >= 256 ? 0 : sizes[i];   // 0 means 256
+    dir[p + 1] = sizes[i] >= 256 ? 0 : sizes[i];
+    dir[p + 2] = 0;                   // palette size
+    dir[p + 3] = 0;                   // reserved
+    dir.writeUInt16LE(1, p + 4);      // colour planes
+    dir.writeUInt16LE(32, p + 6);     // bits per pixel
+    dir.writeUInt32LE(buf.length, p + 8);
+    dir.writeUInt32LE(offset, p + 12);
+    offset += buf.length;
+  });
+  return Buffer.concat([dir, ...imgs]);
+}
+
+// ---- SVG ----
+// The primary favicon: one path per bar, crisp at any size, ~300 bytes. Built from
+// the same constants as the rasters so the two can't drift.
+function svg() {
+  const S = 128;
+  const barH = Math.round(S * 0.105);
+  const left = Math.round(S * 0.215);
+  const span = S - left * 2;
+  const rows = [0.305, 0.5, 0.695].map((f) => Math.round(S * f - barH / 2));
+  const hex = (c) => "#" + c.map((n) => n.toString(16).padStart(2, "0")).join("");
+  const bars = rows.map((y, i) => {
+    const w = Math.max(barH, Math.round(span * BARS[i]));
+    return `    <rect x="${left}" y="${y}" width="${w}" height="${barH}" rx="${barH / 2}"/>`;
+  }).join("\n");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}">
+  <title>GuideGen</title>
+  <rect width="${S}" height="${S}" rx="${Math.round(S * 0.235)}" fill="${hex(BG)}"/>
+  <g fill="${hex(FG)}">
+${bars}
+  </g>
+</svg>
+`;
+}
+
 const check = process.argv.includes("--check");
 let stale = 0;
 
-for (const size of [16, 48, 128]) {
-  const file = resolve(ROOT, `icons/icon${size}.png`);
-  const buf = png(size, draw(size));
+// Everything this generator owns, and where it goes. `icons/` is the extension;
+// `web/` is the site, and it needs its own copies because .vercelignore serves
+// nothing outside web/.
+const OUTPUTS = [
+  ["icons/icon16.png", () => png(16, draw(16))],
+  ["icons/icon48.png", () => png(48, draw(48))],
+  ["icons/icon128.png", () => png(128, draw(128))],
+  ["web/favicon.ico", () => ico([16, 32])],
+  ["web/favicon.svg", () => Buffer.from(svg(), "utf8")],
+  // 180 is what iOS asks for when someone adds the page to their home screen.
+  ["web/apple-touch-icon.png", () => png(180, draw(180))],
+];
+
+for (const [rel, build] of OUTPUTS) {
+  const file = resolve(ROOT, rel);
+  const buf = build();
   if (check) {
     const cur = existsSync(file) ? readFileSync(file) : null;
     if (!cur || !cur.equals(buf)) {
       stale++;
-      console.error(`stale: icons/icon${size}.png ${cur ? "differs from" : "is missing"} the generator's output`);
+      console.error(`stale: ${rel} ${cur ? "differs from" : "is missing"} the generator's output`);
     }
     continue;
   }
   writeFileSync(file, buf);
-  console.log(`wrote icons/icon${size}.png (${buf.length} bytes)`);
+  console.log(`wrote ${rel} (${buf.length} bytes)`);
 }
 
 if (check) {

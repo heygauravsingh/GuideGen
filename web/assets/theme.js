@@ -40,9 +40,27 @@
     return (m === "auto" ? (systemIsDark() ? "dark" : "light") : m);
   }
 
+  // On mobile, this tints the browser's own chrome around the page. It has to be
+  // set from JS rather than two media-query <meta> tags, because the theme here is
+  // a stored choice and a media query can only see the OS.
+  var CHROME = { light: "#fbfaf7", dark: "#15130f" };
+  function themeColor(name) {
+    var tag = document.querySelector('meta[name="theme-color"]');
+    if (!tag) {
+      tag = document.createElement("meta");
+      tag.setAttribute("name", "theme-color");
+      // <head> may not exist yet when this runs from a blocking script in <head>;
+      // documentElement always does.
+      (document.head || document.documentElement).appendChild(tag);
+    }
+    tag.setAttribute("content", CHROME[name] || CHROME.light);
+  }
+
   // Runs before the stylesheet is applied on first call, hence no flash.
   function apply() {
-    document.documentElement.setAttribute("data-theme", resolved(mode));
+    var name = resolved(mode);
+    document.documentElement.setAttribute("data-theme", name);
+    themeColor(name);
   }
   apply();
 

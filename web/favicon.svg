@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>GuideGen</title>
+  <rect width="128" height="128" rx="30" fill="#c2410c"/>
+  <g fill="#fffdfa">
+    <rect x="28" y="33" width="45" height="13" rx="6.5"/>
+    <rect x="28" y="58" width="72" height="13" rx="6.5"/>
+    <rect x="28" y="82" width="32" height="13" rx="6.5"/>
+  </g>
+</svg>

@@ -63,7 +63,7 @@ Local guide data lives in `chrome.storage.local`.
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
 | `sync.js` | `window.FSSync`. **Auth only** — Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
-| `tools/make-icons.mjs` | Draws `icons/icon{16,48,128}.png` from scratch — no dependencies, PNG written by hand over `zlib`. Ochre tile, paper wordmark glyph. `--check` fails if the files drift from the generator. The old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
+| `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
 | `web/assets/publish.js` | `window.GGPublish`. `publish()` creates a guide document; `republish()` updates one **in place** so a shared link never goes stale. |
@@ -75,7 +75,7 @@ Local guide data lives in `chrome.storage.local`.
 | `lib/ort/` | onnxruntime-web 1.18.0, wasm backend only (`ort.wasm.min.js` + `ort-wasm-simd.wasm`). Global: `window.ort`. |
 | `lib/piper/` | piper_phonemize wasm build (espeak-ng). Global: `window.createPiperPhonemize`. The 17MB `.data` is the espeak-ng dictionary. |
 | `lib/voices/` | Piper voice `en_US-hfc_female-medium` (60MB `.onnx` + its `.json` config, 22.05kHz). |
-| `icons/` | Generated PNG icons — output of `tools/make-icons.mjs`, not hand-edited. |
+| `icons/` | Generated PNG icons — output of `tools/make-icons.mjs`, not hand-edited. The site's favicons come out of the same script into `web/`. |
 
 ## Data model (chrome.storage.local)
 - `fs_state` → `{ recording, guideId, stepCount }`
@@ -295,7 +295,10 @@ Three more rules:
   flash and `site.css` needs one dark block instead of duplicated values behind a media query.
   Move that script tag below the `<link>` and you get a visible flash of the wrong theme.
   Three modes (`light` / `dark` / `auto`) in `gg_theme`; `auto` is stored as `auto`, never
-  flattened to the resolved value, so it keeps following the OS.
+  flattened to the resolved value, so it keeps following the OS. It also maintains the
+  `theme-color` meta, which tints mobile browser chrome — that has to come from JS rather than
+  two media-query `<meta>` tags, because the theme is a stored choice and a media query can
+  only see the OS.
   Light is the default rather than the OS setting because every artefact this product makes is
   light — HTML export, PDF, published guide, video slides — so the editor matching the thing
   you're building beats one that flips with the time of day.
