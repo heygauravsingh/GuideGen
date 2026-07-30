@@ -59,10 +59,10 @@
   // ---------- auth ----------
 
   const MESSAGES = {
-    EMAIL_EXISTS: "That email already has an account — try signing in instead.",
+    EMAIL_EXISTS: "That email already has an account. Sign in instead — and if you set it up with Google, use Continue with Google.",
     EMAIL_NOT_FOUND: "No account with that email.",
-    INVALID_PASSWORD: "Wrong password.",
-    INVALID_LOGIN_CREDENTIALS: "That email and password don't match.",
+    INVALID_PASSWORD: "Wrong password. If you signed up with Google, use Continue with Google instead.",
+    INVALID_LOGIN_CREDENTIALS: "That email and password don't match. If you signed up with Google, use Continue with Google instead.",
     WEAK_PASSWORD: "Password needs to be at least 6 characters.",
     INVALID_EMAIL: "That doesn't look like a valid email address.",
     TOO_MANY_ATTEMPTS_TRY_LATER: "Too many attempts. Wait a few minutes.",

@@ -174,11 +174,16 @@ surfaces don't share a bundle): `web/assets/gg.js` and `sync.js`. Same value in 
 **1. Firebase Console → Authentication → Sign-in method → Google → Enable.**
 Set the project support email while you're there; Google requires one.
 
-**2. Firebase Console → Authentication → Settings → "one account per email address".**
-Do this *before* anyone signs up twice. It decides what happens when someone registers with a
-password as `x@y.com` and later clicks Continue with Google as the same address: link the two,
-or create a second account. A second account means a second, empty guide library under the same
-email address, and no way to merge them.
+**2. Firebase Console → Authentication → Settings → User account linking.**
+✅ **Done 30 Jul 2026** — set to *Link accounts that use the same email*, which is right. The
+alternative would give one person two accounts under one email address, each with its own guide
+library and no way to merge them.
+
+One consequence of that setting, handled in the copy rather than the console: linking works when
+a *password* account meets Google, but not the other way round. Someone whose account is a
+Google account who tries the password form gets `EMAIL_EXISTS` on signup and
+`INVALID_LOGIN_CREDENTIALS` on sign-in — both dead ends unless the message names the way out.
+All three of those errors now say "use Continue with Google instead".
 
 **3. Google Cloud Console → APIs & Services → Credentials → Create OAuth client ID →
 Web application.** One client covers everything. Add three authorised redirect URIs:
