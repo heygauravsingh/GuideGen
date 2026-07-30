@@ -193,8 +193,15 @@ at `min`), never a fixed seconds-per-step. The pace preset also sets Piper's `le
 
 ## Annotations
 One accent, one idea: a very light scrim (0.07) over the screenshot, the target lifted back out of the
-scrim undimmed, a brand-purple ring around it, and the number badge placed **outside** the ring
-(flipping side when it would fall off the frame). What this replaced, and why not to go back:
+scrim undimmed, a **burnt-orange** ring (`#c2410c`) around it, and the number badge placed
+**outside** the ring (flipping side when it would fall off the frame).
+
+The ring colour is a functional choice, not a brand one, and it is deliberately a constant in
+`render.js` rather than a CSS token — a PDF has no theme. It has to stay legible drawn on top
+of whatever the user was looking at, which for this product is nearly always a blue-grey admin
+panel. The old purple sat close enough to that chrome to disappear into it: on a navy sidebar
+it was almost invisible, verified by screenshot. Orange cannot be. If you change it, check it
+against a dark navy background first. What this replaced, and why not to go back:
 a red box *and* a red ripple *and* a badge sitting on top of the very element it pointed at —
 three marks competing, with the target obscured. There is deliberately **no cursor dot**; inside a
 text field it landed on the label the reader was trying to read.
@@ -240,16 +247,41 @@ PPTX uses `SLIDE_ASPECT` (2.0), all via `cropToFocus()` in `exporters.js`. The g
 the PDF (narrow column, both fit width-limited: 30px source text goes 4.95pt → 6.56pt) but the
 column stops being spent on empty page margins.
 
-Slides are light (#eef1f6), with a 34px-at-720p caption, the number in a brand circle, a
+Slides are warm paper (#f4f1ea) with an ink title card, a 34px-at-720p caption, the number in a brand circle, a
 "Step n of m" counter, the screenshot on a white card with a soft shadow, and a progress bar
 pinned to the bottom. Slides crossfade (0.4s) and push in slightly (4.5%) toward the highlight —
 hard cuts between static slides were the main thing that made this read as a slideshow.
 
 ## UI conventions
-`web/assets/site.css` starts with design tokens (`--brand`, `--ink`, `--panel*`, `--line`,
-radii, shadows, easing) and everything else consumes them. The popup carries its own copy of
-the same tokens, because an extension page can't load a stylesheet from the website. Three
-rules:
+
+### The palette: Ink & Paper
+Warm neutrals, ink primary actions, one ochre accent. This replaced violet-600 on blue-slate,
+which is worth knowing because that combination is the single most recognisable
+generated-UI signature — it ships as the shadcn/v0 default — and it read as untrustworthy to
+the one person whose product this is. Two rules hold it together:
+
+1. **The neutrals are warm.** Every framework default is cool slate, so warm paper is the
+   cheapest possible way to look deliberate. Don't "fix" `#fbfaf7` to `#fff` or `#15130f` to
+   `#0b0e15`.
+2. **Colour carries meaning; it is never decoration.** The primary button is `--pri` (ink),
+   not the accent. So the only saturated things on screen are the ones that mean something: a
+   step number, an annotation, the recording light, a guide that is shared. One accent applied
+   to buttons *and* badges *and* numbers *and* rings is what "nobody decided anything" looks
+   like — that was the old scheme's actual failure, more than the hue was.
+
+Consequences worth not undoing:
+- `--on-brand` exists because white text clears AA on the light ochre (5.1:1) but reaches only
+  ~2:1 on the lighter dark-mode ochre. Text drawn on the accent must use it.
+- The mark is a flat ink square. It was a purple gradient; a two-stop gradient logo is its own
+  tell.
+- The export menu icons are drawn SVG. They were emoji (🌐 📝 📄 📊 🎬) in a product that
+  draws every other icon by hand.
+- All 28 foreground/background pairings clear WCAG AA in both schemes. There's a contrast
+  checker worth re-running if you touch the tokens: parse the `:root` blocks and compare.
+
+`web/assets/site.css` starts with those tokens and everything else consumes them. The popup
+carries its own copy, because an extension page can't load a stylesheet from the website.
+Three more rules:
 
 - **Both colour schemes, always.** Every token is redefined under
   `@media (prefers-color-scheme: dark)`. These pages inherit the OS scheme and a light-only

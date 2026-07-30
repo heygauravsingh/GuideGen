@@ -1,7 +1,15 @@
 // GuideGen — shared annotation renderer (window.FSRender)
 (function () {
-  const BRAND = "#7c3aed";
-  const HILITE = "#ef4444";
+  // The annotation mark. Deliberately NOT the same value as the UI's primary
+  // action, and deliberately warm: this gets drawn on top of whatever the user
+  // was looking at, which is usually a blue-grey admin panel. Purple sat close
+  // enough to that chrome to get lost in it; burnt orange cannot.
+  //
+  // It is a constant rather than a token because exports have no theme — a PDF
+  // is a PDF whether the editor was in dark mode or not.
+  const BRAND = "#c2410c";
+  const ON_BRAND = "#fffdfa";
+  const HILITE = "#c1352c";
 
   function loadImage(src) {
     return new Promise((resolve, reject) => {
@@ -113,7 +121,7 @@
       ctx.save();
       ctx.lineWidth = 4 * scale;
       ctx.strokeStyle = BRAND;
-      ctx.shadowColor = "rgba(124,58,237,0.45)";
+      ctx.shadowColor = "rgba(194,65,12,0.42)";
       ctx.shadowBlur = 18 * scale;
       roundRect(ctx, bx, by, bw, bh, radius);
       ctx.stroke();
@@ -140,7 +148,7 @@
     cy = Math.max(rr, Math.min(canvas.height - rr, cy));
     ctx.save();
     ctx.fillStyle = BRAND;
-    ctx.strokeStyle = "#fff";
+    ctx.strokeStyle = ON_BRAND;
     ctx.lineWidth = 3 * scale;
     ctx.shadowColor = "rgba(15,23,42,0.35)";
     ctx.shadowBlur = 8 * scale;
@@ -149,7 +157,7 @@
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.stroke();
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = ON_BRAND;
     ctx.font = "bold " + Math.round(21 * scale) + "px -apple-system, Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -306,5 +314,5 @@
     return { x, y, w, h };
   }
 
-  window.FSRender = { renderStep, canvasToDataURL, loadImage, focusRegion, contentBox, BRAND, HILITE };
+  window.FSRender = { renderStep, canvasToDataURL, loadImage, focusRegion, contentBox, BRAND, ON_BRAND, HILITE };
 })();

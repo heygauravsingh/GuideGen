@@ -1049,7 +1049,7 @@
     var note = function (t, kind) {
       var m = el("sh-msg");
       m.textContent = t || "";
-      m.style.color = kind === "err" ? "#c0392b" : "var(--muted)";
+      m.style.color = kind === "err" ? "var(--err)" : "var(--muted)";
     };
     el("sh-close").onclick = function () { closeModal(); };
 

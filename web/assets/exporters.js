@@ -75,16 +75,16 @@
       "<!doctype html><html><head><meta charset='utf-8'><title>" +
       esc(guide.title) +
       "</title><style>" +
-      "body{font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111827;background:#f3f4f6;margin:0;padding:40px}" +
-      ".doc{max-width:820px;margin:0 auto;background:#fff;border-radius:16px;padding:40px;box-shadow:0 10px 40px rgba(0,0,0,.06)}" +
-      "h1{font-size:30px;margin:0 0 6px}.sub{color:#6b7280;margin:0 0 28px;font-size:14px}" +
-      ".step{display:flex;gap:16px;padding:18px 0;border-top:1px solid #eee}" +
+      "body{font:16px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1713;background:#f4f1ea;margin:0;padding:40px}" +
+      ".doc{max-width:820px;margin:0 auto;background:#fff;border:1px solid #e5dfd2;border-radius:14px;padding:44px}" +
+      "h1{font-size:30px;letter-spacing:-.028em;margin:0 0 6px}.sub{color:#6f675b;margin:0 0 28px;font-size:14px}" +
+      ".step{display:flex;gap:16px;padding:18px 0;border-top:1px solid #ece7dc}" +
       ".step:first-of-type{border-top:0}" +
-      ".num{width:32px;height:32px;min-width:32px;border-radius:50%;background:#7c3aed;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}" +
+      ".num{width:30px;height:30px;min-width:30px;border-radius:50%;background:#c2410c;color:#fffdfa;font-weight:700;font-variant-numeric:tabular-nums;display:flex;align-items:center;justify-content:center}" +
       ".c{flex:1;min-width:0}.c p{margin:4px 0 10px;font-size:17px}" +
-      ".step.note .c{background:#f5f3ff;border-radius:10px;padding:12px 14px}" +
-      "img{max-width:100%;border:1px solid #e5e7eb;border-radius:10px;display:block}" +
-      ".foot{margin-top:30px;color:#9ca3af;font-size:12px;text-align:center}" +
+      ".step.note .c{background:#f6ece2;border-radius:9px;padding:12px 14px}" +
+      "img{max-width:100%;border:1px solid #e5dfd2;border-radius:9px;display:block}" +
+      ".foot{margin-top:30px;color:#928879;font-size:12px;text-align:center}" +
       "</style></head><body><div class='doc'><h1>" +
       esc(guide.title) +
       "</h1><p class='sub'>" +
@@ -123,16 +123,16 @@
     const CW = PW - 2 * M;
 
     // Title page
-    doc.setFillColor(124, 58, 237);
+    doc.setFillColor(29, 26, 21);
     doc.rect(0, 0, PW, PH, "F");
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(251, 250, 247);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(30);
     const tl = doc.splitTextToSize(guide.title || "Untitled guide", CW);
     doc.text(tl, PW / 2, PH / 2 - 20, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(13);
-    doc.setTextColor(237, 233, 254);
+    doc.setTextColor(217, 207, 190);
     doc.text(
       "Created with GuideGen · " +
         new Date(guide.createdAt || Date.now()).toLocaleDateString(),
@@ -160,7 +160,7 @@
         doc.addPage();
         y = M;
       }
-      doc.setTextColor(17, 24, 39);
+      doc.setTextColor(26, 23, 19);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text(lines, M, y + 12);
@@ -169,7 +169,7 @@
         doc.addImage(a.data, "PNG", M + (CW - box.w) / 2, y, box.w, box.h);
         y += box.h + 14;
       }
-      doc.setDrawColor(230, 230, 230);
+      doc.setDrawColor(236, 231, 220);
       doc.line(M, y, PW - M, y);
       y += 16;
     }
@@ -185,7 +185,7 @@
     pptx.layout = "FS";
 
     const t = pptx.addSlide();
-    t.background = { color: "7C3AED" };
+    t.background = { color: "1D1A15" };
     t.addText(guide.title || "Untitled guide", {
       x: 0.6, y: 2.5, w: 12.1, h: 1.6,
       fontSize: 40, bold: true, color: "FFFFFF", align: "center",
@@ -193,7 +193,7 @@
     t.addText(
       "Created with GuideGen · " +
         new Date(guide.createdAt || Date.now()).toLocaleDateString(),
-      { x: 0.6, y: 4.2, w: 12.1, h: 0.6, fontSize: 16, color: "EDE9FE", align: "center" }
+      { x: 0.6, y: 4.2, w: 12.1, h: 0.6, fontSize: 16, color: "D9CFBE", align: "center" }
     );
 
     for (let i = 0; i < steps.length; i++) {
@@ -201,12 +201,12 @@
       const sl = pptx.addSlide();
       sl.addText(
         [
-          { text: i + 1 + ".  ", options: { bold: true, color: "C4B5FD" } },
+          { text: i + 1 + ".  ", options: { bold: true, color: "E39A63" } },
           { text: s.text || "", options: { color: "FFFFFF" } },
         ],
         {
           x: 0, y: 0, w: 13.33, h: 1.1,
-          fill: { color: "111827" }, fontSize: 18, valign: "middle",
+          fill: { color: "1A1713" }, fontSize: 18, valign: "middle",
           margin: [6, 12, 6, 12], align: "left",
         }
       );
@@ -354,7 +354,7 @@
     const pad = 10 * S;
     const rad = 14 * S;
     ctx.save();
-    ctx.shadowColor = "rgba(15,23,42,0.18)";
+    ctx.shadowColor = "rgba(26,23,19,0.18)";
     ctx.shadowBlur = 34 * S;
     ctx.shadowOffsetY = 10 * S;
     ctx.fillStyle = "#ffffff";
@@ -399,9 +399,11 @@
 
   function drawTitle(ctx, W, H, guide) {
     const S = H / 720;
+    // Ink, not a brand gradient. A two-stop purple wash across a title card is
+    // the most generated-looking thing a slide can do.
     const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, "#7c3aed");
-    g.addColorStop(1, "#4c1d95");
+    g.addColorStop(0, "#211d18");
+    g.addColorStop(1, "#131110");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#ffffff";
@@ -413,7 +415,7 @@
     let y = H / 2 - ((lines.length - 1) * lh) / 2;
     lines.forEach((l) => { ctx.fillText(l, W / 2, y); y += lh; });
     ctx.font = Math.round(22 * S) + "px -apple-system, Arial, sans-serif";
-    ctx.fillStyle = "#ede9fe";
+    ctx.fillStyle = "#d9cfbe";
     ctx.fillText("A GuideGen walkthrough", W / 2, H - 90 * S);
   }
 
@@ -434,7 +436,7 @@
     const S = L.S;
     local = local == null ? 1 : local;
 
-    ctx.fillStyle = "#eef1f6";
+    ctx.fillStyle = "#f4f1ea";
     ctx.fillRect(0, 0, W, H);
 
     // caption
@@ -456,7 +458,7 @@
     ctx.save();
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#7c8698";
+    ctx.fillStyle = "#7c7466";
     ctx.font = "600 " + Math.round(19 * S) + "px -apple-system, Arial, sans-serif";
     const counter = "Step " + (f.index + 1) + " of " + total;
     ctx.fillText(counter, W - 56 * S, numY);
@@ -466,7 +468,7 @@
     ctx.save();
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#101729";
+    ctx.fillStyle = "#1a1713";
     ctx.font = "600 " + Math.round(34 * S) + "px -apple-system, Arial, sans-serif";
     const textX = numX + numR + 26 * S;
     const lines = wrapLines(ctx, f.step.text || "", W - textX - cw - 90 * S, 2);
@@ -476,7 +478,7 @@
     ctx.restore();
 
     // progress bar pinned to the bottom edge
-    ctx.fillStyle = "#dfe4ec";
+    ctx.fillStyle = "#e5dfd2";
     ctx.fillRect(0, H - L.barH, W, L.barH);
     ctx.fillStyle = R.BRAND;
     ctx.fillRect(0, H - L.barH, (W * (f.index + 1)) / total, L.barH);
@@ -501,7 +503,7 @@
       roundRectPath(ctx, ax, ay, aw, ah, 16 * S);
       ctx.fill();
       ctx.restore();
-      ctx.fillStyle = "#3a4457";
+      ctx.fillStyle = "#443c31";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.font = Math.round(32 * S) + "px -apple-system, Arial, sans-serif";
