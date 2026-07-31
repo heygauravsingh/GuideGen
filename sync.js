@@ -118,8 +118,16 @@
     return s;
   }
 
-  // Opens Google in a popup window Chrome owns, and hands back the id_token from
-  // the redirect fragment. Rejects if the user closes it.
+  /* Opens Google in a popup window Chrome owns, and hands back the id_token from the
+   * redirect fragment. Rejects if the user closes it.
+   *
+   * MUST run in the service worker, never in the browser-action popup. Chrome
+   * destroys that popup the moment it loses focus, and the window this opens takes
+   * focus immediately — so the await never resumes, the token is never exchanged, and
+   * nothing is reported because the code that would report it no longer exists. The
+   * symptom is precisely "popup closes, nothing happens, no error", which is
+   * indistinguishable from a config problem and cost an hour chasing redirect URIs.
+   * popup.js therefore sends `fs_google_signin` and lets the worker finish. */
   async function signInWithGoogle() {
     if (!googleReady()) throw new Error("Google sign-in isn't set up in this build yet.");
     const redirectUri = chrome.identity.getRedirectURL();
@@ -193,7 +201,15 @@
     }
   }
 
-  window.FSSync = {
+  /* Published on `window` in the popup and on `self` in the service worker, because
+   * background.js importScripts() this file. It has to: Google sign-in cannot run in
+   * the popup at all (see signInWithGoogle's own note), so the worker needs the same
+   * implementation rather than a second copy of the OAuth exchange.
+   *
+   * Nothing else in this file touches the DOM, which is what makes that possible —
+   * keep it that way. */
+  const root = typeof window !== "undefined" ? window : self;
+  root.FSSync = {
     signUp, signIn, signOut, current, getToken, sendPasswordReset,
     signInWithGoogle, googleReady,
     SITE, DASHBOARD: SITE + "/app",

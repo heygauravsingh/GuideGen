@@ -110,15 +110,33 @@ function applyMode() {
 (function wireGoogle() {
   if (!FSSync.googleReady()) return;
   el("googleWrap").hidden = false;
-  el("googleBtn").addEventListener("click", async () => {
+  /* Handed to the service worker rather than run here. Chrome closes this popup as
+   * soon as Google's window takes focus, so a flow started here dies half-finished
+   * with nothing to report — see signInWithGoogle in sync.js.
+   *
+   * Both outcomes below are therefore best-effort: usually this popup is already gone
+   * by the time the worker answers. That's fine, because the worker stores the
+   * session, so reopening the popup lands on the signed-in view. The message telling
+   * the user to do that is the important part — the window vanishing with no
+   * explanation is what makes this look broken. */
+  el("googleBtn").addEventListener("click", () => {
     el("googleBtn").disabled = true;
-    say("Opening Google…");
-    try {
-      showMain(await FSSync.signInWithGoogle());
-    } catch (err) {
+    say("Opening Google… you may need to reopen this popup afterwards.");
+    chrome.runtime.sendMessage({ type: "fs_google_signin" }, (resp) => {
+      if (chrome.runtime.lastError) return;      // popup outlived by the flow
+      if (resp && resp.ok) return showMain(resp.session);
       el("googleBtn").disabled = false;
-      say(err.message, "err");
-    }
+      say((resp && resp.error) || "Google sign-in didn't complete.", "err");
+    });
+  });
+
+  /* If the popup does happen to survive the round trip, this is what updates it —
+   * the worker writes the session to storage, so the popup doesn't depend on
+   * receiving a reply it may not be alive for. */
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.gg_auth) return;
+    const s = changes.gg_auth.newValue;
+    if (s) showMain(s);
   });
 })();
 

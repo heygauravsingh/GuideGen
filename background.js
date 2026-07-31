@@ -1,6 +1,11 @@
 // FlowScribe — background service worker
 // Handles recording state, screenshot capture, and persistence.
 
+// The account session, shared verbatim with the popup rather than reimplemented.
+// Needed here for Google sign-in, which cannot run in the popup — see
+// signInWithGoogle in sync.js. Publishes FSSync on `self` in this context.
+importScripts("sync.js");
+
 const K = {
   state: "fs_state",
   index: "fs_index",
@@ -767,6 +772,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         case "fs_open_editor": {
           openEditor(msg.guideId);
           sendResponse({ ok: true });
+          break;
+        }
+        /* Google sign-in runs here, not in the popup, because the popup is destroyed
+         * the instant Google's window takes focus. The reply is best-effort for the
+         * same reason — by the time the flow finishes there is usually no popup left
+         * to receive it. The session is written to storage regardless, so reopening
+         * the popup shows a signed-in state. */
+        case "fs_google_signin": {
+          try {
+            const session = await FSSync.signInWithGoogle();
+            sendResponse({ ok: true, session });
+          } catch (e) {
+            sendResponse({ ok: false, error: String((e && e.message) || e) });
+          }
           break;
         }
         // ---- from the offscreen video renderer ----
