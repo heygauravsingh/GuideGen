@@ -82,7 +82,13 @@ or three real guides, then capture:
 
 `store/make-screenshots.sh` still frames them; check it doesn't reference `editor.html`.
 
-## Step 2 — build the package
+## Step 2 — build the packages
+
+> **Steps 1/1b and step 2 are independent.** The numbering is a sequence, not a dependency.
+> Screenshots are *listing assets*, uploaded in the browser; `store/` is excluded from both
+> zips, so taking or retaking screenshots never requires a rebuild. Rebuild when **extension
+> code** changes — and then re-upload to both destinations, because that is the drift that
+> has actually bitten (see 2b).
 
 First check the two things that are generated and go stale silently — the website's
 copies of the shared renderer, and the icons:
