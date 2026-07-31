@@ -150,18 +150,48 @@
     };
   }
 
+  /* Reloading the extension orphans the copy of this script already running in every
+   * open page: the code stays, its `chrome.runtime` handle dies, and the next
+   * sendMessage throws "Extension context invalidated" synchronously. Chrome does not
+   * inject the new version into existing tabs, so that page can never record again.
+   *
+   * Unhandled, every click threw while the pill sat there claiming to record. So the
+   * orphan is detected and retires itself — listeners off, pill gone. Reloading the
+   * page brings the current recorder back; nothing here can do that for the user.
+   *
+   * `chrome.runtime.id` is the cheap test: it is undefined once the context is gone. */
+  let orphaned = false;
+  function alive() {
+    try { return !!(chrome.runtime && chrome.runtime.id); }
+    catch (e) { return false; }
+  }
+  function retire() {
+    if (orphaned) return;
+    orphaned = true;
+    recording = false;
+    try { stop(); } catch (e) { /* the page is being torn down */ }
+  }
+
   function send(step) {
+    if (orphaned) return;
+    if (!alive()) return retire();
     // Hide our pill so it never lands in the screenshot.
     if (pill) pill.style.visibility = "hidden";
-    chrome.runtime.sendMessage({ type: "fs_capture_step", step }, (resp) => {
+    try {
+      chrome.runtime.sendMessage({ type: "fs_capture_step", step }, (resp) => {
+        if (pill) pill.style.visibility = "visible";
+        if (chrome.runtime.lastError) return;
+        if (resp && resp.ok) {
+          count = resp.count;
+          updatePill();
+          flash();
+        }
+      });
+    } catch (e) {
+      // The context died between the check above and the call.
       if (pill) pill.style.visibility = "visible";
-      if (chrome.runtime.lastError) return;
-      if (resp && resp.ok) {
-        count = resp.count;
-        updatePill();
-        flash();
-      }
-    });
+      retire();
+    }
   }
 
   // ---- label / description helpers ----
@@ -313,13 +343,21 @@
       (e) => {
         e.stopPropagation();
         e.preventDefault();
-        chrome.runtime.sendMessage({ type: "fs_stop" }, (resp) => {
-          if (resp && resp.guideId)
-            chrome.runtime.sendMessage({
-              type: "fs_open_editor",
-              guideId: resp.guideId,
-            });
-        });
+        // Same orphan case as send(): a stale pill's Stop button would throw rather
+        // than do anything, so retire instead and take the pill away with it.
+        if (!alive()) return retire();
+        try {
+          chrome.runtime.sendMessage({ type: "fs_stop" }, (resp) => {
+            if (chrome.runtime.lastError) return;
+            if (resp && resp.guideId)
+              chrome.runtime.sendMessage({
+                type: "fs_open_editor",
+                guideId: resp.guideId,
+              });
+          });
+        } catch (err) {
+          retire();
+        }
       },
       true
     );

@@ -53,7 +53,7 @@ Local guide data lives in `chrome.storage.local`.
 |---|---|
 | `manifest.json` | MV3 config, v1.1.0. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen; host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
-| `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. |
+| `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Also retires itself when orphaned (see Orphaned content scripts). |
 | `recorder.css` | Styles for the recording pill only. Every declaration is `!important` and children start from `all: unset` — this is the one surface that renders inside a stranger's page. |
 | `popup.html/js` | Toolbar popup: status card (idle / recording with live step count) + Start/Stop and Guide library. Self-contained styles, light + dark. |
 | `editor.html` + `redirect.js` | Retired. A redirect to `/app`, carrying `#<guideId>` across as `#local-<guideId>`, so v1.0 bookmarks land somewhere sensible. The editor is `web/assets/app.js`. |
@@ -124,6 +124,30 @@ exception is a tab loaded *before* the extension was installed or reloaded: Chro
 inject into existing tabs retroactively, `sendMessage` to it fails, and clicks there are
 silently dropped until the page is reloaded. That is worth saying to testers, because it looks
 like the recorder ignoring them.
+
+## Orphaned content scripts (recorder.js)
+Reloading the extension orphans the `recorder.js` already running in every open page: the
+code stays, its `chrome.runtime` handle dies, and the next `sendMessage` throws
+**"Extension context invalidated"** *synchronously* — so a `lastError` check never sees it,
+and neither does anything watching the callback. Chrome does not inject the new version into
+existing tabs, so that page can never record again.
+
+Unhandled, this was one thrown error per click with the pill still sitting there claiming to
+record. `alive()` tests `chrome.runtime.id` (undefined once the context is gone), `retire()`
+detaches the listeners and removes the pill, and both `send()` and the pill's Stop button are
+wrapped in `try/catch` for the case where the context dies between the check and the call.
+
+Two consequences to keep in mind:
+
+- **Reloading the page is the only real fix, and only the user can do it.** After reloading
+  the extension, reload any tab you intend to record. Same for testers on a fresh install.
+- **Don't "simplify" the guard to a `lastError` check.** The throw is synchronous; that is
+  the whole reason it reached the Errors pane instead of being swallowed.
+
+Verified both ways in a stubbed DOM: on a live context a click sends one step and the pill
+stays; on an orphaned one nothing throws, nothing is sent, the pill is removed and the
+listeners are gone. The pre-fix file throws `Extension context invalidated.` on the same
+input, which is what makes that a test rather than an assertion of current behaviour.
 
 ## Context steps — tab switches and navigations (background.js)
 Clicks across tabs were recorded; the *move* between them wasn't, so a guide jumped from a
