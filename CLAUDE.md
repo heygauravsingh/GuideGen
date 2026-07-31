@@ -64,6 +64,7 @@ Local guide data lives in `chrome.storage.local`.
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
 | `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
+| `tools/context-test.mjs` | Runs the real `background.js` in a `vm` context with a stubbed `chrome`, and asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
@@ -89,7 +90,7 @@ Local guide data lives in `chrome.storage.local`.
 Step object:
 ```
 {
-  id, guideId, seq, type: "click" | "input" | "key" | "note",
+  id, guideId, seq, type: "click" | "input" | "key" | "note" | "switch" | "nav",
   url, pageTitle, timestamp,
   dpr,                     // bitmap px per CSS px for this step's screenshot
   point: { x, y },         // click point, CSS px within viewport
@@ -115,6 +116,46 @@ counter updates via `storage.onChanged` → Stop opens `/app#local-<guideId>` �
 not an extension page.
 
 The popup gates on the account session before any of that: no session, no Start button.
+
+**Recording is not scoped to one tab.** `recorder.js` is a declared content script on
+`<all_urls>` that reads `fs_state` on load and self-attaches if a recording is in progress,
+and `broadcast()` reaches every tab — so clicks in a second tab were always captured. The one
+exception is a tab loaded *before* the extension was installed or reloaded: Chrome does not
+inject into existing tabs retroactively, `sendMessage` to it fails, and clicks there are
+silently dropped until the page is reloaded. That is worth saying to testers, because it looks
+like the recorder ignoring them.
+
+## Context steps — tab switches and navigations (background.js)
+Clicks across tabs were recorded; the *move* between them wasn't, so a guide jumped from a
+click in one tab to a click in another with nothing explaining it. Clicking a tile that opens
+a new tab is the common case. Two listeners, one step shape, and the order between them is
+what stops one action producing two steps:
+
+- **`tabs.onActivated`** → a `switch` step. A *newly opened* tab fires this while its url is
+  still `""` or `about:blank`, so the `RECORDABLE` (`^https?:`) test rejects it and the
+  navigation below is what gets recorded instead. Switching to an already-loaded tab has a
+  real url, lands here, and never reaches `onUpdated`.
+- **`tabs.onUpdated`** (`status === "complete"`, active tab only) → a `nav` step. A background
+  tab finishing a load is not something the user did.
+
+Three things to keep:
+
+1. **`seen = {tabId, url}` is the noise filter.** A tab+url already recorded produces no
+   second step, which is what absorbs a site firing `complete` twice, a hash-only change, and
+   a bounce back to a previous tab. It is in-memory on purpose: a worker restart mid-recording
+   can cost one duplicate step, which is cheaper than a read-modify-write of persisted state on
+   every navigation. `seedContext()` at `startRecording` is why the starting tab is never
+   announced as a switch to itself.
+2. **No `point` or `rect`.** Nothing was clicked, so `render.js` draws the screenshot
+   unannotated — it already guards on `step.rect`. `dpr` starts at 1 and `persistStep` folds
+   the downscale in, so the editor's redaction maths round-trips as it does for a click.
+3. **`guessTitle` skips `switch` and `nav`.** `stepLabel` lifts the first quoted string, and a
+   switch step's quoted string is a tab title — that produced *"How to view Canva in Canva"*.
+
+Both listeners go through `enqueueCapture` and `stepChain` like a click, so ordering and the
+capture rate limit are unchanged. Tests: `tools/context-test.mjs` drives the real
+`background.js` with a stubbed `chrome`, and the negative cases are mutation-checked — dropping
+the `!tab.active` guard or the `seen` comparison fails them.
 
 ## Screenshot normalisation (background.js)
 `captureVisibleTab` hands back a full-retina PNG — ~3024×1700, 1–3 MB per step. Every exporter
@@ -347,6 +388,8 @@ Select "Chandigarh" from the "City" dropdown  selects
 Check / Uncheck "Send me updates"             checkboxes
 Type your password in the "Password" field    never the actual value
 Press Enter                                   submits
+Switch to the "My Drive" tab                  another tab came to the front
+Go to canva.com/design/DAGxyz/edit            a page finished loading
 ```
 
 No "element", no "the ... element", no restating a role the label already states. Two details that

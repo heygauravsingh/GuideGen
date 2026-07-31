@@ -68,6 +68,7 @@ async function startRecording(tab) {
     [K.state]: { recording: true, guideId, stepCount: 0 },
   });
   acked = 0;
+  seedContext(t);
   if (t && t.id != null) await ensureInjected(t.id);
   broadcast({ type: "fs_recording_changed", recording: true, guideId });
   return guideId;
@@ -130,7 +131,11 @@ function looksLikeName(s) {
 // placeholder title, and the user can still edit it.
 function guessTitle(steps, startUrl) {
   const app = appName(steps, startUrl);
-  const real = steps.filter((s) => s && s.type !== "note");
+  // Titles come from things the user acted on. A context step's quoted text is a tab
+  // title, so `stepLabel` would happily lift it — and "How to view Canva in Canva" is
+  // what that produces.
+  const SKIP = { note: 1, switch: 1, nav: 1 };
+  const real = steps.filter((s) => s && !SKIP[s.type]);
   let label = "";
   for (let i = real.length - 1; i >= 0; i--) {
     const cand = stepLabel(real[i].text);
@@ -347,6 +352,99 @@ async function persistStep(step, state, shotPromise) {
 // optimistically is safe. Seeded from stepCount so a service-worker restart
 // mid-recording doesn't send the count back to 1.
 let acked = 0;
+
+/* ---- Context steps: tab switches and page navigations ----------------------
+ *
+ * Clicks in other tabs were always recorded — `recorder.js` is a declared content
+ * script on <all_urls> and self-attaches from `fs_state`, and `broadcast()` reaches
+ * every tab. What was missing is the step that explains the *move*: a guide went
+ * straight from a click in one tab to a click in another, and the reader had no idea
+ * the tab had changed. Clicking a tile that opens a new tab is the common case.
+ *
+ * Two events, one step type, and the ordering between them is what keeps it from
+ * emitting twice for one action:
+ *
+ *   onActivated  — a different tab came to the front. For a *newly opened* tab this
+ *                  fires while the url is still "" or "about:blank", so RECORDABLE
+ *                  rejects it and the navigation below is what gets recorded.
+ *                  Switching to an already-loaded tab has a real url, so it lands
+ *                  here and never reaches onUpdated.
+ *   onUpdated    — a document finished loading in the *active* tab. Background tabs
+ *                  loading are not something the user did.
+ *
+ * `seen` is what stops repeats: a tab+url already recorded produces no second step,
+ * so a site firing `complete` more than once, or a bounce back to a tab, stays quiet.
+ * It is in-memory, so a worker restart mid-recording can cost one duplicate step —
+ * cheaper than a read-modify-write of persisted state on every navigation.
+ */
+const RECORDABLE = /^https?:/i;
+let seen = { tabId: null, url: "" };
+
+// Seeded at startRecording, so the tab the user started in is never announced as a
+// switch to itself.
+function seedContext(tab) {
+  seen = { tabId: (tab && tab.id) != null ? tab.id : null, url: (tab && tab.url) || "" };
+}
+
+function bareUrl(u) {
+  return String(u || "").split("#")[0];
+}
+
+// Host + path, no scheme or query: "canva.com/design/DAG.../edit" rather than 180
+// characters of tracking parameters, which is unreadable as an instruction.
+function shortUrl(u) {
+  try {
+    const x = new URL(u);
+    const p = x.pathname === "/" ? "" : x.pathname;
+    return x.host.replace(/^www\./, "") + p;
+  } catch (e) {
+    return String(u || "");
+  }
+}
+
+async function contextStep(tab, kind) {
+  if (!tab || tab.id == null || !RECORDABLE.test(tab.url || "")) return;
+  const state = await get(K.state, {});
+  if (!state.recording) return;
+
+  const sameTab = seen.tabId === tab.id;
+  if (sameTab && bareUrl(seen.url) === bareUrl(tab.url)) return;
+  seen = { tabId: tab.id, url: tab.url };
+
+  const text = kind === "switch" && tab.title
+    ? `Switch to the "${tab.title}" tab`
+    : `Go to ${shortUrl(tab.url)}`;
+
+  const step = {
+    type: kind === "switch" ? "switch" : "nav",
+    url: tab.url,
+    pageTitle: tab.title || "",
+    timestamp: Date.now(),
+    // No point or rect: nothing was clicked, so render.js draws the screenshot
+    // unannotated. dpr starts at 1 and normalizeShot's downscale is folded in by
+    // persistStep, which keeps the editor's redaction maths round-tripping.
+    dpr: 1,
+    text,
+    blurs: [],
+  };
+
+  const shot = await enqueueCapture(tab.windowId);
+  const shotPromise = normalizeShot(shot);
+  stepChain = stepChain.then(() => persistStep(step, state, shotPromise)).catch(() => {});
+  acked = Math.max(acked, state.stepCount || 0) + 1;
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError) return;
+    contextStep(tab, "switch");
+  });
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status !== "complete" || !tab || !tab.active) return;
+  contextStep(tab, "nav");
+});
 
 async function captureStep(step, sender) {
   const state = await get(K.state, {});
