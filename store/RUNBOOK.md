@@ -96,11 +96,16 @@ A stale icon doesn't show up in a grep for a hex value at all — which is exact
 purple bullseye survived the repalette. A missing `key` doesn't show up anywhere until a
 tester's Google sign-in fails on their machine and works on yours.
 
-Then rebuild the package:
+Then rebuild the package. **One artifact, used for both the store and Drive** (see 2b):
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../guidegen-build.zip && zip -r -X ../guidegen-build.zip manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map"
+cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../guidegen.zip && zip -r -q -X ../guidegen.zip manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map" && ls -lh ../guidegen.zip
 ```
+
+The name matters. It is flat, because the store requires `manifest.json` at the archive
+root — and a flat archive extracted by double-click gets wrapped in a folder named after
+the archive, so `guidegen.zip` yields `guidegen/`, which is what `/install` step 1 tells a
+tester to expect. Rename the file and that instruction stops being true.
 
 The file list changed for v1.1, in both directions:
 - **added** `sync.js` (the account session — v1.0 shipped without it, which is why the
@@ -123,20 +128,29 @@ gets submitted. **It is hosted on Google Drive, not on Vercel, and that is delib
 reintroduce the problem it was written to prevent — plus 68MB committed to git forever, in
 every clone, since the site has no build step and the file would have to be checked in.
 
-**The tester ZIP is not the store ZIP.** The store requires `manifest.json` at the archive
-root, so `guidegen-build.zip` is flat. A human unzipping a flat archive gets loose files
-scattered into whatever folder they were in, and then "pick the folder" means nothing. So the
-tester build wraps everything in a `guidegen/` directory:
+**The store ZIP and the tester ZIP are the same file — `../guidegen.zip`.** They were two
+builds until 31 Jul 2026: the store needs `manifest.json` at the archive root, and a flat
+archive unzipped from a terminal scatters loose files, so the tester build wrapped everything
+in a `guidegen/` directory.
 
-```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib; do cp -R "$f" /tmp/gg-stage/guidegen/; done && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/guidegen-install.zip guidegen) && mv -f /tmp/guidegen-install.zip ../guidegen-install.zip && rm -rf /tmp/gg-stage && ls -lh ../guidegen-install.zip
-```
+That difference was resolved by naming rather than by a second build. Finder and Windows
+Explorer both wrap a multi-entry archive in a folder named after it, so `guidegen.zip`
+double-clicked gives a `guidegen/` folder — the same thing the wrapped build produced, from
+the archive the store accepts.
+
+Two consequences to respect:
+
+- **`unzip` from a terminal still scatters it.** `/install` step 1 therefore says what to do
+  if the files land loose, instead of promising a folder unconditionally. Don't "tidy" that
+  sentence away.
+- **Two artifacts meant two things to forget.** A code fix on 31 Jul went into the store zip
+  and not the Drive one, and a tester downloading in that window would have hit a Google
+  sign-in that silently did nothing. One file cannot drift from itself.
 
 First time:
 
-1. Run both builds — `Step 2` for `../guidegen-build.zip` (the store), and the command above
-   for `../guidegen-install.zip` (~68MB, what testers get).
-2. Upload **`guidegen-install.zip`** to Drive.
+1. Build it — `Step 2` produces `../guidegen.zip` (~68MB), for both destinations.
+2. Upload **`guidegen.zip`** to Drive.
 3. Share → **Anyone with the link** → **Viewer**. Without this, testers get a request-access
    screen instead of a download.
 4. Copy the link and paste it into `web/install.html` — one line, near the top of the inline
@@ -276,7 +290,7 @@ For releases after the first: open the current item, id
 `dijeonandicniffeffbcolhfldommhnp`, created 31 Jul 2026.
 
 1. <https://chrome.google.com/webstore/devconsole> → open **that item**
-2. **Package** → **Upload new package** → `guidegen-build.zip`
+2. **Package** → **Upload new package** → `guidegen.zip`
 3. Rewrite the listing and the privacy declarations for v1.1 (step 5). This is the real
    work either way: v1.0's declarations said the extension made no network requests.
 
