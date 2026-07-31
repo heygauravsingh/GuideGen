@@ -146,17 +146,25 @@ GuideGen documents whatever web application the user chooses, which cannot be kn
 - [x] I do not use or transfer user data for purposes that are unrelated to my item's single purpose
 - [x] I do not use or transfer user data to determine creditworthiness or for lending purposes
 
-**Data collection disclosure — v1.1 changes this. Tick exactly these three:**
+**Data collection disclosure — v1.1 changes this. Tick exactly these four:**
 
 | Category | Why it applies |
 |---|---|
-| **Authentication information** | The extension signs the user in (email + password, via Firebase Authentication) and holds the session. v1.0 had no account; v1.1 requires one. |
+| **Personally identifiable information** | The account has an email address and a full name. Chrome's own definition of this category names both — "name, address, email address, age, or identification number" — so they belong here and not only under *Authentication information*. No phone number is collected. |
+| **Authentication information** | Email/password sign-in means a password is handled, and the session (id token + refresh token) is held in `chrome.storage.local`. v1.0 had no account; v1.1 requires one. |
 | **Website content** | Publishing a guide uploads screenshots of the pages the user recorded, plus the step text generated from those pages. Only for the guide the user presses Publish on. |
 | **Web history** | Each step stores the URL and page title of where it happened, and those are included in a published guide. |
 
-*Name:* signup asks for a full name, and Google sign-in supplies one. It is stored as the
-Firebase Auth `displayName`, which is account data — already covered by *Authentication
-information*. No separate category, and no phone number is collected.
+*On the first two together:* declare both rather than picking one. They cover different
+things — *who the account belongs to* versus *the secrets that prove it* — and this build
+does both. Filing the email under *Authentication information* alone is an
+under-declaration, and it contradicts the hosted privacy policy, which says in plain words
+that an email address and a name are stored. A reviewer reads that policy next to these
+boxes; they must agree.
+
+*Name:* stored as the Firebase Auth `displayName` (asked for on password signup, supplied by
+the token on Google sign-in). Nothing writes it to Firestore, and the export log deliberately
+omits it, because a name can't be verified against the caller's token the way an email can.
 
 **One more consideration, if guide exports are enabled.** The export log records the email
 address of a *recipient* — someone who may never have installed the extension — and shows it
@@ -169,8 +177,7 @@ information* rather than a new category, but two things follow:
   user is told and it is the purpose of the feature. Read the certification wording again
   before ticking it if this changes.
 
-Leave everything else unchecked — **no** personally identifiable information beyond the
-email covered above, **no** health, financial, location or personal communications data,
+Leave everything else unchecked — **no** health, financial, location or personal communications data,
 **no** user activity (there is no analytics or telemetry of any kind), and **no** website
 content collected for any purpose other than the guide the user chose to publish.
 

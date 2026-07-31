@@ -247,15 +247,31 @@ you want in place before anyone signs up.
 
 ---
 
-## Step 4 — create the item
+## Step 4 — upload the package to the EXISTING item
+
+The item already exists: id `pifkelcohogbbocldnkjlfiagjigikjl`, created 29 Jul 2026.
 
 1. Go to <https://chrome.google.com/webstore/devconsole>
-2. **Add new item**
-3. Drag in `guidegen-build.zip`
+2. Open **that item** — do not "Add new item"
+3. **Package** → **Upload new package** → drag in `guidegen-build.zip`
 4. Wait for the upload to process (68 MB — give it a minute)
 
-If it rejects the upload, the message names the reason; the usual causes are a manifest
-error or a stray file, and neither applies here.
+**Never create a second item for this product.** The store assigns the id, and that id is
+pinned into `manifest.json` as `key` so unpacked builds load under it too. A new item mints a
+different id, and three things break at once: the OAuth redirect URI
+(`https://pifkel….chromiumapp.org/`), `externally_connectable` and the dashboard bridge
+(`STORE_ID` in `web/assets/bridge.js`), and every existing install's `chrome.storage.local` —
+different id, fresh storage, local guides gone.
+
+This holds no matter how much the code changed. v1.1 is close to a rewrite — the editor moved
+to the website, the account and publishing are new — and it is still a version of the same
+item. Reviewers review the package in front of them; they don't diff it against the last one.
+
+If the upload is rejected the message names the reason. Two that apply here: the version in
+`manifest.json` must be *higher* than the version already published (1.1.0 > 1.0.0, fine), and
+the `key` field is accepted but redundant for the store build — the store uses the item's own
+key regardless. Leave it in: the same zip is what testers load unpacked, and there the key is
+what pins the id.
 
 ---
 
@@ -270,9 +286,18 @@ today.
 
 **Privacy practices** — this is where submissions get bounced, so don't rush it:
 - Single purpose: paste from LISTING.md
-- A justification for every permission: all six plus the host permission, pasted from LISTING.md
-- Data usage: tick the three certifications; leave **every** data-collection category unchecked
+- A justification for every permission: all **eight** plus the host permission, pasted from
+  LISTING.md. Eight, not six — `offscreen` and `identity` arrived with v1.1.
+- Data usage: tick the three certifications, **and tick the four data-collection categories
+  listed in LISTING.md** — personally identifiable information, authentication information,
+  website content, web history.
 - Privacy policy URL: `https://guide-gen.vercel.app/privacy`
+
+> The four ticks are the single most important difference from the v1.0 submission. v1.0 was
+> reviewed with every box unchecked and that was *accurate* — it made no network requests at
+> all. v1.1 has an account and publishes guides. Submitting it with the old declaration is a
+> false one, which is a takedown rather than a rejection. LISTING.md carries the reasoning per
+> category; read it there rather than guessing at the console.
 
 **Distribution** — Free, all regions, and see the next step for visibility.
 
@@ -280,7 +305,7 @@ today.
 
 ## Step 6 — choose visibility, then submit
 
-Set visibility to **Unlisted** for this first submission.
+Set visibility to **Unlisted** (or leave it there — it's where the item already is).
 
 Unlisted means it isn't in search or the category pages, but anyone with the link can
 install it. For a soft launch that's what you want: you can hand the link to colleagues
