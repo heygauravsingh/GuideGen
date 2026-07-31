@@ -371,6 +371,12 @@ node tools/set-extension-key.mjs --check && node tools/sync-web-assets.mjs --che
 
 ## Step 5 — fill in the three tabs
 
+> **Where this stands (31 Jul 2026).** Item `dijeonandicniffeffbcolhfldommhnp`, status
+> **Draft**, package **v1.1.0 uploaded** with the Google sign-in fix. The Package tab lists
+> `activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, identity,
+> host permission` — that is correct and complete; it mirrors the manifest. Everything below
+> is what is left before Submit.
+
 Open `store/LISTING.md` beside the dashboard and paste as you go.
 
 **Store listing** — name, short description, detailed description, category
@@ -392,6 +398,37 @@ today.
 > all. v1.1 has an account and publishes guides. Submitting it with the old declaration is a
 > false one, which is a takedown rather than a rejection. LISTING.md carries the reasoning per
 > category; read it there rather than guessing at the console.
+
+### `downloads` — the permission v1.0 was rejected for
+
+**Seeing `downloads` in the Package tab is not the problem, and it must stay.** The v1.0
+rejection (Purple Potassium) was "requesting but not *using*" it — v1.0 saved every export by
+clicking an `<a download>` anchor and never called the API once. The Package tab looked
+identical then; the difference is in the code, which is what a reviewer audits.
+
+v1.1 uses it, and can't avoid it. The reachable path:
+
+```
+dashboard asks for a narrated video
+  → offscreen document renders it (the only context with canvas + AudioContext + MediaRecorder)
+  → posts gg_off_blob                        background.js:802
+  → downloadVideo()                          background.js:653
+  → chrome.downloads.download()              background.js:654
+```
+
+An offscreen document has no DOM to make an anchor in, and a service worker has none either,
+so a blob it owns cannot be saved any other way. Removing the permission removes the video
+export.
+
+What *does* need care is the justification field. Paste it verbatim from LISTING.md — it
+describes this single use. The old wording claimed all five export formats used the
+permission, and restating a rejected permission more broadly than the code uses it is how a
+re-review finds the same violation twice.
+
+Re-audit the rest against call sites, not intent, before you paste (verified 31 Jul 2026):
+`activeTab`/`scripting`/`tabs`/`offscreen` in `background.js`, `storage` in four files,
+`identity` in `sync.js`, `unlimitedStorage` has no API surface at all — declared alone, which
+is normal and not what the policy is about.
 
 **Distribution** — Free, all regions, and see the next step for visibility.
 
@@ -415,7 +452,15 @@ Then **Submit for review**.
 - You'll get an email when it's approved or rejected. Rejections name the policy and are
   usually fixable in one edit — the common one for this category is an insufficient
   permission justification, which is why step 5 matters.
-- Don't upload a new package while a review is pending; it restarts the queue.
+- **A rejection is against the draft, not the item.** The banner says so: fix it and resubmit
+  a new draft on the same item. Do not file a fresh item to get away from a finding — a
+  finding follows the code, so a new item earns the same rejection, and repeatedly filing new
+  ones against an unresolved finding reads as circumventing review.
+- **Read the rejection before changing anything.** v1.0's said `downloads` was requested and
+  not used. The plausible-sounding guesses that day were the privacy declarations and the
+  `<all_urls>` justification, and both would have been wasted work.
+- Don't upload a new package while a review is pending; it restarts the queue. Which is the
+  argument for taking the screenshots *before* you submit, not after.
 - Once live, the install link is `https://chromewebstore.google.com/detail/<your-item-id>`
 
 ## Known gaps a user may hit — worth knowing before people install
