@@ -34,7 +34,7 @@ const BRIDGE = resolve(ROOT, "web/assets/bridge.js");
 // script guards the manifest key, bridge.js is what the dashboard sends messages to,
 // and an install where those two disagree looks exactly like "extension not
 // installed" while it sits in the toolbar.
-const STORE_ID = "pifkelcohogbbocldnkjlfiagjigikjl";
+const STORE_ID = "dijeonandicniffeffbcolhfldommhnp";
 
 const VALID_ID = /^[a-p]{32}$/;
 

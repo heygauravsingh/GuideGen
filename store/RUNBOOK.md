@@ -187,7 +187,7 @@ Google account who tries the password form gets `EMAIL_EXISTS` on signup and
 All three of those errors now say "use Continue with Google instead".
 
 **3. Pin the extension id.** ✅ **Done 31 Jul 2026** — `manifest.json` carries the store item's
-public key, verified to derive `pifkelcohogbbocldnkjlfiagjigikjl`. Nothing to do unless the
+public key, verified to derive `dijeonandicniffeffbcolhfldommhnp`. Nothing to do unless the
 manifest's `key` goes missing; `node tools/set-extension-key.mjs --check` says so if it does.
 
 Kept here because it explains why there are two redirect URIs below and not one per machine:
@@ -216,7 +216,7 @@ Web application.** One client, **two** redirect URIs now:
 
 ```
 https://guide-gen.vercel.app/auth
-https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/
+https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/
 ```
 
 Then paste the client id into `web/assets/gg.js` and `sync.js` and deploy.
@@ -265,9 +265,15 @@ you want in place before anyone signs up.
 Two valid routes. **Pick one before you touch the dashboard**, because the second one
 changes the extension id and therefore changes code.
 
+> **Route 4b was taken on 31 Jul 2026.** The live item is now
+> `dijeonandicniffeffbcolhfldommhnp`; the rejected `pifkel…` item is superseded. 4a is kept
+> below because it is the right route for every *subsequent* release — a new item per version
+> is never correct once an item has users.
+
 ### 4a — new version of the existing item (less work)
 
-The item exists: id `pifkelcohogbbocldnkjlfiagjigikjl`, created 29 Jul 2026.
+For releases after the first: open the current item, id
+`dijeonandicniffeffbcolhfldommhnp`, created 31 Jul 2026.
 
 1. <https://chrome.google.com/webstore/devconsole> → open **that item**
 2. **Package** → **Upload new package** → `guidegen-build.zip`

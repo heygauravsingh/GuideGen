@@ -22,7 +22,7 @@
    *
    * Same OAuth *Web application* client as the website — one client, two authorised
    * redirect URIs. This surface needs
-   * `https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/`, which is one URI
+   * `https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/`, which is one URI
    * rather than one per machine only because manifest.json pins the extension id
    * with `key` (tools/set-extension-key.mjs). Without that pin an unpacked build's
    * id comes from the folder's absolute path, differs per tester, and Google

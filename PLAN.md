@@ -30,7 +30,7 @@ A page at `guide-gen.vercel.app` cannot read `chrome.storage.local`. Different o
 different sandbox. The link is **`externally_connectable`** in the manifest: the dashboard
 calls `chrome.runtime.sendMessage(EXTENSION_ID, ...)` and the background worker answers.
 
-- Extension id is known: `pifkelcohogbbocldnkjlfiagjigikjl`
+- Extension id is known: `dijeonandicniffeffbcolhfldommhnp`
 - Manifest needs `"externally_connectable": { "matches": ["https://guide-gen.vercel.app/*"] }`
 - **Fetch step images one at a time, lazily.** Do not send a whole guide in one message —
   a 10-step guide of full-res PNGs is 10–30MB and `sendMessage` will choke. One step per
@@ -291,7 +291,7 @@ Still open:
 1. **Google sign-in is the conversion blocker for this feature.** "Create an account with a
    password to download a PDF" converts badly, and the whole growth argument for the sign-in
    gate depends on it being one tap. The OAuth redirect URI is already known:
-   `https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/`. Higher value than anything
+   `https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/`. Higher value than anything
    else on this list.
 2. **A recipient can't actually install the extension yet** — the store listing is Unlisted and
    pending review, so the "Get the extension" link in the video panel won't resolve for anyone
@@ -407,6 +407,9 @@ how the last drift bug happened.
 > **Live and verified**
 > - Extension submitted to the Chrome Web Store — **Pending review**, id
 >   `pifkelcohogbbocldnkjlfiagjigikjl`, Unlisted. v1.0 has **no** sync in it.
+>   *Superseded 31 Jul 2026: that submission was **rejected** (Purple Potassium — `downloads`
+>   requested but not used, which was correct: v1.0 saved exports with an `<a download>`
+>   anchor). Resubmitted as a new item, `dijeonandicniffeffbcolhfldommhnp`.*
 > - Website live at `guide-gen.vercel.app`: `/` landing + waitlist, `/app` dashboard,
 >   `/g/{id}` public viewer, `/privacy`, `/terms`.
 > - Firebase `guidegen-1f938` (Spark, £0): email/password auth, Firestore, rules
@@ -657,15 +660,20 @@ data. Long random IDs, `X-Robots-Tag: noindex` on every guide route, `robots.txt
 disallow. Default new shares to link-only, never to public. Getting this wrong turns your
 product into an accidental disclosure engine, and you find out via a very bad email.
 
-**The extension ID is now known** (assigned by the store on 29 Jul 2026):
+**The extension ID is now known** (assigned by the store on 31 Jul 2026):
 
 ```
-pifkelcohogbbocldnkjlfiagjigikjl
+dijeonandicniffeffbcolhfldommhnp
 ```
 
 This unblocks Google sign-in from the extension (an OAuth client needs the redirect URI
-`https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/`) and it is the value the web
+`https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/`) and it is the value the web
 app must name when messaging the extension.
+
+> Was `pifkelcohogbbocldnkjlfiagjigikjl` (29 Jul). That item's v1.0 draft was rejected and
+> the product was resubmitted as a new item on 31 Jul, which moved the id. The id lives in
+> four files plus the OAuth client; `node tools/set-extension-key.mjs <key> --id <id>` moves
+> it in one verified step, and prints the prose files it can't.
 
 **Extension → account linking.** Use `externally_connectable` in the manifest so your web
 app can message the extension directly after sign-in — no token pasting, no OAuth dance.

@@ -33,7 +33,7 @@ window.GGBridge = (function () {
    * this page, and whichever candidate answers a ping is remembered. Costs one ping
    * on first load and makes the un-pinned case work regardless.
    */
-  var STORE_ID = "pifkelcohogbbocldnkjlfiagjigikjl";
+  var STORE_ID = "dijeonandicniffeffbcolhfldommhnp";
   var LS_KEY = "gg_ext_id";
   var VALID = /^[a-p]{32}$/;   // Chrome extension ids are 32 chars from a–p
 

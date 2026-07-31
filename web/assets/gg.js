@@ -25,7 +25,7 @@ window.GG = (function () {
    * authorised redirect URIs:
    *
    *   https://guide-gen.vercel.app/auth                            (this site)
-   *   https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/    (the popup)
+   *   https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/    (the popup)
    *
    * Two rather than one-per-machine only because manifest.json pins the extension
    * id with `key` (tools/set-extension-key.mjs). Remove that and an unpacked

@@ -362,7 +362,7 @@ straight to the results with nothing explaining what happened.
 A page on `guide-gen.vercel.app` cannot read `chrome.storage.local` — different origin,
 different sandbox. `externally_connectable` is the only link: the dashboard calls
 `chrome.runtime.sendMessage(EXTENSION_ID, …)` and `onMessageExternal` answers. Extension id
-`pifkelcohogbbocldnkjlfiagjigikjl`, assigned by the store and permanent.
+`dijeonandicniffeffbcolhfldommhnp`, assigned by the store and permanent.
 
 Four rules:
 
@@ -391,7 +391,7 @@ Offered on all three surfaces. Four things not to undo:
    from an external host, and GIS is a remote script. So it's a plain OAuth redirect →
    `id_token` → Identity Toolkit `signInWithIdp`. Costs one page load; keeps the rule.
 2. **One OAuth *Web application* client, two redirect URIs** — `/auth` for the site and
-   `https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/` for the popup. Two rather than
+   `https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/` for the popup. Two rather than
    one per install *only* because `manifest.json` pins the id with `key`
    (`tools/set-extension-key.mjs`). Remove that and an unpacked build's id comes from the
    folder path, differs per machine, and Google sign-in silently fails for every tester while
