@@ -133,8 +133,19 @@ Used only for "Continue with Google" sign-in. The extension opens Google's own c
 
 `downloads`
 ```
-Used to save the exported guide — HTML, Markdown, PDF, PowerPoint or video — to the user's computer when they choose an export format.
+Used to save the narrated video export. The video is rendered in an offscreen document, which is the only context in the extension with a canvas, an AudioContext and a MediaRecorder; that document cannot save a file itself, so it hands the finished video to the service worker as a blob URL and the service worker saves it with chrome.downloads. The HTML, Markdown, PDF and PowerPoint exports do not use this permission — they are built and saved by the page the user is on.
 ```
+
+> **This is the permission v1.0.0 was rejected for — Purple Potassium, 30 Jul 2026,
+> "requesting but not using: downloads".** The rejection was correct. v1.0 saved every
+> export by clicking an `<a download>` anchor from the editor page and never called
+> `chrome.downloads` once, so the permission was declared for a feature that didn't use it.
+>
+> v1.1 uses it for exactly one thing, described above, and cannot avoid it: an offscreen
+> document has no anchor to click and a service worker has no DOM. Keep this justification
+> narrow and accurate — a reviewer re-auditing after a rejection is checking this specific
+> field, and the previous wording claimed all five export formats used it, which would read
+> as the same violation restated.
 
 **Host permission** `<all_urls>`
 ```
@@ -190,6 +201,12 @@ Shipping v1.1 without updating this would be a false declaration. The hosted pri
 policy at `/privacy` has been revised to match and now opens with what changed in 1.1.
 
 **Also review before submitting v1.1:**
+- **Re-audit every permission against a call site, not against intent.** This is what the
+  v1.0 rejection was: a permission that made sense on paper and was never called. Verified
+  for v1.1 on 31 Jul 2026 — `activeTab`/`scripting`/`tabs`/`offscreen` in `background.js`,
+  `storage` in four files, `downloads` at `background.js:649`, `identity` in `sync.js`.
+  `unlimitedStorage` has no API surface at all and is declared alone, which is normal and
+  is not what the policy is about.
 - The listing no longer claims "no account" or that there is nowhere to upload to. Both
   were true of v1.0 and are not true now. Check the description above, the landing page
   and the FAQ together — they have to agree.

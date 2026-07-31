@@ -249,6 +249,19 @@ you want in place before anyone signs up.
 
 ## Step 4 — the item
 
+> **v1.0.0 was rejected on 30 Jul 2026.** Purple Potassium, *use of permissions* —
+> "requesting but not using: downloads". Correctly: v1.0 saved exports by clicking an
+> `<a download>` anchor and never called `chrome.downloads`. v1.1 uses it for the narrated
+> video, which is rendered in an offscreen document that cannot save a file itself, so the
+> finding is already remediated by the code. See the `downloads` justification in
+> LISTING.md.
+>
+> Two things follow. First, **a rejection is against the draft, not the item** — the banner
+> says "you may resubmit a new draft", and the item has no strike to escape. Second, a
+> rejection follows the *code*: filing a fresh item without fixing the finding gets the same
+> rejection, and repeatedly filing fresh items against an unresolved one reads as
+> circumventing review, which escalates past rejection. Fix first, then choose the route.
+
 Two valid routes. **Pick one before you touch the dashboard**, because the second one
 changes the extension id and therefore changes code.
 
