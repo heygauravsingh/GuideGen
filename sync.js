@@ -20,16 +20,19 @@
 
   /* Google sign-in, via chrome.identity.launchWebAuthFlow.
    *
-   * Same OAuth *Web application* client as the website — one client, several
-   * authorised redirect URIs. This surface needs
-   * `https://<extension-id>.chromiumapp.org/`, and note that an unpacked build has
-   * a different id from the store build, so BOTH have to be registered or Google
-   * sign-in works in one and silently fails in the other. chrome.identity
-   * .getRedirectURL() below always reports the right one for the running build.
+   * Same OAuth *Web application* client as the website — one client, two authorised
+   * redirect URIs. This surface needs
+   * `https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/`, which is one URI
+   * rather than one per machine only because manifest.json pins the extension id
+   * with `key` (tools/set-extension-key.mjs). Without that pin an unpacked build's
+   * id comes from the folder's absolute path, differs per tester, and Google
+   * sign-in silently fails for everyone but whoever registered theirs.
+   * chrome.identity.getRedirectURL() always reports the running build's, so check
+   * it against the registered URI if sign-in comes back with redirect_uri_mismatch.
    *
    * Until GOOGLE_CLIENT_ID is set, googleReady() is false and the popup hides its
    * Google button rather than offering one that can't work. */
-  const GOOGLE_CLIENT_ID = "PASTE_GOOGLE_WEB_CLIENT_ID_HERE";
+  const GOOGLE_CLIENT_ID = "344879422223-vqs8m5c1olfeluthk47s44mp0hp8pk6q.apps.googleusercontent.com";
 
   function googleReady() {
     return /^[0-9][0-9a-z-]*\.apps\.googleusercontent\.com$/.test(GOOGLE_CLIENT_ID);

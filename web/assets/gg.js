@@ -21,16 +21,23 @@ window.GG = (function () {
    * host — and GIS is a remote script. A redirect costs one page load and keeps
    * that intact.
    *
-   * Paste the OAuth 2.0 *Web application* client id below. One client covers every
-   * surface; it needs three authorised redirect URIs:
+   * One OAuth 2.0 *Web application* client covers every surface, with two
+   * authorised redirect URIs:
    *
-   *   https://guide-gen.vercel.app/auth                     (this site)
-   *   https://<store-extension-id>.chromiumapp.org/         (the popup)
-   *   https://<unpacked-extension-id>.chromiumapp.org/      (your dev build)
+   *   https://guide-gen.vercel.app/auth                            (this site)
+   *   https://pifkelcohogbbocldnkjlfiagjigikjl.chromiumapp.org/    (the popup)
+   *
+   * Two rather than one-per-machine only because manifest.json pins the extension
+   * id with `key` (tools/set-extension-key.mjs). Remove that and an unpacked
+   * build's id comes from the folder path and Google sign-in fails per tester.
+   *
+   * They belong under *Authorised redirect URIs*, not *Authorised JavaScript
+   * origins* — origins reject a path or a trailing slash, and this flow uses none
+   * of them anyway (that field is for the GIS/gapi flow we deliberately avoid).
    *
    * Until it's set, googleReady() is false and every Google button stays hidden.
    * A visible button that always fails is worse than no button. */
-  var GOOGLE_CLIENT_ID = "PASTE_GOOGLE_WEB_CLIENT_ID_HERE";
+  var GOOGLE_CLIENT_ID = "344879422223-vqs8m5c1olfeluthk47s44mp0hp8pk6q.apps.googleusercontent.com";
   var OAUTH_KEY = "gg_oauth";
 
   function googleReady() {
