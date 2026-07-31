@@ -325,8 +325,8 @@ Three things the page has to say, and does:
 3. **Reload any tab that was already open.** Pre-existing tabs haven't loaded the recorder.
 
 Two ZIPs, and they are not interchangeable: the store requires `manifest.json` at the archive
-root, so `guidegen-build.zip` is flat; a human unzipping a flat archive gets loose files and
-"pick the folder" then means nothing, so `guidegen-install.zip` wraps everything in
+root, so `GuideGen-Prod.zip` is flat; a human unzipping a flat archive gets loose files and
+"pick the folder" then means nothing, so `GuideGen-Beta.zip` wraps everything in
 `guidegen/`. Both commands are in RUNBOOK step 2 and 2b.
 
 Open: **paste the Drive link into `DOWNLOAD_URL` in `web/install.html`.** Until then the page
@@ -478,7 +478,7 @@ Sharing infrastructure is worth building when people ask for it, not before.
 
 Goal: find out whether anyone wants this, before building anything for them.
 
-- [x] Extension is feature-complete and packaged (`../guidegen-build.zip`)
+- [x] Extension is feature-complete and packaged (`../GuideGen-Prod.zip` + `../GuideGen-Beta.zip`)
 - [ ] Submit to Chrome Web Store as **Unlisted** (see `store/RUNBOOK.md`)
 - [ ] Privacy policy on free static hosting (`store/privacy-policy.html`)
 - [ ] Landing page — single static HTML file, free host, free subdomain, **no custom domain**

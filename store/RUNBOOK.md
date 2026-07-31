@@ -96,16 +96,33 @@ A stale icon doesn't show up in a grep for a hex value at all — which is exact
 purple bullseye survived the repalette. A missing `key` doesn't show up anywhere until a
 tester's Google sign-in fails on their machine and works on yours.
 
-Then rebuild the package. **One artifact, used for both the store and Drive** (see 2b):
+Then build **both packages**, with one command. They contain exactly the same files and
+differ only in layout:
+
+| File | Layout | Goes to |
+|---|---|---|
+| `../GuideGen-Prod.zip` | flat — `manifest.json` at the archive root | the store |
+| `../GuideGen-Beta.zip` | wrapped — everything inside `guidegen/` | Google Drive, for `/install` |
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && rm -f ../guidegen.zip && zip -r -q -X ../guidegen.zip manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib -x "*.DS_Store" -x "*.map" && ls -lh ../guidegen.zip
+cd "/Users/apple/Desktop/FlowScribe 2" && FILES=(manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
 ```
 
-The name matters. It is flat, because the store requires `manifest.json` at the archive
-root — and a flat archive extracted by double-click gets wrapped in a folder named after
-the archive, so `guidegen.zip` yields `guidegen/`, which is what `/install` step 1 tells a
-tester to expect. Rename the file and that instruction stops being true.
+`FILES` is a **zsh array**, and the `"${FILES[@]}"` expansions matter: zsh does not
+word-split an unquoted plain variable, so `zip … $FILES` gets one long argument and exits
+with `zip error: Nothing to do!`.
+
+Prod is flat because the store requires `manifest.json` at the archive root. Beta wraps
+everything in `guidegen/` so a tester who double-clicks gets one folder to point Chrome at,
+rather than fifteen loose files in their Downloads. `guidegen/` being the archive's only
+top-level entry is what stops it double-nesting into `GuideGen-Beta/guidegen/`, and it is
+the folder name `/install` step 1 promises — rename it and that instruction goes stale.
+
+**Build and ship both, every time.** The names are ours and mean nothing to Google; the only
+difference is the layout. Two artifacts mean two things to remember, and on 31 Jul that cost
+exactly one: the Google sign-in fix reached the store zip while Drive still served the
+broken build, so a tester downloading in that window would have hit a sign-in that silently
+did nothing. Verify with the check at the end of this step before either upload.
 
 The file list changed for v1.1, in both directions:
 - **added** `sync.js` (the account session — v1.0 shipped without it, which is why the
@@ -118,6 +135,25 @@ The file list changed for v1.1, in both directions:
 The first three describe the project as a "replica of Scribe Capture", which should not be
 sitting inside a package a reviewer can open; the last two aren't part of the extension.
 
+**Check both packages before uploading either.** This catches the layout being wrong for its
+destination, a stale build, and a missing or wrong `key` — none of which are visible from the
+file listing:
+
+```bash
+cd "/Users/apple/Desktop/FlowScribe 2" && node -e '
+const {execSync}=require("child_process");const {createHash}=require("crypto");
+const id=k=>createHash("sha256").update(Buffer.from(k,"base64")).digest().subarray(0,16).reduce((s,x)=>s+String.fromCharCode(97+(x>>4))+String.fromCharCode(97+(x&15)),"");
+for (const [z,mp,label] of [["../GuideGen-Prod.zip","manifest.json","PROD (store, flat)"],["../GuideGen-Beta.zip","guidegen/manifest.json","BETA (drive, wrapped)"]]) {
+  const m=JSON.parse(execSync(`unzip -p "${z}" ${mp}`).toString());
+  const list=execSync(`unzip -l "${z}"`).toString();
+  console.log(label, "-> v"+m.version, "| perms", m.permissions.length,
+              "| key", m.key?id(m.key):"NONE", "| wrapped", list.includes("guidegen/"));
+}'
+```
+
+Expect both at the same version and permission count, both deriving
+`dijeonandicniffeffbcolhfldommhnp`, and `wrapped` **false for Prod, true for Beta**.
+
 ---
 
 ## Step 2b — early-access distribution over Google Drive
@@ -128,29 +164,15 @@ gets submitted. **It is hosted on Google Drive, not on Vercel, and that is delib
 reintroduce the problem it was written to prevent — plus 68MB committed to git forever, in
 every clone, since the site has no build step and the file would have to be checked in.
 
-**The store ZIP and the tester ZIP are the same file — `../guidegen.zip`.** They were two
-builds until 31 Jul 2026: the store needs `manifest.json` at the archive root, and a flat
-archive unzipped from a terminal scatters loose files, so the tester build wrapped everything
-in a `guidegen/` directory.
-
-That difference was resolved by naming rather than by a second build. Finder and Windows
-Explorer both wrap a multi-entry archive in a folder named after it, so `guidegen.zip`
-double-clicked gives a `guidegen/` folder — the same thing the wrapped build produced, from
-the archive the store accepts.
-
-Two consequences to respect:
-
-- **`unzip` from a terminal still scatters it.** `/install` step 1 therefore says what to do
-  if the files land loose, instead of promising a folder unconditionally. Don't "tidy" that
-  sentence away.
-- **Two artifacts meant two things to forget.** A code fix on 31 Jul went into the store zip
-  and not the Drive one, and a tester downloading in that window would have hit a Google
-  sign-in that silently did nothing. One file cannot drift from itself.
+**Drive gets `GuideGen-Beta.zip`, the store gets `GuideGen-Prod.zip`** — same contents, and
+the wrapped layout is the whole reason there are two. A tester unzipping a flat archive gets
+fifteen loose files in Downloads, and "pick the folder" then means nothing.
 
 First time:
 
-1. Build it — `Step 2` produces `../guidegen.zip` (~68MB), for both destinations.
-2. Upload **`guidegen.zip`** to Drive.
+1. Build both — `Step 2` produces `../GuideGen-Prod.zip` and `../GuideGen-Beta.zip` (~68MB
+   each), and run the verification at the end of that step.
+2. Upload **`GuideGen-Beta.zip`** to Drive.
 3. Share → **Anyone with the link** → **Viewer**. Without this, testers get a request-access
    screen instead of a download.
 4. Copy the link and paste it into `web/install.html` — one line, near the top of the inline
@@ -236,8 +258,9 @@ https://dijeonandicniffeffbcolhfldommhnp.chromiumapp.org/
 Then paste the client id into `web/assets/gg.js` and `sync.js` and deploy.
 
 *If a store upload ever rejects the manifest over `key`:* it shouldn't, since the key is that
-item's own, but if it does, strip `key` from the store zip only — the tester zip keeps it, and
-the tester zip is the one where the id matters.
+item's own, but if it does, strip `key` from `GuideGen-Prod.zip` only —
+`GuideGen-Beta.zip` keeps it, and Beta is the one where the id matters, because only an
+unpacked load derives its id from the key.
 
 **OAuth consent screen.** Scopes are `openid email profile` — all non-sensitive, so **no Google
 review is required**. But an unpublished consent screen stays in *Testing*, which only lets 100
@@ -290,7 +313,7 @@ For releases after the first: open the current item, id
 `dijeonandicniffeffbcolhfldommhnp`, created 31 Jul 2026.
 
 1. <https://chrome.google.com/webstore/devconsole> → open **that item**
-2. **Package** → **Upload new package** → `guidegen.zip`
+2. **Package** → **Upload new package** → `GuideGen-Prod.zip`
 3. Rewrite the listing and the privacy declarations for v1.1 (step 5). This is the real
    work either way: v1.0's declarations said the extension made no network requests.
 
@@ -313,8 +336,9 @@ has already assigned.
    ```
    node tools/set-extension-key.mjs --remove
    ```
-   Then the Step 2 zip command. This zip is for the store upload **only** — do not hand it
-   to a tester, because without a key an unpacked id comes from the folder path.
+   Then the Step 2 build. Upload `GuideGen-Prod.zip` from that state — and do NOT ship the
+   `GuideGen-Beta.zip` built alongside it, because without a key an unpacked id comes from
+   the folder path and differs per machine.
 2. **Add new item** → upload that zip → wait for processing.
 3. Copy the new id from the item, and the new key from **Package → View public key**.
 4. **Adopt it** — one command, and it verifies the key derives the id before writing
@@ -328,8 +352,8 @@ has already assigned.
 5. **OAuth client** → Credentials → the Web application client → *Authorised redirect
    URIs* → add `https://<new-id>.chromiumapp.org/`. Keep the old one until every tester
    has upgraded, then remove it. Leave `/auth` alone; the site's URI doesn't move.
-6. **Rebuild both zips** (Step 2 and Step 2b) now that the new key is in the manifest, and
-   **re-upload the tester zip to Drive via Manage versions → Upload new version** so the
+6. **Rebuild both zips** (Step 2) now that the new key is in the manifest, and
+   **re-upload `GuideGen-Beta.zip` to Drive via Manage versions → Upload new version** so the
    `/install` link keeps working. A fresh Drive upload would change the file id and dead-link
    `web/install.html`.
 7. **Deploy the site** — `bridge.js` and `gg.js` changed, so the dashboard is pointing at
