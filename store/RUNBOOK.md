@@ -247,31 +247,68 @@ you want in place before anyone signs up.
 
 ---
 
-## Step 4 — upload the package to the EXISTING item
+## Step 4 — the item
 
-The item already exists: id `pifkelcohogbbocldnkjlfiagjigikjl`, created 29 Jul 2026.
+Two valid routes. **Pick one before you touch the dashboard**, because the second one
+changes the extension id and therefore changes code.
 
-1. Go to <https://chrome.google.com/webstore/devconsole>
-2. Open **that item** — do not "Add new item"
-3. **Package** → **Upload new package** → drag in `guidegen-build.zip`
-4. Wait for the upload to process (68 MB — give it a minute)
+### 4a — new version of the existing item (less work)
 
-**Never create a second item for this product.** The store assigns the id, and that id is
-pinned into `manifest.json` as `key` so unpacked builds load under it too. A new item mints a
-different id, and three things break at once: the OAuth redirect URI
-(`https://pifkel….chromiumapp.org/`), `externally_connectable` and the dashboard bridge
-(`STORE_ID` in `web/assets/bridge.js`), and every existing install's `chrome.storage.local` —
-different id, fresh storage, local guides gone.
+The item exists: id `pifkelcohogbbocldnkjlfiagjigikjl`, created 29 Jul 2026.
 
-This holds no matter how much the code changed. v1.1 is close to a rewrite — the editor moved
-to the website, the account and publishing are new — and it is still a version of the same
-item. Reviewers review the package in front of them; they don't diff it against the last one.
+1. <https://chrome.google.com/webstore/devconsole> → open **that item**
+2. **Package** → **Upload new package** → `guidegen-build.zip`
+3. Rewrite the listing and the privacy declarations for v1.1 (step 5). This is the real
+   work either way: v1.0's declarations said the extension made no network requests.
 
-If the upload is rejected the message names the reason. Two that apply here: the version in
-`manifest.json` must be *higher* than the version already published (1.1.0 > 1.0.0, fine), and
-the `key` field is accepted but redundant for the store build — the store uses the item's own
-key regardless. Leave it in: the same zip is what testers load unpacked, and there the key is
-what pins the id.
+Nothing in the repo changes. The version in `manifest.json` must exceed the published one
+(1.1.0 > 1.0.0, fine).
+
+### 4b — resubmit as a NEW item (chosen 31 Jul 2026)
+
+Defensible when the product has changed enough that the old listing describes something
+else: v1.1 moved the editor to the website, added an account, and added publishing, so
+every privacy and connectivity answer is different. The cost is that the id moves, and the
+id is pinned in code.
+
+**The ordering is not negotiable.** The new item has no key until it has processed a
+package, so there is a window where the manifest can only carry the *old* item's key —
+and uploading that as a new item asks the store to mint a second item deriving an id it
+has already assigned.
+
+1. **Strip the key**, then build the store zip from that state:
+   ```
+   node tools/set-extension-key.mjs --remove
+   ```
+   Then the Step 2 zip command. This zip is for the store upload **only** — do not hand it
+   to a tester, because without a key an unpacked id comes from the folder path.
+2. **Add new item** → upload that zip → wait for processing.
+3. Copy the new id from the item, and the new key from **Package → View public key**.
+4. **Adopt it** — one command, and it verifies the key derives the id before writing
+   anything:
+   ```
+   node tools/set-extension-key.mjs newkey.pem --id <new-32-char-id>
+   ```
+   Writes `manifest.json`'s key and rewrites the id in `tools/set-extension-key.mjs`,
+   `web/assets/bridge.js`, `sync.js` and `web/assets/gg.js`. It prints the prose files it
+   did *not* touch; fix those by hand.
+5. **OAuth client** → Credentials → the Web application client → *Authorised redirect
+   URIs* → add `https://<new-id>.chromiumapp.org/`. Keep the old one until every tester
+   has upgraded, then remove it. Leave `/auth` alone; the site's URI doesn't move.
+6. **Rebuild both zips** (Step 2 and Step 2b) now that the new key is in the manifest, and
+   **re-upload the tester zip to Drive via Manage versions → Upload new version** so the
+   `/install` link keeps working. A fresh Drive upload would change the file id and dead-link
+   `web/install.html`.
+7. **Deploy the site** — `bridge.js` and `gg.js` changed, so the dashboard is pointing at
+   the old id until you do.
+8. **Unpublish the old item** so there aren't two listings for one product. Everyone on the
+   old build must reinstall; their local guides don't come with them, because a new id gets
+   fresh `chrome.storage.local`. Publish anything worth keeping first.
+
+Verify before submitting:
+```
+node tools/set-extension-key.mjs --check && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check
+```
 
 ---
 
