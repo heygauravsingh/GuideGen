@@ -39,6 +39,8 @@ Then edit anything you like and export it.
 WHAT YOU GET
 • Automatic step text — written from the actual control you clicked, not a generic label
 • An annotated screenshot per step, highlighted, numbered and cropped to what matters
+• Tab switches and page loads recorded as their own steps, so a workflow that opens a new
+  tab still reads in order instead of jumping
 • An auto-generated title, so guides aren't called "Untitled"
 • Redaction — drag a box over anything sensitive and it's pixelated in every export
 • Notes — add context steps that aren't clicks
