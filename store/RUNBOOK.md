@@ -1,5 +1,44 @@
 # Launch runbook — submit GuideGen to the Chrome Web Store today
 
+## STATUS — 31 Jul 2026, audited. Read this first; the numbered steps are reference.
+
+The console work is **finished**. Do not redo any of it — the steps below still describe it
+because they are the reference for doing it again from scratch, not a to-do list.
+
+Done and verified:
+
+| | Evidence |
+|---|---|
+| OAuth client id wired into `sync.js` + `web/assets/gg.js` | present in both, live on the deployed site |
+| Both redirect URIs registered | `/auth` and `dijeon….chromiumapp.org/` both return Google's account chooser, not `redirect_uri_mismatch` |
+| Consent screen published | Audience → **In production**, External |
+| Firestore rules published | done by Gaurav |
+| Store item + package | item `dijeonandicniffeffbcolhfldommhnp`, draft, v1.1.0 uploaded |
+| Extension id pinned | `--check` passes; key derives the item id |
+| Drive link live on `/install` | button resolves, file is world-readable |
+| Screenshots retaken | `store/screenshots-out/screenshot-1..5.png`, 1280×800, 31 Jul. The five v1.0 files were removed — they showed the retired purple editor. |
+| Renderer mirrors + icons in sync | all three `--check`s pass |
+| Tab switches / navigations recorded | `node tools/context-test.mjs` |
+
+**What is actually left** — four things, all in the browser:
+
+1. Store draft → **Package → Upload new package** → `../GuideGen-Prod.zip`. Three code changes
+   landed after the current draft was uploaded: the OAuth client id, the Google sign-in fix
+   (it ran in the popup, which Chrome destroys the moment the auth window takes focus), and
+   tab-switch steps plus the orphaned-recorder guard.
+2. Drive → **Manage versions → Upload new version** → `../GuideGen-Beta.zip`. Same reason. A
+   fresh upload instead of a version would change the file id and dead-link `/install`.
+3. Fill the three tabs from `store/LISTING.md` — listing copy and category, **eight**
+   permission justifications plus the host permission, the **four** data-collection
+   categories, privacy policy URL, Free / all regions / Unlisted. Upload the five screenshots
+   here.
+4. **Submit for review.** Nothing after that: a new package restarts the queue.
+
+Never verified against live backends, and worth knowing before people arrive: republish,
+delete/purge, the export log, and the offscreen narrated-video render.
+
+---
+
 Everything you need is in this folder. Work top to bottom; the whole thing is about
 40 minutes of your time, most of it taking screenshots.
 
