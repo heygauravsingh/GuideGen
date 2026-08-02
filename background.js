@@ -11,6 +11,13 @@ const K = {
   index: "fs_index",
   order: (g) => `fs_steporder_${g}`,
   step: (id) => `fs_step_${id}`,
+  // The buffer mirrors the guide model — an id list plus one key per step —
+  // rather than one fat array. A single key holding forty base64 screenshots
+  // would be rewritten in full on every click, which is megabytes of storage
+  // churn per click for no reason.
+  bufIndex: "fs_bufindex",
+  bufStep: (id) => `fs_bufstep_${id}`,
+  bufOrigins: "fs_buf_origins",
 };
 
 function get(key, def) {
@@ -281,20 +288,21 @@ async function blobToDataUrl(blob) {
 // PNG dataURL -> width-capped WebP dataURL, plus the factor the bitmap shrank
 // by. Returns the original untouched on any failure: a fat screenshot always
 // beats a lost step.
-async function normalizeShot(dataUrl) {
+async function normalizeShot(dataUrl, opts) {
+  const spec = opts || SHOT;
   if (!dataUrl) return { dataUrl: null, scale: 1 };
   let bmp = null;
   try {
     bmp = await createImageBitmap(dataUrlToBlob(dataUrl));
     const srcW = bmp.width;
-    const w = Math.max(1, Math.min(srcW, SHOT.maxWidth));
+    const w = Math.max(1, Math.min(srcW, spec.maxWidth));
     const h = Math.max(1, Math.round((bmp.height * w) / srcW));
     const canvas = new OffscreenCanvas(w, h);
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(bmp, 0, 0, w, h);
-    const blob = await canvas.convertToBlob({ type: SHOT.type, quality: SHOT.quality });
+    const blob = await canvas.convertToBlob({ type: spec.type, quality: spec.quality });
     if (!blob || !blob.size) throw new Error("encode produced nothing");
     // Measured against the real bitmap rather than the requested ratio — the
     // rounding above is what the coordinate maths has to agree with.
@@ -445,6 +453,184 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete" || !tab || !tab.active) return;
   contextStep(tab, "nav");
 });
+
+/* ---------------------------------------------------------------- the buffer
+ *
+ * "Make a guide from what I just did." The pain always arrives after the fact —
+ * you finish something, then someone asks how — and by then Start is useless.
+ *
+ * You cannot screenshot the past, so the only way to answer that is to have been
+ * capturing all along and throwing it away. Which is why this is **armed per
+ * origin and off by default**. A blanket always-on buffer eventually holds a
+ * screenshot of the user's bank, and no wording in a settings page makes that a
+ * reasonable default. Armed on the two or three admin panels someone actually
+ * documents, the surface is small enough to explain in one sentence.
+ *
+ * Three properties this must keep:
+ *
+ * 1. **Nothing here is ever uploaded.** The buffer is not a guide. Promoting it
+ *    creates a real guide, and publishing that is the same deliberate act it
+ *    always was. `publish.js` never sees a `fs_bufstep_` key.
+ * 2. **It expires.** Capped by count and by age, evicted on write, so an armed
+ *    origin left open for a week holds minutes, not a week.
+ * 3. **It is visible while it runs.** recorder.js shows a buffering pill. An
+ *    invisible always-on capture is the thing people are right to be afraid of.
+ *
+ * `<all_urls>` and the declared content script were already here — buffering
+ * needs no new permission. That makes it a *behaviour* change, not a capability
+ * one, which is exactly why the store listing has to be re-worded even though
+ * the permission list does not move.
+ */
+const BUF = {
+  maxSteps: 40,
+  maxAgeMs: 20 * 60 * 1000,
+  // Cheaper than a real recording's capture: this runs on clicks the user never
+  // asked to record, so it must not cost what a deliberate recording costs. A
+  // promoted guide is a little softer than a recorded one, which beats not
+  // existing.
+  shot: { maxWidth: 1280, type: "image/webp", quality: 0.8 },
+};
+
+function originOf(url) {
+  try { return new URL(url).origin; } catch (e) { return ""; }
+}
+
+async function bufOrigins() {
+  return await get(K.bufOrigins, {});
+}
+
+// "*" arms everywhere. Deliberately expressible — some people will want it, and
+// hiding it behind a rebuild would just mean they never get the choice — but it
+// is never what the popup sets.
+async function bufArmed(url) {
+  const origins = await bufOrigins();
+  if (origins["*"]) return true;
+  const o = originOf(url);
+  return !!(o && origins[o]);
+}
+
+async function setBufArmed(origin, on) {
+  if (!origin) return {};
+  const origins = await bufOrigins();
+  if (on) origins[origin] = true;
+  else delete origins[origin];
+  await set({ [K.bufOrigins]: origins });
+  broadcast({ type: "fs_buf_changed" });
+  return origins;
+}
+
+async function bufList() {
+  const ids = await get(K.bufIndex, []);
+  if (!ids.length) return [];
+  const map = await new Promise((res) =>
+    chrome.storage.local.get(ids.map(K.bufStep), res)
+  );
+  return ids.map((id) => map[K.bufStep(id)]).filter(Boolean);
+}
+
+// Drops anything past the count cap or the age cap. Returns the surviving ids.
+async function evictBuffer(ids) {
+  const cutoff = Date.now() - BUF.maxAgeMs;
+  const map = await new Promise((res) =>
+    chrome.storage.local.get(ids.map(K.bufStep), res)
+  );
+  let keep = ids.filter((id) => {
+    const s = map[K.bufStep(id)];
+    return s && (s.timestamp || 0) >= cutoff;
+  });
+  if (keep.length > BUF.maxSteps) keep = keep.slice(keep.length - BUF.maxSteps);
+  const drop = ids.filter((id) => keep.indexOf(id) < 0);
+  if (drop.length) {
+    await new Promise((res) => chrome.storage.local.remove(drop.map(K.bufStep), res));
+  }
+  return keep;
+}
+
+async function clearBuffer() {
+  const ids = await get(K.bufIndex, []);
+  await new Promise((res) =>
+    chrome.storage.local.remove(ids.map(K.bufStep).concat([K.bufIndex]), res)
+  );
+  broadcast({ type: "fs_buf_changed" });
+  return { ok: true };
+}
+
+let bufChain = Promise.resolve();
+
+async function bufferStep(step, sender) {
+  const tab = sender && sender.tab;
+  if (!tab || tab.incognito) return { ok: false };
+  // A recording already captures this click. Buffering it too would double every
+  // step and spend two captures against the rate limit for one action.
+  const state = await get(K.state, {});
+  if (state.recording) return { ok: false };
+  if (!(await bufArmed(tab.url || step.url))) return { ok: false };
+
+  // recorder.js sets this when a password field has focus. The step's words are
+  // safe — it never records a typed value — but the screenshot is the whole
+  // viewport, and a login screen is the one frame most worth not keeping.
+  const shot = step.noShot ? null : await enqueueCapture(tab.windowId);
+  const shotPromise = step.noShot
+    ? Promise.resolve({ dataUrl: null, scale: 1 })
+    : normalizeShot(shot, BUF.shot);
+
+  bufChain = bufChain.then(async () => {
+    const s = await shotPromise;
+    step.id = uid();
+    step.screenshot = s.dataUrl;
+    if (s.scale !== 1) step.dpr = (step.dpr || 1) * s.scale;
+    if (!step.blurs) step.blurs = [];
+    delete step.noShot;
+
+    const ids = (await get(K.bufIndex, [])).concat([step.id]);
+    await set({ [K.bufStep(step.id)]: step });
+    const keep = await evictBuffer(ids);
+    await set({ [K.bufIndex]: keep });
+    broadcast({ type: "fs_buf_changed", count: keep.length });
+  }).catch(() => {});
+
+  const n = (await get(K.bufIndex, [])).length + 1;
+  return { ok: true, count: Math.min(n, BUF.maxSteps) };
+}
+
+/* Buffer -> real guide. Takes the last `n` steps, copies them into the normal
+ * guide keyspace and runs the same finalizeGuide() a recording gets, so a
+ * promoted guide is indistinguishable from a recorded one downstream — the
+ * dashboard, the exporters and publish.js need to know nothing about buffering.
+ *
+ * The buffer is left intact. Promoting is not consuming: the common case is
+ * realising you want a *different* slice of the same few minutes. */
+async function promoteBuffer(n) {
+  await bufChain;
+  const steps = await bufList();
+  if (!steps.length) return { ok: false, error: "Nothing buffered yet." };
+  const take = steps.slice(Math.max(0, steps.length - (n || steps.length)));
+
+  const guideId = uid();
+  const first = take[0] || {};
+  const writes = {};
+  const order = [];
+  take.forEach((s, i) => {
+    const id = uid();
+    order.push(id);
+    writes[K.step(id)] = { ...s, id, guideId, seq: i + 1 };
+  });
+
+  const index = await get(K.index, []);
+  index.unshift({
+    id: guideId,
+    title: "Untitled guide — " + new Date().toLocaleString(),
+    createdAt: Date.now(),
+    startUrl: first.url || "",
+    stepCount: take.length,
+    fromBuffer: true,
+  });
+  writes[K.index] = index;
+  writes[K.order(guideId)] = order;
+  await set(writes);
+  await finalizeGuide(guideId);
+  return { ok: true, guideId, count: take.length };
+}
 
 async function captureStep(step, sender) {
   const state = await get(K.state, {});
@@ -861,6 +1047,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         case "fs_capture_step": {
           sendResponse(await captureStep(msg.step, sender));
+          break;
+        }
+        // ---- the buffer ----
+        case "fs_buffer_step": {
+          sendResponse(await bufferStep(msg.step, sender));
+          break;
+        }
+        case "fs_buf_status": {
+          // Asked by recorder.js on load and by the popup on open. The url comes
+          // from the sender's own tab for a content script, so a page cannot ask
+          // whether some *other* origin is armed.
+          const url = (sender.tab && sender.tab.url) || msg.url || "";
+          sendResponse({
+            armed: await bufArmed(url),
+            origin: originOf(url),
+            count: (await get(K.bufIndex, [])).length,
+            max: BUF.maxSteps,
+            minutes: Math.round(BUF.maxAgeMs / 60000),
+          });
+          break;
+        }
+        case "fs_buf_arm": {
+          const origins = await setBufArmed(msg.origin, !!msg.on);
+          if (msg.on && msg.tabId != null) await ensureInjected(msg.tabId);
+          sendResponse({ ok: true, origins });
+          break;
+        }
+        case "fs_buf_promote": {
+          sendResponse(await promoteBuffer(msg.n));
+          break;
+        }
+        case "fs_buf_clear": {
+          sendResponse(await clearBuffer());
           break;
         }
         case "fs_get_state": {

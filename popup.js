@@ -84,6 +84,74 @@ library.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "fs_open_editor" }, () => window.close());
 });
 
+// ---------- catch-up capture ----------
+//
+// Armed per origin, off by default. The worker owns the origin list and the
+// buffer; this is a switch and two buttons over it. Arming needs the tab's own
+// url, so a page with no origin — chrome://, the Web Store, a PDF — hides the
+// card entirely rather than offering a switch that cannot do anything.
+
+let bufOrigin = "";
+let bufTabId = null;
+
+function bufRender(r) {
+  const card = el("bufCard");
+  if (!r || !r.origin) { card.hidden = true; return; }
+  card.hidden = false;
+  bufOrigin = r.origin;
+  el("bufArm").checked = !!r.armed;
+  el("bufActs").hidden = !r.armed;
+  const host = r.origin.replace(/^https?:\/\//, "");
+  el("bufSub").textContent = r.armed
+    ? r.count
+      ? r.count + (r.count === 1 ? " step" : " steps") + " held for " + host +
+        " — the last " + r.max + ", or " + r.minutes + " minutes, whichever comes first."
+      : "Watching " + host + ". Do something, then come back and make a guide out of it."
+    : "Keeps the last " + r.max + " actions on " + host + " so you can turn them into a " +
+      "guide afterwards. Nothing is uploaded, and it never leaves this device.";
+}
+
+function bufRefresh() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const t = tabs && tabs[0];
+    bufTabId = t ? t.id : null;
+    chrome.runtime.sendMessage({ type: "fs_buf_status", url: (t && t.url) || "" }, (r) => {
+      if (chrome.runtime.lastError) return;
+      bufRender(r);
+    });
+  });
+}
+
+el("bufArm").addEventListener("change", (e) => {
+  const on = e.target.checked;
+  chrome.runtime.sendMessage(
+    { type: "fs_buf_arm", origin: bufOrigin, on, tabId: bufTabId },
+    () => {
+      if (chrome.runtime.lastError) return;
+      bufRefresh();
+    }
+  );
+});
+
+el("bufMake").addEventListener("click", () => {
+  el("bufMake").disabled = true;
+  chrome.runtime.sendMessage({ type: "fs_buf_promote" }, (r) => {
+    el("bufMake").disabled = false;
+    if (chrome.runtime.lastError) return;
+    if (r && r.ok) {
+      chrome.runtime.sendMessage({ type: "fs_open_editor", guideId: r.guideId }, () =>
+        window.close()
+      );
+    } else {
+      el("bufSub").textContent = (r && r.error) || "Nothing buffered yet.";
+    }
+  });
+});
+
+el("bufClear").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "fs_buf_clear" }, () => bufRefresh());
+});
+
 // ---------- auth view ----------
 
 let mode = "signin"; // or "signup"
@@ -214,6 +282,7 @@ function showMain(session) {
   el("acctEmail").textContent = session.name || session.email || "";
   el("acctEmail").title = session.email || "";
   refresh();
+  bufRefresh();
 }
 
 (async () => {

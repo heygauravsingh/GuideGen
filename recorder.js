@@ -10,27 +10,64 @@
   let pill = null;
   let lastCaptureTs = 0;
 
+  /* Buffering is the same listeners with a different destination: steps go to the
+   * ring buffer instead of a guide, so "make a guide from what I just did" has
+   * something to work from. Recording always wins — background.js refuses to
+   * buffer during a recording, and the pill says which mode is running.
+   *
+   * `mode()` is the single source of truth for whether the listeners should be
+   * attached, so there is one place that can get it wrong. */
+  let buffering = false;
+  let bufCount = 0;
+  function mode() { return recording ? "rec" : buffering ? "buf" : null; }
+  let attached = null;
+
+  // Attach, detach or switch, whichever the current mode calls for. Called after
+  // every state change rather than each caller deciding — recording starting while
+  // an origin is armed has to swap the pill, not stack two of them.
+  function sync() {
+    const m = mode();
+    if (m === attached) { updatePill(); return; }
+    if (attached) stop();
+    attached = m;
+    if (m) start(m);
+  }
+
   // Initial state
   chrome.storage.local.get("fs_state", (r) => {
     const s = r.fs_state;
     if (s && s.recording) {
       recording = true;
       count = s.stepCount || 0;
-      start();
     }
+    sync();
+    askBuffer();
   });
+
+  // Whether this page's origin is armed for buffering is the worker's call, not
+  // ours — it holds the list, and asking keeps one copy of the rule.
+  function askBuffer() {
+    if (!alive()) return;
+    try {
+      chrome.runtime.sendMessage({ type: "fs_buf_status" }, (r) => {
+        if (chrome.runtime.lastError || !r) return;
+        buffering = !!r.armed;
+        bufCount = r.count || 0;
+        sync();
+      });
+    } catch (e) { /* orphaned; retire() handles it on the next click */ }
+  }
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg) return;
     if (msg.type === "fs_recording_changed") {
-      if (msg.recording && !recording) {
-        recording = true;
-        count = 0;
-        start();
-      } else if (!msg.recording && recording) {
-        recording = false;
-        stop();
-      }
+      recording = !!msg.recording;
+      if (recording) count = 0;
+      sync();
+    }
+    if (msg.type === "fs_buf_changed") {
+      if (typeof msg.count === "number") bufCount = msg.count;
+      askBuffer();
     }
   });
 
@@ -45,11 +82,11 @@
   });
 
   // ---- listeners ----
-  function start() {
+  function start(m) {
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("change", onChange, true);
     document.addEventListener("keydown", onKeyDown, true);
-    showPill();
+    showPill(m);
   }
   function stop() {
     document.removeEventListener("pointerdown", onPointerDown, true);
@@ -63,7 +100,7 @@
   }
 
   function onPointerDown(e) {
-    if (!recording || e.button !== 0) return;
+    if (!mode() || e.button !== 0) return;
     if (!e.target || isOurUI(e.target)) return;
     // attribute the click to the control, not the inner span that was hit
     const el = actionableTarget(e.target);
@@ -85,7 +122,7 @@
   }
 
   function onChange(e) {
-    if (!recording) return;
+    if (!mode()) return;
     const el = e.target;
     if (!el || isOurUI(el)) return;
     const tag = (el.tagName || "").toLowerCase();
@@ -115,7 +152,7 @@
   // or a form. Without this the guide jumps from "type" straight to the results
   // with no step explaining what happened.
   function onKeyDown(e) {
-    if (!recording || e.key !== "Enter" || e.repeat) return;
+    if (!mode() || e.key !== "Enter" || e.repeat) return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const el = e.target;
     if (!el || isOurUI(el)) return;
@@ -169,29 +206,46 @@
     if (orphaned) return;
     orphaned = true;
     recording = false;
+    buffering = false;
+    attached = null;
     try { stop(); } catch (e) { /* the page is being torn down */ }
   }
 
   function send(step) {
     if (orphaned) return;
+    const m = mode();
+    if (!m) return;
     if (!alive()) return retire();
+    /* Buffering only: a screenshot of a login screen is the one frame most worth
+     * not keeping, and unlike a recording the user never asked for this one. The
+     * step's words are safe either way — a typed value is never recorded. */
+    if (m === "buf" && passwordFocused()) step.noShot = true;
     // Hide our pill so it never lands in the screenshot.
     if (pill) pill.style.visibility = "hidden";
     try {
-      chrome.runtime.sendMessage({ type: "fs_capture_step", step }, (resp) => {
-        if (pill) pill.style.visibility = "visible";
-        if (chrome.runtime.lastError) return;
-        if (resp && resp.ok) {
-          count = resp.count;
-          updatePill();
-          flash();
+      chrome.runtime.sendMessage(
+        { type: m === "rec" ? "fs_capture_step" : "fs_buffer_step", step },
+        (resp) => {
+          if (pill) pill.style.visibility = "visible";
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok) {
+            if (m === "rec") count = resp.count;
+            else bufCount = resp.count;
+            updatePill();
+            flash();
+          }
         }
-      });
+      );
     } catch (e) {
       // The context died between the check above and the call.
       if (pill) pill.style.visibility = "visible";
       retire();
     }
+  }
+
+  function passwordFocused() {
+    const a = document.activeElement;
+    return !!(a && a.tagName === "INPUT" && a.type === "password");
   }
 
   // ---- label / description helpers ----
@@ -328,15 +382,26 @@
   }
 
   // ---- pill UI ----
-  function showPill() {
+  /* Two pills, one element. Buffering has to be visible while it runs — an
+   * invisible always-on capture is precisely the thing people are right to be
+   * afraid of — but it must not look like recording, because it isn't: nothing is
+   * being written to a guide and there is nothing to stop. So it reads
+   * "Buffering", it is muted rather than red, and its button makes a guide out of
+   * what is already there instead of ending anything. */
+  function showPill(m) {
     if (pill) return;
+    const buf = m === "buf";
     pill = document.createElement("div");
     pill.setAttribute(UI, "1");
-    pill.className = "flowscribe-pill";
+    pill.className = "flowscribe-pill" + (buf ? " fs-buf" : "");
     pill.innerHTML =
       '<span class="fs-dot"></span>' +
-      '<span class="fs-count">Recording — <b>0</b> steps</span>' +
-      '<button class="fs-stop" ' + UI + '="1">Stop &amp; edit</button>';
+      '<span class="fs-count">' +
+      (buf ? "Buffering — <b>0</b> steps" : "Recording — <b>0</b> steps") +
+      "</span>" +
+      '<button class="fs-stop" ' + UI + '="1">' +
+      (buf ? "Make a guide" : "Stop &amp; edit") +
+      "</button>";
     (document.body || document.documentElement).appendChild(pill);
     pill.querySelector(".fs-stop").addEventListener(
       "click",
@@ -347,14 +412,17 @@
         // than do anything, so retire instead and take the pill away with it.
         if (!alive()) return retire();
         try {
-          chrome.runtime.sendMessage({ type: "fs_stop" }, (resp) => {
-            if (chrome.runtime.lastError) return;
-            if (resp && resp.guideId)
-              chrome.runtime.sendMessage({
-                type: "fs_open_editor",
-                guideId: resp.guideId,
-              });
-          });
+          chrome.runtime.sendMessage(
+            buf ? { type: "fs_buf_promote" } : { type: "fs_stop" },
+            (resp) => {
+              if (chrome.runtime.lastError) return;
+              if (resp && resp.guideId)
+                chrome.runtime.sendMessage({
+                  type: "fs_open_editor",
+                  guideId: resp.guideId,
+                });
+            }
+          );
         } catch (err) {
           retire();
         }
@@ -372,7 +440,7 @@
   function updatePill() {
     if (pill) {
       const b = pill.querySelector(".fs-count b");
-      if (b) b.textContent = count;
+      if (b) b.textContent = mode() === "buf" ? bufCount : count;
     }
   }
   function flash() {

@@ -66,6 +66,28 @@
 .flowscribe-pill .fs-stop:hover { background: #322b23 !important; }
 .flowscribe-pill .fs-stop:active { transform: translateY(1px) !important; }
 
+/* Buffering variant. Present and legible, but not dressed as recording — the red
+   dot and its pulse mean "this is being written to a guide right now", and while
+   buffering nothing is. Ochre, steady, and the button offers to make something
+   rather than to stop something. */
+.flowscribe-pill.fs-buf {
+  background: rgba(23, 20, 16, 0.86) !important;
+}
+.flowscribe-pill.fs-buf .fs-dot {
+  background: #c2410c !important;
+  animation: none !important;
+  opacity: 0.9 !important;
+}
+.flowscribe-pill.fs-buf.fs-flash .fs-dot {
+  background: #2f7d55 !important;
+}
+.flowscribe-pill.fs-buf .fs-stop {
+  background: rgba(255, 255, 255, 0.13) !important;
+}
+.flowscribe-pill.fs-buf .fs-stop:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
 @keyframes fs-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.55); }
   70% { box-shadow: 0 0 0 8px rgba(229, 72, 77, 0); }

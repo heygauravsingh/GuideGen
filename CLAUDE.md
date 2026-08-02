@@ -68,9 +68,9 @@ Local guide data lives in `chrome.storage.local`.
 |---|---|
 | `manifest.json` | MV3 config, v1.1.0. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen; host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
-| `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Also retires itself when orphaned (see Orphaned content scripts). |
+| `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
 | `recorder.css` | Styles for the recording pill only. Every declaration is `!important` and children start from `all: unset` — this is the one surface that renders inside a stranger's page. |
-| `popup.html/js` | Toolbar popup: status card (idle / recording with live step count) + Start/Stop and Guide library. Self-contained styles, light + dark. |
+| `popup.html/js` | Toolbar popup: status card (idle / recording with live step count) + Start/Stop, Guide library, and the catch-up capture switch for the current tab's origin. Self-contained styles, light + dark. |
 | `editor.html` + `redirect.js` | Retired. A redirect to `/app`, carrying `#<guideId>` across as `#local-<guideId>`, so v1.0 bookmarks land somewhere sensible. The editor is `web/assets/app.js`. |
 | `offscreen.html/js` | Never-visible page that renders the narrated video. A service worker has no canvas, AudioContext or MediaRecorder; an offscreen document has all three. Only `chrome.runtime` is available to it, so the guide arrives by message and the finished blob leaves as a `blob:` URL for the worker to download. |
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
@@ -79,7 +79,9 @@ Local guide data lives in `chrome.storage.local`.
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
 | `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
-| `tools/context-test.mjs` | Runs the real `background.js` in a `vm` context with a stubbed `chrome`, and asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
+| `tools/bg-harness.mjs` | The real `background.js` in a `vm` with a stubbed `chrome`, shared by the worker tests. Add missing chrome APIs here — a missing stub throws inside the worker and surfaces as an unrelated failure two tests later. Its `storage.remove` handles arrays as well as single keys, which buffer eviction needs. |
+| `tools/context-test.mjs` | Asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
+| `tools/buffer-test.mjs` | Asserts the catch-up buffer, weighted towards when it does **not** capture. All six guards — armed origin, recording, incognito, password field, age cap, count cap — are mutation-checked; removing any one fails at least one assertion. `node tools/buffer-test.mjs`. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
@@ -97,6 +99,9 @@ Local guide data lives in `chrome.storage.local`.
 
 ## Data model (chrome.storage.local)
 - `fs_state` → `{ recording, guideId, stepCount }`
+- `fs_buf_origins` → `{ "<origin>": true }`, or `{ "*": true }` for everywhere (see Catch-up capture)
+- `fs_bufindex` → array of buffered step ids, oldest first
+- `fs_bufstep_<id>` → one buffered step, same shape as a real one
 - `fs_index` → array of `{ id, title, createdAt, startUrl, stepCount, remoteId?, publishedAt? }` (newest first)
 - `gg_auth` → the account session `{ uid, email, idToken, refreshToken, expiresAt }`
 - `fs_steporder_<guideId>` → array of step ids (defines order)
@@ -195,6 +200,47 @@ Both listeners go through `enqueueCapture` and `stepChain` like a click, so orde
 capture rate limit are unchanged. Tests: `tools/context-test.mjs` drives the real
 `background.js` with a stubbed `chrome`, and the negative cases are mutation-checked — dropping
 the `!tab.active` guard or the `seen` comparison fails them.
+
+## Catch-up capture — the buffer (background.js + recorder.js + popup)
+"Make a guide from what I just did." The pain always arrives *after* the fact — you finish
+something, then someone asks how — and by then Start is useless.
+
+**You cannot screenshot the past.** The only way to answer that is to have been capturing all
+along and throwing it away, and that is the entire reason for every constraint below.
+
+- **Armed per origin, off by default.** `fs_buf_origins`. A blanket always-on buffer eventually
+  holds a screenshot of the user's bank, and no wording on a settings page makes that a
+  reasonable default. Armed on the two or three admin panels someone actually documents, the
+  surface is small enough to explain in a sentence. `"*"` arms everywhere and is deliberately
+  expressible — some people will want it — but the popup never sets it.
+- **No new permissions.** `<all_urls>` and the declared `recorder.js` content script were
+  already there; the recorder has always run on every page and done nothing. So this is a
+  *behaviour* change, not a capability one — which is exactly why the store listing has to be
+  re-worded (it currently says "The recorder does nothing until you press start") even though
+  the permission list does not move.
+- **It expires.** `BUF.maxSteps` 40 and `BUF.maxAgeMs` 20 min, evicted on write, keys deleted
+  rather than orphaned. An armed origin left open for a week holds minutes, not a week.
+- **It is visible while it runs.** recorder.js shows a `fs-buf` pill — ochre and steady, not red
+  and pulsing, because nothing is being written to a guide and there is nothing to stop. Its
+  button makes a guide instead of ending one. An invisible always-on capture is precisely what
+  people are right to be afraid of.
+- **A focused password field loses the picture, keeps the words.** `step.noShot` from
+  recorder.js; no capture is even attempted. The words were always safe — a typed value is
+  never recorded — but the screenshot is the whole viewport, and unlike a recording the user
+  never asked for this one.
+- **Recording always wins.** `bufferStep` returns early if `fs_state.recording`, or the click
+  would be captured twice and spend two captures against the rate limit for one action.
+- **Nothing here is ever uploaded.** The buffer is not a guide; `publish.js` never sees a
+  `fs_bufstep_` key. Promotion creates a real guide and publishing that is the same deliberate
+  act it always was.
+- **`promoteBuffer(n)` leaves the buffer intact.** Promoting is not consuming — the common case
+  is realising you want a *different* slice of the same few minutes. It copies into the normal
+  guide keyspace with fresh ids and runs the same `finalizeGuide()` a recording gets, so a
+  promoted guide is indistinguishable downstream: the dashboard, the exporters and `publish.js`
+  need to know nothing about buffering.
+- **Buffered captures are cheaper** (`BUF.shot`, 1280px q0.8) than a recording's, because they
+  run on clicks nobody asked to record. A promoted guide is slightly softer than a recorded one,
+  which beats not existing.
 
 ## Screenshot normalisation (background.js)
 `captureVisibleTab` hands back a full-retina PNG — ~3024×1700, 1–3 MB per step. Every exporter
