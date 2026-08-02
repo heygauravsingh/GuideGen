@@ -125,7 +125,12 @@
    regardless, so don't trust that alone. */
 [hidden] { display: none !important; }
 
-html { scroll-behavior: smooth; }
+/* scrollbar-gutter keeps the layout still when a dialog locks body scrolling —
+   without it the page jumps sideways by the scrollbar width as the modal opens. */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
+/* The page behind a dialog must not scroll under it. The overlay does its own
+   scrolling now, so there is nothing lost. */
+body.modal-open { overflow: hidden; }
 body {
   margin: 0;
   font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
@@ -159,7 +164,7 @@ header.site .row {
 }
 .brand .mark svg { width: 15px; height: 15px; }
 .brand span { letter-spacing: -0.015em; }
-header.site nav { display: flex; align-items: center; gap: 6px; }
+header.site nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 header.site nav a { color: var(--ink-2); font-size: 14px; font-weight: 550; padding: 7px 10px; border-radius: var(--r-sm); }
 header.site nav a:hover { background: var(--panel-2); text-decoration: none; color: var(--ink); }
 
@@ -169,12 +174,22 @@ header.site nav a:hover { background: var(--panel-2); text-decoration: none; col
   border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
   padding: 11px 17px; border-radius: var(--r-sm);
   font-size: 14.5px; font-weight: 620; cursor: pointer;
+  /* A <button> gets `line-height: normal` from the UA; an <a class="btn"> inherits
+     the body's 1.65. So the same class rendered 41px tall on a button and 48px on a
+     link — visible wherever the two sit together. Pin it. */
+  line-height: 1.2;
   box-shadow: var(--sh-1);
   transition: background var(--fast), transform var(--fast), color var(--fast);
 }
 .btn:hover { background: var(--panel-2); color: var(--ink); text-decoration: none; }
 .btn:active { transform: translateY(1px); }
 .btn svg { width: 16px; height: 16px; flex: none; }
+/* A button is never a flex item that shrinks. Every row that holds buttons wraps
+   (.modal .row, .rowtools, .acts, .ed-top, .cta-row, .dl, .wl), so the row has
+   somewhere to put an overflow — whereas shrinking squeezed "Copy link" onto two
+   lines in the share dialog and squashed the icon buttons in a step's toolbar from
+   27px to 21px. Wrap, don't compress. */
+.btn { flex: 0 0 auto; white-space: nowrap; }
 .btn.brand-btn {
   background: var(--pri); color: var(--pri-fg); border-color: transparent;
   box-shadow: 0 2px 8px rgba(26, 23, 19, 0.20);
@@ -205,6 +220,9 @@ h1.big {
 /* ---------- sections ---------- */
 section { padding: 62px 0; }
 section.tint { background: var(--bg-2); border-block: 1px solid var(--line); }
+/* Two tinted sections in a row would otherwise show a 2px rule between them — both
+   borders land on the same line — against 1px everywhere else on the page. */
+section.tint + section.tint { border-top: 0; }
 h2.sec {
   font-size: clamp(25px, 3.4vw, 33px); letter-spacing: -0.028em;
   margin: 0 0 12px; font-weight: 690;
@@ -367,6 +385,13 @@ footer.site .spacer { flex: 1; }
 }
 .guide-row .m { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .guide-row .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Open + Copy link + View + the badge is ~250px of fixed width. On a narrow screen
+   that leaves the title a dozen ellipsised characters — the row is listing guides,
+   so the guide's name is the part that has to survive. Give it the line. */
+@media (max-width: 620px) {
+  .guide-row { flex-wrap: wrap; row-gap: 10px; }
+  .guide-row .info { flex: 1 1 100%; }
+}
 .badge {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11.5px; font-weight: 650; padding: 3px 9px; border-radius: 999px;
@@ -381,7 +406,7 @@ footer.site .spacer { flex: 1; }
 }
 .blank .ico {
   width: 44px; height: 44px; border-radius: 13px; margin: 0 auto 14px;
-  background: var(--panel-3, var(--bg-2)); color: var(--faint);
+  background: var(--bg-2); color: var(--faint);
   display: grid; place-items: center;
 }
 .blank h2 { margin: 0 0 7px; font-size: 17.5px; font-weight: 650; }
@@ -454,7 +479,8 @@ footer.site .spacer { flex: 1; }
 
 /* A recipient's most likely second action is printing it. */
 @media print {
-  header.site, footer.site, .viewer-foot { display: none !important; }
+  header.site, footer.site, .viewer-foot, .overlay, .toast { display: none !important; }
+  body.modal-open { overflow: visible; }
   body { background: #fff; color: #000; }
   .viewer { padding: 0; }
   .vstep { page-break-inside: avoid; border-top: 1px solid #ddd; }
@@ -610,6 +636,7 @@ footer.site .spacer { flex: 1; }
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
+  max-width: calc(100vw - 32px); text-align: center;
   background: var(--pri); color: var(--pri-fg);
   padding: 11px 17px; border-radius: 999px; font-size: 13.5px; font-weight: 550;
   box-shadow: var(--sh-3); z-index: 90;
@@ -619,21 +646,46 @@ footer.site .spacer { flex: 1; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- modal ---------- */
+/* Flex + `margin: auto` rather than grid + place-items, because a grid item taller
+   than its area is centred and then clipped at BOTH ends with no way to scroll to
+   it — the share dialog's buttons were unreachable on a 420px-tall viewport. Auto
+   margins centre a flex item only while it fits, and `overflow-y: auto` takes over
+   once it doesn't. */
 .overlay {
   position: fixed; inset: 0; z-index: 80;
   background: rgba(21, 19, 15, 0.55); backdrop-filter: blur(2px);
-  display: none; place-items: center; padding: 24px;
+  display: none; align-items: center; justify-content: center;
+  padding: 24px; overflow-y: auto; overscroll-behavior: contain;
 }
-.overlay.open { display: grid; }
+.overlay.open { display: flex; }
 .modal {
-  width: 100%; max-width: 470px;
+  /* 540, not 470: the share dialog's action row is five buttons and a spacer, which
+     measures 481px including its gaps. At 470 it wrapped to a second line on a
+     desktop too — wide enough for the widest row this dialog has, and no wider. */
+  width: 100%; max-width: 540px; margin: auto;
   background: var(--panel); border: 1px solid var(--line);
   border-radius: var(--r-lg); box-shadow: var(--sh-3); padding: 22px;
 }
 .modal h3 { margin: 0 0 7px; font-size: 18px; font-weight: 660; letter-spacing: -0.02em; }
 .modal p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.6; }
-.modal .row { display: flex; gap: 8px; align-items: center; margin-top: 18px; }
-.modal .row .spacer { flex: 1; }
+/* The share dialog's row is five buttons wide. Unwrapped, it set the modal's
+   min-content width to ~470px whatever the screen was: below that the dialog hung
+   off the right edge of the viewport and Update and Copy link could not be reached
+   at all. It must wrap, and the wrapped line right-aligns so the primary action
+   stays where the eye already is. */
+.modal .row {
+  display: flex; gap: 8px; align-items: center; margin-top: 18px;
+  flex-wrap: wrap; row-gap: 8px; justify-content: flex-end;
+}
+/* `flex: 1 1 0` not `flex: 1` — a wrapping spacer must not claim a whole line. */
+.modal .row .spacer { flex: 1 1 0; min-width: 0; }
+/* Below this, five side-by-side buttons are unreadable however they wrap. Stack
+   them full width, reversed so the primary action is at the top and the dismiss is
+   furthest from the thumb's resting position. */
+@media (max-width: 460px) {
+  .modal .row { flex-direction: column-reverse; align-items: stretch; }
+  .modal .row .spacer { display: none; }
+}
 /* The extension used to style its own copy of this form; the two surfaces don't
    share CSS, so a control that exists on both has to be styled in both places. */
 .modal .field { margin-bottom: 13px; }
@@ -703,11 +755,67 @@ header.site nav { margin-left: 10px; }
 .theme-toggle button:focus-visible {
   outline: 0; box-shadow: 0 0 0 3px var(--brand-ring);
 }
-/* On a narrow screen the wordmark, the toggle and the account row won't all fit. */
+/* On a narrow screen the wordmark, the toggle and the account row won't all fit on one
+   line — and left to wrap on their own they took three, because the toggle and the nav
+   each spilled in turn (133px of sticky header on a 320px screen, measured). So pin the
+   arrangement instead: wordmark and toggle share the first line, nav gets the second.
+   Two rows, always, whatever the nav happens to contain.
+
+   The toggle stays three visible buttons rather than collapsing to one cycling icon —
+   see the theme-toggle note above; a rotating icon never says what pressing it does. */
 @media (max-width: 560px) {
-  .theme-toggle { order: 3; margin-left: 0; }
-  header.site .row { flex-wrap: wrap; row-gap: 8px; }
+  /* `height` had to become `min-height`: a wrapped row is taller than 62px, and a
+     fixed height let the second line spill through the header's bottom border. */
+  header.site .row { flex-wrap: wrap; row-gap: 6px; height: auto; min-height: 62px; padding-block: 9px; }
+  .theme-toggle { order: 0; margin-left: auto; }
+  header.site nav { order: 1; flex-basis: 100%; margin-left: 0; }
 }
+/* The landing header carries five items — three of them jump links to sections the
+   reader scrolls through anyway. All five plus the wordmark and the theme toggle need
+   about 660px; below that they wrap to a second line, and at 320px they pushed the
+   Install button past the right edge and gave the page a horizontal scrollbar. Sign
+   in and Install are the two that go somewhere, so they are the two that stay.
+   760, not 560: the wrap starts long before the overflow does. */
+@media (max-width: 760px) {
+  header.site nav a[href^="#"] { display: none; }
+}
+
+/* ---------- touch and small screens ---------- */
+
+/* The header is sticky, so an in-page jump lands the target under it. Sections have
+   62px of their own top padding, which covers it at desktop widths by one pixel —
+   but the header wraps to two lines below 560px and then genuinely hides the
+   heading. Cheap insurance either way. */
+section[id] { scroll-margin-top: 80px; }
+
+/* iOS Safari zooms the whole page in when a focused control's text is under 16px,
+   and does not zoom back out. Every form control here was between 14 and 15.5px. */
+@media (max-width: 560px) {
+  .field input, .modal .field input, .wl input[type=email], .step textarea { font-size: 16px; }
+}
+
+/* Hover is the wrong sense to design for on a touch screen, and 27px is the wrong
+   size to hit with a thumb. Keyed on the pointer, not the width, because a small
+   window on a desktop still has a mouse. */
+@media (pointer: coarse) {
+  .btn.sm { padding: 9px 13px; }
+  .btn.icon { padding: 11px; }
+  .btn.icon.sm { padding: 10px; }
+  .theme-toggle button { width: 34px; height: 34px; }
+  .theme-toggle button svg { width: 15px; height: 15px; }
+  .link-btn { padding: 6px 2px; }
+  header.site nav a { padding: 9px 11px; }
+  /* The drag grip is opacity 0 until :hover, which on a touch device is never — the
+     reorder handle was invisible and undiscoverable there. */
+  .step .grip { opacity: 1; padding: 7px; }
+}
+
+/* Drawing a redaction box is a pointer drag, so the browser must not claim the
+   gesture for scrolling while redaction mode is on. */
+.step .shot.redacting { touch-action: none; }
+
+/* A URL or a storage key in a legal document is one long unbreakable token. */
+.doc code, .doc td { overflow-wrap: anywhere; }
 
 /* ---------- export activity (owner) ---------- */
 .activity {
@@ -744,8 +852,22 @@ header.site nav { margin-left: 10px; }
 /* The viewer's export menu hangs off the header, which is sticky and sits above
    the page — so it needs to escape rather than be clipped. */
 header.site .menu-wrap .menu { top: calc(100% + 8px); }
+
+/* A 262px menu anchored to its button can't be kept on screen by CSS alone: the
+   editor's Export button sits mid-row, and `right: 0` sent the menu to x=-104 at
+   320px — the format labels were off the left edge. The old fix here was
+   `right: -60px` on the viewer's copy, which trades one edge for the other.
+   So below 560px the menu stops being a dropdown and becomes a sheet pinned to the
+   viewport, which no button position can push out of view. z-index clears the
+   sticky header (30) and stays under the modal overlay (80). */
 @media (max-width: 560px) {
-  header.site .menu-wrap .menu { right: -60px; min-width: 240px; }
+  .menu {
+    position: fixed; z-index: 40;
+    top: auto; bottom: 10px; left: 10px; right: 10px;
+    min-width: 0; max-height: 72vh; overflow-y: auto;
+  }
+  header.site .menu-wrap .menu { top: auto; }
+  .menu button { padding: 11px 9px; }
 }
 
 /* ---------- install page ---------- */

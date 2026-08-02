@@ -30,6 +30,10 @@
   var cur = null;   // { kind, id, guide, steps }
   var mode = "signin";
   var saveTimers = {};
+  // Which steps are in redaction mode, by step id. Held outside the DOM because a
+  // committed redaction used to re-render the whole editor and drop the mode, so
+  // hiding three fields on one screenshot meant pressing Redact three times.
+  var redacting = {};
 
   // ---------------------------------------------------------------- utilities
 
@@ -135,36 +139,79 @@
 
   // ---------------------------------------------------------------- modals
 
+  // Whatever the user was on when the dialog opened, so closing puts them back
+  // there instead of at the top of the document.
+  var modalReturn = null;
+  var FOCUSABLE = 'button:not([disabled]), a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])';
+
+  function openModal() {
+    modalReturn = document.activeElement;
+    var m = el("modal");
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    document.body.classList.add("modal-open");
+    el("overlay").classList.add("open");
+  }
+
   function closeModal() {
     var o = el("overlay");
     o.classList.remove("open");
     o.dataset.busy = "0";
+    document.body.classList.remove("modal-open");
     el("modal").innerHTML = "";
+    if (modalReturn && document.contains(modalReturn)) {
+      try { modalReturn.focus(); } catch (e) { /* gone from the DOM */ }
+    }
+    modalReturn = null;
   }
   el("overlay").addEventListener("click", function (e) {
     if (e.target === el("overlay") && el("overlay").dataset.busy !== "1") closeModal();
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key !== "Escape") return;
-    el("ed-export-menu").classList.remove("open");
-    if (el("overlay").classList.contains("open") && el("overlay").dataset.busy !== "1") closeModal();
+    var open = el("overlay").classList.contains("open");
+    if (e.key === "Escape") {
+      el("ed-export-menu").classList.remove("open");
+      el("ed-export").setAttribute("aria-expanded", "false");
+      if (open && el("overlay").dataset.busy !== "1") closeModal();
+      return;
+    }
+    // Without this, Tab walks straight out of the dialog and into the page behind
+    // it, which is still there and still clickable-looking.
+    if (e.key !== "Tab" || !open) return;
+    var items = [].slice.call(el("modal").querySelectorAll(FOCUSABLE));
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
-  function confirmModal(title, body, confirmLabel) {
+  /* opts.info renders a single neutral button: several call sites here are telling
+     the user something ("Video needs the original recording"), and an explanation
+     that offers Cancel next to a red OK reads as a choice with consequences.
+     Otherwise the confirm is destructive, and Cancel takes focus — the confirm
+     button had it, so Enter or Space on a dialog the user had not finished reading
+     went straight through to deleting the guide. */
+  function confirmModal(title, body, confirmLabel, opts) {
+    opts = opts || {};
     return new Promise(function (resolve) {
       var m = el("modal");
       m.innerHTML = "<h3></h3><p></p>" +
-        '<div class="row"><button class="btn" id="c-no">Cancel</button>' +
-        '<span class="spacer"></span><button class="btn danger" id="c-yes"></button></div>';
+        '<div class="row">' +
+        (opts.info ? "" : '<button class="btn" id="c-no">Cancel</button><span class="spacer"></span>') +
+        '<button class="btn' + (opts.info ? " brand-btn" : " danger") + '" id="c-yes"></button></div>';
       m.querySelector("h3").textContent = title;
       m.querySelector("p").textContent = body;
       m.querySelector("#c-yes").textContent = confirmLabel || "Confirm";
-      el("overlay").classList.add("open");
+      openModal();
       var done = function (v) { closeModal(); resolve(v); };
-      m.querySelector("#c-no").onclick = function () { done(false); };
+      if (!opts.info) m.querySelector("#c-no").onclick = function () { done(false); };
       m.querySelector("#c-yes").onclick = function () { done(true); };
-      m.querySelector("#c-yes").focus();
+      m.querySelector(opts.info ? "#c-yes" : "#c-no").focus();
     });
+  }
+
+  function infoModal(title, body, label) {
+    return confirmModal(title, body, label || "OK", { info: true });
   }
 
   // ---------------------------------------------------------------- auth view
@@ -531,7 +578,7 @@
     });
 
     if (step.hasImage) {
-      var shot = mk("div", "shot");
+      var shot = mk("div", "shot" + (redacting[step.id] ? " redacting" : ""));
       shot.dataset.stepId = step.id;
       var ph = mk("div", "shot-skel");
       shot.appendChild(ph);
@@ -545,10 +592,13 @@
     tools.appendChild(iconBtn(ICON.down, "Move down", function () { move(i, 1); }, i === cur.steps.length - 1));
 
     if (step.hasImage) {
-      var redactBtn = textBtn("Redact", ICON.redact);
+      var wasOn = !!redacting[step.id];
+      var redactBtn = textBtn(wasOn ? "Done" : "Redact", wasOn ? ICON.check : ICON.redact);
+      if (wasOn) redactBtn.classList.add("brand-btn");
       redactBtn.addEventListener("click", function () {
         var shotEl = s.card.querySelector(".shot");
         var on = shotEl.classList.toggle("redacting");
+        if (on) redacting[step.id] = true; else delete redacting[step.id];
         redactBtn.innerHTML = (on ? svg(ICON.check) : svg(ICON.redact)) + (on ? "Done" : "Redact");
         redactBtn.classList.toggle("brand-btn", on);
       });
@@ -560,7 +610,7 @@
         clear.addEventListener("click", function () {
           step.blurs = [];
           GGBridge.updateStep(step.id, { blurs: [] }).then(function () {
-            renderEditor();
+            refreshStep(i);
             toast("Redactions cleared");
           }).catch(function (e) { say("ed-msg", e.message, "err"); });
         });
@@ -618,6 +668,10 @@
   function saveRemoteSteps() {
     var steps = cur.steps.map(function (s) {
       var o = { seq: s.seq, type: s.type, text: s.text || "" };
+      // Carry these through. Rewriting a shared guide's wording must not strip the
+      // page context the AI handoff export reads.
+      if (s.url) o.url = s.url;
+      if (s.pageTitle) o.pageTitle = s.pageTitle;
       if (s.imageUrl) o.imageUrl = s.imageUrl;
       return o;
     });
@@ -778,14 +832,42 @@
     saveOrder();
   }
 
+  // The delete icon sits next to Move up and Move down, all three the same size,
+  // and there is no undo — the bridge removes the step and its screenshot. Ask.
   function removeStep(i) {
     var step = cur.steps[i];
-    cur.steps.splice(i, 1);
-    renderEditor();
-    GGBridge.deleteStep(cur.id, step.id).then(function (r) {
-      cur.guide.stepCount = r.stepCount;
-      toast("Step deleted");
-    }).catch(function (e) { say("ed-msg", e.message, "err"); });
+    confirmModal(
+      "Delete step " + (i + 1) + "?",
+      (step.text ? "“" + step.text + "”" : "This step") +
+        " and its screenshot will be removed from the guide. This cannot be undone.",
+      "Delete step"
+    ).then(function (ok) {
+      if (!ok) return;
+      cur.steps.splice(i, 1);
+      delete redacting[step.id];
+      renderEditor();
+      GGBridge.deleteStep(cur.id, step.id).then(function (r) {
+        cur.guide.stepCount = r.stepCount;
+        toast("Step deleted");
+      }).catch(function (e) { say("ed-msg", e.message, "err"); });
+    });
+  }
+
+  // Re-render one card rather than the whole guide. renderEditor() rebuilds every
+  // step, which on a long guide means every canvas is redrawn and the page height
+  // collapses and re-expands under the scroll position — very visible when the
+  // thing that triggered it was drawing a small box halfway down.
+  function refreshStep(i) {
+    var wrap = el("ed-steps");
+    var old = wrap.children[i];
+    var step = cur.steps[i];
+    if (!old || !step || cur.kind !== "local") return renderEditor();
+    var card = localCard(step, i);
+    wrap.replaceChild(card, old);
+    var ta = card.querySelector("textarea");
+    if (ta) autoGrow(ta);
+    var shot = card.querySelector(".shot[data-step-id]");
+    if (shot && step.screenshot) paint(shot, step);
   }
 
   // ---- redaction ----
@@ -795,6 +877,17 @@
   // not the device's devicePixelRatio — background.js folds the capture downscale
   // into it — so dividing by it is what puts the rect back into page coordinates.
 
+  // Pointer events rather than mouse events, for two separate reasons.
+  //
+  // Reach: `mousedown`/`mousemove` are not synthesized for touch drags, so on a
+  // touch screen or a trackpad in touch mode redaction did nothing at all — the one
+  // editing action a reader of a sensitive guide most needs.
+  //
+  // Lifetime: releasing outside the image had to be caught, and the old code did it
+  // with a listener on `window`. Nothing removed it, and renderEditor() re-wires
+  // every visible step on every redaction and every reorder, so those accumulated —
+  // each holding a stale canvas and step. `setPointerCapture` routes the rest of
+  // the gesture to this element instead, so the handlers live and die with the card.
   function wireRedaction(shot, canvas, sel, step) {
     if (!canvas || !sel) return;
     var dragging = false, startX = 0, startY = 0;
@@ -809,10 +902,12 @@
       };
     }
 
-    shot.addEventListener("mousedown", function (e) {
+    shot.addEventListener("pointerdown", function (e) {
       if (!shot.classList.contains("redacting")) return;
+      if (e.button != null && e.button !== 0) return;
       e.preventDefault();
       dragging = true;
+      try { shot.setPointerCapture(e.pointerId); } catch (err) { /* no capture: window-free anyway */ }
       var p = at(e);
       startX = p.dispX; startY = p.dispY;
       sel.style.display = "block";
@@ -822,7 +917,7 @@
       sel.style.height = "0px";
     });
 
-    shot.addEventListener("mousemove", function (e) {
+    shot.addEventListener("pointermove", function (e) {
       if (!dragging) return;
       var p = at(e);
       sel.style.left = Math.min(startX, p.dispX) + "px";
@@ -831,7 +926,12 @@
       sel.style.height = Math.abs(p.dispY - startY) + "px";
     });
 
-    window.addEventListener("mouseup", function (e) {
+    shot.addEventListener("pointercancel", function () {
+      dragging = false;
+      sel.style.display = "none";
+    });
+
+    shot.addEventListener("pointerup", function (e) {
       if (!dragging) return;
       dragging = false;
       sel.style.display = "none";
@@ -849,7 +949,7 @@
         h: (dispH * p.scaleY) / dpr,
       }]);
       GGBridge.updateStep(step.id, { blurs: step.blurs }).then(function () {
-        renderEditor();
+        refreshStep(cur.steps.indexOf(step));
       }).catch(function (err) { say("ed-msg", err.message, "err"); });
     });
   }
@@ -914,12 +1014,16 @@
 
   // ---- exports ----
 
+  el("ed-export").setAttribute("aria-expanded", "false");
+  el("ed-export").setAttribute("aria-haspopup", "menu");
   el("ed-export").addEventListener("click", function (e) {
     e.stopPropagation();
-    el("ed-export-menu").classList.toggle("open");
+    var on = el("ed-export-menu").classList.toggle("open");
+    el("ed-export").setAttribute("aria-expanded", String(on));
   });
   document.addEventListener("click", function () {
     el("ed-export-menu").classList.remove("open");
+    el("ed-export").setAttribute("aria-expanded", "false");
   });
   el("ed-export-menu").addEventListener("click", function (e) {
     var btn = e.target.closest("button[data-x]");
@@ -953,6 +1057,7 @@
     };
 
     if (kind === "video") return openVideoModal(guide);
+    if (kind === "ai") return copyForAI(guide);
 
     var need = kind === "pdf"
       ? loadLib("/assets/lib/jspdf.umd.min.js", function () { return !!window.jspdf; })
@@ -977,6 +1082,38 @@
     });
   }
 
+  // ---- AI handoff ----
+  //
+  // The only export that doesn't produce a file by default. What someone does with
+  // this is paste it into a chat, so the clipboard is the destination and a download
+  // is the fallback — for a browser without clipboard access, and for the case where
+  // the steps are long enough that a file is genuinely easier to attach.
+  //
+  // It also skips `exportSteps()`, which pulls every screenshot over the bridge one
+  // at a time. This format has no images in it, so on a forty-step guide that is
+  // forty round trips avoided for nothing.
+  function copyForAI(guide) {
+    var text;
+    try {
+      text = X.aiText(guide, cur.steps.map(function (s, i) {
+        return {
+          seq: i + 1, type: s.type, text: s.text || "",
+          url: s.url || "", pageTitle: s.pageTitle || "", blurs: s.blurs || [],
+        };
+      }));
+    } catch (e) {
+      return say("ed-msg", "Couldn't build the handoff: " + e.message, "err");
+    }
+    var fallback = function () {
+      X.ai(guide, cur.steps);
+      toast("Saved as a file — the clipboard wasn't available");
+    };
+    if (!navigator.clipboard) return fallback();
+    navigator.clipboard.writeText(text).then(function () {
+      toast(cur.steps.length + " steps copied — paste them into your assistant");
+    }, fallback);
+  }
+
   // ---- narrated video ----
   //
   // The one export that can't run here. The offline voice is an 88MB model that
@@ -987,7 +1124,7 @@
 
   function openVideoModal(guide) {
     if (cur.kind !== "local") {
-      return confirmModal(
+      return infoModal(
         "Video needs the original recording",
         "This guide isn't on this device, and the narrated video is rendered from the " +
         "original screenshots by the extension. Open it on the machine that recorded it, " +
@@ -996,7 +1133,7 @@
       );
     }
     if (!GGBridge.available()) {
-      return confirmModal(
+      return infoModal(
         "The extension isn't available",
         "Narrated video is rendered by the GuideGen extension, because the offline voice " +
         "is an 88MB model that ships inside it. Install or enable the extension and try again.",
@@ -1027,7 +1164,7 @@
       '<div class="status-line" id="v-status"></div>' +
       '<div class="row"><button class="btn" id="v-cancel">Cancel</button>' +
       '<span class="spacer"></span><button class="btn brand-btn" id="v-go">Create video</button></div>';
-    el("overlay").classList.add("open");
+    openModal();
 
     var est = el("v-est");
     var seg = el("v-pace");
@@ -1127,7 +1264,7 @@
           '<button class="btn brand-btn" id="sh-copy">Copy link</button>'
         : '<button class="btn brand-btn" id="sh-go">Publish</button>') +
       "</div>";
-    el("overlay").classList.add("open");
+    openModal();
 
     var note = function (t, kind) {
       var m = el("sh-msg");
@@ -1135,6 +1272,9 @@
       m.style.color = kind === "err" ? "var(--err)" : "var(--muted)";
     };
     el("sh-close").onclick = function () { closeModal(); };
+    // The field is read-only and holds one value. Clicking it should hand over the
+    // whole link, not start a text selection the user has to finish by hand.
+    if (el("sh-url")) el("sh-url").onclick = function (e) { e.currentTarget.select(); };
 
     if (el("sh-allow")) {
       el("sh-allow").addEventListener("change", function (e) {
@@ -1159,6 +1299,11 @@
 
     el("sh-copy").onclick = function (e) {
       var b = e.currentTarget;
+      // navigator.clipboard is absent outside a secure context, and reading
+      // .writeText off undefined throws synchronously — so the rejection handler
+      // that selects the field instead would never have run. Same guard the
+      // library row already uses.
+      if (!navigator.clipboard) return el("sh-url").select();
       navigator.clipboard.writeText(url).then(function () {
         b.textContent = "Copied";
         setTimeout(function () { b.textContent = "Copy link"; }, 1400);
@@ -1166,16 +1311,30 @@
     };
     el("sh-open").onclick = function () { window.open(url, "_blank"); };
     if (canPush) el("sh-update").onclick = function () { doPublish(remoteId, note); };
-    el("sh-unpub").onclick = function (e) {
-      e.currentTarget.disabled = true;
-      note("Unpublishing…");
-      GG.setVisibility(remoteId, "private").then(function () {
-        toast("Unpublished — the link no longer works");
-        closeModal();
-        loadLibrary();
-      }).catch(function (err) {
-        e.currentTarget.disabled = false;
-        note(err.message, "err");
+    // Unpublishing revokes a link other people may already hold and deletes the
+    // images behind it. It was a single click on a plain button sitting between
+    // Close and Open, with nothing between the click and the consequence.
+    el("sh-unpub").onclick = function () {
+      var title = (cur && cur.guide && cur.guide.title) || "this guide";
+      confirmModal(
+        "Unpublish this guide?",
+        "“" + title + "” will stop loading for anyone who has the link, and its screenshots " +
+        "will be deleted from our servers. You can publish it again later, but the new link " +
+        "will be a different one.",
+        "Unpublish"
+      ).then(function (ok) {
+        if (!ok) return openShareModal();
+        openModal();
+        el("modal").innerHTML = "<h3>Unpublishing…</h3>" +
+          '<p>Removing the public page and its images.</p><div class="status-line"></div>';
+        GG.setVisibility(remoteId, "private").then(function () {
+          toast("Unpublished — the link no longer works");
+          closeModal();
+          loadLibrary();
+        }).catch(function (err) {
+          closeModal();
+          say("ed-msg", err.message, "err");
+        });
       });
     };
   }

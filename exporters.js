@@ -112,6 +112,69 @@
     download(new Blob([md], { type: "text/markdown" }), safeName(guide.title) + ".md");
   }
 
+  // ---------- AI handoff ----------
+  //
+  // The one export whose reader is a model, not a person, and the only one that
+  // emits the fields every other format throws away: the action type, and the URL
+  // and page title each step happened on. A guide is the answer to "what did you
+  // do" — a model needs "and where", or it invents it.
+  //
+  // Deliberately text only. The other exporters embed the screenshot as a data URL,
+  // which is right for a document and wrong here: 40 base64 screenshots is several
+  // megabytes of tokens that no chat window will take, and a model told to expect
+  // images that aren't there will describe them anyway. Say so in the header
+  // instead.
+  //
+  // Steps are grouped by URL rather than repeating it on all forty lines. That is
+  // also the shape of the information — a workflow is a few pages with several
+  // actions on each, and a flat list hides where the page changed.
+  const ACTION = {
+    click: "click", input: "type", key: "keypress",
+    switch: "tab switch", nav: "navigation", note: "note",
+  };
+
+  function aiText(guide, steps) {
+    const n = steps.length;
+    let out = "# " + (guide.title || "Untitled guide") + "\n\n";
+    out += "Browser workflow captured with GuideGen. " + n +
+      (n === 1 ? " step" : " steps") + ".\n";
+    if (guide.startUrl) out += "Starting point: " + guide.startUrl + "\n";
+    out += "This is the written record only — the screenshots are not included.\n\n";
+
+    let lastUrl = null;
+    let redacted = false;
+    for (let i = 0; i < n; i++) {
+      const s = steps[i];
+      if ((s.blurs || []).length) redacted = true;
+      const url = s.url || "";
+      // A note isn't something that happened on a page, so it never opens a new
+      // group — that would split a run of actions in half around a comment.
+      if (s.type !== "note" && url && url !== lastUrl) {
+        out += (lastUrl === null ? "" : "\n") + "## " + url + "\n";
+        if (s.pageTitle) out += "*" + s.pageTitle + "*\n";
+        out += "\n";
+        lastUrl = url;
+      }
+      const kind = ACTION[s.type] || s.type || "click";
+      out += (i + 1) + ". " + (s.text || "").replace(/\s+/g, " ").trim() +
+        (s.type === "note" ? "" : "  `" + kind + "`") + "\n";
+    }
+    if (redacted) {
+      out += "\nSome values were redacted before export, so a few fields " +
+        "referenced above are intentionally blank in the screenshots.\n";
+    }
+    return out;
+  }
+
+  // Fallback path. The UI copies `aiText` to the clipboard instead, because the
+  // destination is a chat window and a file on disk is one step further from it.
+  async function ai(guide, steps) {
+    download(
+      new Blob([aiText(guide, steps)], { type: "text/markdown" }),
+      safeName(guide.title) + "-for-ai.md"
+    );
+  }
+
   // ---------- PDF ----------
   async function pdf(guide, steps) {
     const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
@@ -687,5 +750,5 @@
     prog(1, "Done");
   }
 
-  window.FSExport = { html, markdown, pdf, pptx, video, PACES, DEFAULT_PACE, stepSecs };
+  window.FSExport = { html, markdown, ai, aiText, pdf, pptx, video, PACES, DEFAULT_PACE, stepSecs };
 })();

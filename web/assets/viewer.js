@@ -65,24 +65,52 @@
 
   // ---------------------------------------------------------------- modal
 
+  // Same contract as the dashboard's dialogs: focus goes in, Tab stays in, and
+  // closing hands focus back to whatever opened it. A reader signing in to export
+  // is typing a password into this thing — Tab must not walk out of it into the
+  // page behind.
+  var modalReturn = null;
+  var FOCUSABLE = 'button:not([disabled]), a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])';
+
   function closeModal() {
     var o = document.getElementById("overlay");
     o.classList.remove("open");
     o.dataset.busy = "0";
+    document.body.classList.remove("modal-open");
     document.getElementById("modal").innerHTML = "";
+    if (modalReturn && document.contains(modalReturn)) {
+      try { modalReturn.focus(); } catch (e) { /* gone from the DOM */ }
+    }
+    modalReturn = null;
   }
   document.getElementById("overlay").addEventListener("click", function (e) {
     if (e.target.id === "overlay" && e.currentTarget.dataset.busy !== "1") closeModal();
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key !== "Escape") return;
-    var menu = document.getElementById("exp-menu");
-    if (menu) menu.classList.remove("open");
     var o = document.getElementById("overlay");
-    if (o.classList.contains("open") && o.dataset.busy !== "1") closeModal();
+    var open = o.classList.contains("open");
+    if (e.key === "Escape") {
+      var menu = document.getElementById("exp-menu");
+      if (menu) menu.classList.remove("open");
+      var eb = document.getElementById("exp-btn");
+      if (eb) eb.setAttribute("aria-expanded", "false");
+      if (open && o.dataset.busy !== "1") closeModal();
+      return;
+    }
+    if (e.key !== "Tab" || !open) return;
+    var items = [].slice.call(document.getElementById("modal").querySelectorAll(FOCUSABLE));
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   function openModal(html) {
-    document.getElementById("modal").innerHTML = html;
+    modalReturn = document.activeElement;
+    var m = document.getElementById("modal");
+    m.innerHTML = html;
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    document.body.classList.add("modal-open");
     document.getElementById("overlay").classList.add("open");
   }
 
@@ -122,6 +150,10 @@
         seq: i + 1,
         type: s.type || "click",
         text: s.text || "",
+        // Present on guides published after the AI handoff shipped; absent on older
+        // ones, which the handoff then renders as a flat list with no page headings.
+        url: s.url || "",
+        pageTitle: s.pageTitle || "",
         screenshot: s.imageUrl || null,
         baked: true,
         blurs: [],
@@ -152,12 +184,31 @@
     }, Promise.resolve()).then(function () { return steps; });
   }
 
-  var LABEL = { html: "web page", markdown: "Markdown", pdf: "PDF", pptx: "PowerPoint", video: "video" };
+  var LABEL = { html: "web page", markdown: "Markdown", pdf: "PDF", pptx: "PowerPoint",
+                video: "video", ai: "AI handoff" };
+
+  /* Text, so it needs neither an exporter library nor the images — but it does need
+     exporters.js for aiText, which is loaded on demand like everything else here. */
+  function copyForAI() {
+    return ensureLibs().then(function () {
+      var g = { title: guide.title || "Untitled guide", startUrl: guide.startUrl || "" };
+      var text = window.FSExport.aiText(g, exportSteps());
+      var saved = function () {
+        window.FSExport.ai(g, exportSteps());
+        toast("Saved as a file — the clipboard wasn't available.");
+      };
+      if (!navigator.clipboard) { saved(); return record("ai"); }
+      return navigator.clipboard.writeText(text).then(function () {
+        toast((guide.steps || []).length + " steps copied — paste them into your assistant.");
+      }, saved).then(function () { return record("ai"); });
+    }).catch(function (e) { toast("Handoff failed: " + e.message); });
+  }
 
   function runExport(kind) {
     if (!GG.current()) { pendingKind = kind; return signInModal(kind); }
 
     if (kind === "video") return videoModal();
+    if (kind === "ai") return copyForAI();
 
     toast("Building the " + LABEL[kind] + "… this runs on your machine.");
     return ensureLibs()
@@ -379,7 +430,9 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>' +
       (signedIn ? "Export" : "Sign in to export") + "</button>" +
       '<div class="menu" id="exp-menu">' +
-      '<div class="lbl">Built on your device</div>' +
+      '<div class="lbl">Hand off</div>' +
+      item("ai", "Copy for AI", "Steps, actions and URLs as text") +
+      '<div class="sep"></div><div class="lbl">Built on your device</div>' +
       item("html", "Web page", "Self-contained .html") +
       item("markdown", "Markdown", ".md with embedded images") +
       item("pdf", "PDF document", "Title page + steps") +
@@ -390,14 +443,19 @@
 
     var btn = document.getElementById("exp-btn");
     var menu = document.getElementById("exp-menu");
+    btn.setAttribute("aria-haspopup", "menu");
+    btn.setAttribute("aria-expanded", "false");
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
       // No point showing a format list to someone who has to sign in first — the
       // choice is made after, and re-offered automatically.
       if (!GG.current()) return runExport("pdf");
-      menu.classList.toggle("open");
+      btn.setAttribute("aria-expanded", String(menu.classList.toggle("open")));
     });
-    document.addEventListener("click", function () { menu.classList.remove("open"); });
+    document.addEventListener("click", function () {
+      menu.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+    });
     menu.addEventListener("click", function (e) {
       var b = e.target.closest("button[data-x]");
       if (!b) return;

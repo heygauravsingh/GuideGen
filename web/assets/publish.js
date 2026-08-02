@@ -92,7 +92,16 @@ window.GGPublish = (function () {
 
     return steps.reduce(function (chain, step, i) {
       return chain.then(function () {
-        var entry = { seq: i + 1, type: step.type || "click", text: step.text || "" };
+        /* url and pageTitle travel with a published step, because the AI handoff
+           export needs to say *where* each action happened and a recipient opening
+           a shared link has no other source for it. Both the privacy policy and the
+           store listing already state that publishing sends "the page URLs and
+           titles recorded with each step" — this is the code catching up to what
+           was declared, not a new disclosure. */
+        var entry = {
+          seq: i + 1, type: step.type || "click", text: step.text || "",
+          url: step.url || "", pageTitle: step.pageTitle || "",
+        };
         if (!step.screenshot) { out.push(entry); return; }
         prog(0.05 + 0.8 * (done / Math.max(1, withShots)),
              "Uploading image " + (done + 1) + " of " + withShots + "…");

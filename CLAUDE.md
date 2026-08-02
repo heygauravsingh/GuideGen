@@ -3,10 +3,25 @@
 Project context for Claude Code. Read this first before making changes.
 
 ## What this is
-GuideGen is a **self-hosted, local replica of Scribe Capture**, built as a Chrome
-Manifest V3 extension plus a static website. You record a browser workflow; it
-auto-generates a step-by-step guide (one annotated screenshot per click) and exports to
-HTML, Markdown, PDF, PowerPoint, and a narrated video.
+GuideGen is a Chrome Manifest V3 extension plus a static website. You record a browser
+workflow; it auto-generates a step-by-step guide (one annotated screenshot per click) and
+hands it over — as text an AI can act on, or as HTML, Markdown, PDF, PowerPoint or a
+narrated video.
+
+**Positioning, since it decides what gets built:** the lead is the *AI handoff*, with the
+documentation tool alongside it — not the other way round. Explaining something you just did
+in a browser to an assistant currently means screenshotting it and typing the steps out by
+hand, and nobody has automated that. The documentation market is Scribe's, it is crowded, and
+a solo extension does not win it head-on. Two consequences for the code:
+
+- **`aiText()` in `exporters.js` is the flagship export, not a nice-to-have.** It is the only
+  one that emits `type`, `url` and `pageTitle` — the fields every human-facing format drops.
+  A guide answers "what did you do"; a model also needs "and where", or it invents it.
+- **Do not promise automation.** We record a control's *label and position*, never a
+  selector, so a handoff cannot be replayed. It is for explaining and reasoning about a flow.
+  The landing FAQ says this outright; keep it saying it.
+
+Started as a local replica of Scribe Capture, and the capture engine still is one.
 
 **The extension records. The website edits.** Since v1.1 the guide editor is a page on
 `guide-gen.vercel.app/app`, not in the extension — one editor to keep good instead of two
@@ -59,7 +74,7 @@ Local guide data lives in `chrome.storage.local`.
 | `editor.html` + `redirect.js` | Retired. A redirect to `/app`, carrying `#<guideId>` across as `#local-<guideId>`, so v1.0 bookmarks land somewhere sensible. The editor is `web/assets/app.js`. |
 | `offscreen.html/js` | Never-visible page that renders the narrated video. A service worker has no canvas, AudioContext or MediaRecorder; an offscreen document has all three. Only `chrome.runtime` is available to it, so the guide arrives by message and the finished blob leaves as a `blob:` URL for the worker to download. |
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
-| `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration). Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
+| `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration), plus `aiText`/`ai` — the AI handoff (see The AI handoff). Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
@@ -215,6 +230,30 @@ Four things to know before touching this:
 
 Guides recorded before this change keep their full-res PNGs and a true-`devicePixelRatio`
 `dpr`, and render identically — the fold is per-step, so old and new steps coexist.
+
+## The AI handoff (exporters.js → `aiText`)
+The lead feature. `aiText(guide, steps)` returns Markdown; `ai()` downloads it; the UI on both
+surfaces copies it to the clipboard instead, because the destination is a chat window and a file
+on disk is one step further from it. Five things are load-bearing:
+
+1. **It is text only, and says so in its own header.** Every other exporter embeds the
+   screenshot as a data URL. Forty of those is several megabytes of tokens no chat window will
+   take — and a model told to expect images that never arrived describes them anyway. The
+   header line "the screenshots are not included" is there to stop that.
+2. **Steps are grouped under the URL they happened on**, emitted only when it changes. That is
+   the shape of the information — a workflow is a few pages with several actions on each — and
+   repeating one URL on forty lines is noise. A `note` never opens a group; it isn't something
+   that happened on a page, and letting it start one splits a run of actions around a comment.
+3. **`url` and `pageTitle` travel with a published step** (`publish.js`), so a recipient opening
+   a shared link can hand it off too. Both the privacy policy (§2) and the store listing already
+   stated that publishing sends "the page URLs and titles recorded with each step" — this was
+   the code catching up to a declaration, not a new disclosure. `saveRemoteSteps` in `app.js`
+   must keep carrying them, or editing a shared guide's wording silently strips them.
+4. **`'ai'` is whitelisted in `firebase/firestore.rules`.** The export log validates `kind`
+   against a fixed list, and `record()` swallows failures — so a format missing from that list
+   logs nothing, silently. A new format needs a line there *and* a rules deploy.
+5. **It skips `exportSteps()`/`allImages()`.** There are no images in it, so pulling forty
+   screenshots over the bridge one at a time would be forty round trips for nothing.
 
 ## Narration (video export)
 Narration works and is fully offline, and since v1.1 it runs in an **offscreen document**
@@ -397,9 +436,64 @@ Retiring `editor.html` removed the drift *for guide editing*, which is where it 
 not remove it for the popup. Two surfaces still exist; there is just no longer a second copy
 of the thing with 700 lines of behaviour in it.
 
+### Layout rules that were bugs first
+Each of these fixed something visible, so they read as arbitrary until you know what they
+replaced:
+
+- **`.btn { flex: 0 0 auto; white-space: nowrap }`.** A button never shrinks as a flex item.
+  Every row that holds buttons wraps instead — `.modal .row`, `.rowtools`, `.acts`, `.ed-top`,
+  `.cta-row`, `.dl`, `.wl`. Shrinking is what broke "Copy link" onto two lines inside its own
+  button in the share dialog, and squashed the step toolbar's icon buttons from 27px to 21px.
+- **`.btn { line-height: 1.2 }`.** A `<button>` takes `line-height: normal` from the UA; an
+  `<a class="btn">` inherits the body's 1.65. Same class, 41px versus 48px.
+- **The modal overlay is flex + `margin: auto`, not grid + `place-items: center`, and it
+  scrolls.** A grid item taller than its area is centred and then clipped at *both* ends with
+  nowhere to scroll — the share dialog's buttons were unreachable on a 420px-tall viewport.
+  `.modal`'s 540px max-width is sized to its widest action row (five buttons + spacer = 481px);
+  below 460px that row stacks `column-reverse` so the primary action is at the top.
+- **A dropdown can't be kept on screen by CSS while it's anchored to its button.** `right: 0`
+  put the editor's 262px export menu at x=-104 at 320px wide; the viewer's old `right: -60px`
+  workaround just traded which edge it left. Below 560px `.menu` becomes `position: fixed`
+  pinned to the viewport, which no button position can push out of view.
+- **`body.modal-open { overflow: hidden }`** plus `scrollbar-gutter: stable` on `html` — the
+  gutter is what stops the page jumping sideways as a dialog opens.
+- **Form controls go to 16px below 560px.** iOS Safari zooms the page in on focusing anything
+  smaller and does not zoom back out.
+- **`@media (pointer: coarse)` enlarges the small controls, and un-hides the drag grip.**
+  `.step .grip` is `opacity: 0` until `:hover`, which on a touch screen is never — the reorder
+  handle was invisible there. Key this on the pointer, not the width: a narrow window on a
+  desktop still has a mouse.
+- **Redaction uses pointer events with `setPointerCapture`, not mouse events on `window`.**
+  Two reasons, both real: `mousedown`/`mousemove` aren't synthesized for touch drags, so
+  redaction did nothing at all on a touch device; and the old release handler lived on `window`
+  with nothing removing it, so every re-render of the editor added one more, each holding a
+  stale canvas.
+
 Icons are inline SVG built in `web/assets/app.js` (`ICON` + `svg()`); no icon font, no image
 files. The step number sits above the drag grip in `.gutter` so it lines up with the first line
 of step text — the grip is `opacity: 0` until hover but still occupies its box.
+
+## Dialogs (app.js + viewer.js)
+Both surfaces share one contract, and the details are there because their absence was
+noticeable:
+
+- **`openModal()` / `closeModal()` own focus.** Focus goes into the dialog, Tab is trapped
+  inside it, and closing returns focus to whatever opened it. Untrapped, Tab walked straight
+  out into the page behind — which matters most on the viewer, where a reader is typing a
+  password into that dialog to export a guide.
+- **`confirmModal` focuses Cancel, not the confirm.** The destructive button had focus, so
+  Enter or Space on a dialog nobody had finished reading deleted the guide.
+- **`confirmModal(…, { info: true })` — `infoModal()` — renders one neutral button.** Several
+  call sites are purely explanatory ("Video needs the original recording"); an explanation
+  offering Cancel next to a red OK reads as a choice with consequences.
+- **Destructive actions confirm.** Unpublish revokes a link other people hold *and* deletes the
+  images behind it; deleting a step is irreversible and its icon sits between Move up and Move
+  down. Both were one click with nothing in between.
+- **Editing a step repaints that step, not the guide.** `refreshStep(i)` — `renderEditor()`
+  rebuilds every card, so committing one redaction redrew every canvas and the page height
+  collapsed and re-expanded under the scroll position. Redaction mode also lives in the
+  module-level `redacting` map rather than on the DOM, because the full re-render dropped it:
+  hiding three fields on one screenshot meant pressing Redact three times.
 
 ## Step wording (recorder.js)
 Conventions, chosen to match how a person writes instructions:

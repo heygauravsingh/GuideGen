@@ -224,6 +224,15 @@ policy at `/privacy` has been revised to match and now opens with what changed i
 - The listing no longer claims "no account" or that there is nowhere to upload to. Both
   were true of v1.0 and are not true now. Check the description above, the landing page
   and the FAQ together — they have to agree.
+- **The website now leads with the AI handoff; this listing does not, deliberately.** The
+  site's headline is "Do it once, hand it to a person or an AI" and its first section is the
+  handoff; the listing above still leads with step-by-step capture. That is a *deferred*
+  edit, not a contradiction — the item is in review and editing the listing restarts the
+  queue. Nothing above is now false: the handoff is a sixth export of the same recording,
+  and the permissions, data declarations and single purpose are unchanged by it.
+  When the review clears, bring the description into line — add the handoff to the
+  EXPORT TO list and to the opening paragraph — and re-check it against the landing page
+  and the FAQ, which is the check this bullet already asks for.
 - `externally_connectable` names `https://guide-gen.vercel.app/*`. This is not a
   permission and has no justification field, but expect it to draw review attention: the
   editor is a page on that site and reads the user's local guides over that channel. The

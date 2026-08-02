@@ -62,7 +62,11 @@ service cloud.firestore {
                       && request.resource.data.keys().hasOnly(['uid', 'email', 'kind'])
                       && request.resource.data.uid == request.auth.uid
                       && request.resource.data.email == request.auth.token.email
-                      && request.resource.data.kind in ['html', 'markdown', 'pdf', 'pptx', 'video']
+                      // Whitelisted, so a new export format needs a line here AND a
+                      // rules deploy. 'ai' is the handoff copy — logged like any
+                      // other export, because from the owner's side it is one: the
+                      // guide's text left with a named recipient.
+                      && request.resource.data.kind in ['html', 'markdown', 'pdf', 'pptx', 'video', 'ai']
                       && get(/databases/$(database)/documents/guides/$(guideId)).data.allowExport == true;
 
         allow read: if request.auth != null
