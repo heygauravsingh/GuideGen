@@ -13,14 +13,25 @@ Done and verified:
 | Both redirect URIs registered | `/auth` and `dijeon….chromiumapp.org/` both return Google's account chooser, not `redirect_uri_mismatch` |
 | Consent screen published | Audience → **In production**, External |
 | Firestore rules published | done by Gaurav |
-| Store item + package | item `dijeonandicniffeffbcolhfldommhnp`, draft, v1.1.0 uploaded |
+| Store item + package | item `dijeonandicniffeffbcolhfldommhnp`, **submitted, pending review** |
 | Extension id pinned | `--check` passes; key derives the item id |
 | Drive link live on `/install` | button resolves, file is world-readable |
 | Screenshots retaken | `store/screenshots-out/screenshot-1..5.png`, 1280×800, 31 Jul. The five v1.0 files were removed — they showed the retired purple editor. |
 | Renderer mirrors + icons in sync | all three `--check`s pass |
 | Tab switches / navigations recorded | `node tools/context-test.mjs` |
 
-**What is actually left** — four things, all in the browser:
+**SUBMITTED 31 Jul 2026 — status: Pending review.** v1.1.0, item
+`dijeonandicniffeffbcolhfldommhnp`, Unlisted. The console flagged an in-depth review because
+of the `<all_urls>` host permission, so expect longer than the usual 1–3 days.
+
+While it is pending:
+
+- **Do not upload a package.** It restarts the queue. Unpublishing doesn't cancel the review
+  either, and blocks re-submission until it finishes.
+- Code fixes can still land in git and go to Drive as a new `GuideGen-Beta.zip` version —
+  testers are not gated on the review. Just don't touch the store draft.
+
+**What was left before submitting** — kept as the reference for the next release:
 
 1. Store draft → **Package → Upload new package** → `../GuideGen-Prod.zip`. Three code changes
    landed after the current draft was uploaded: the OAuth client id, the Google sign-in fix
@@ -101,9 +112,9 @@ working — the store rejects wrong dimensions, so don't skip it.
 
 ---
 
-## Step 1b — the listing screenshots are stale (BLOCKS v1.1)
+## Step 1b — the listing screenshots were stale (resolved 31 Jul 2026)
 
-`store/screenshots-out/*.png` — all five — show the **retired extension editor**: the old
+Retaken and submitted; kept as the reason not to reuse old shots. The five v1.0 files showed the **retired extension editor**: the old
 purple palette, the sidebar guide list, `editor.html`. That page no longer exists; the editor
 is the dashboard at `/app`. Submitting these would show reviewers and users a product that
 isn't what installs.

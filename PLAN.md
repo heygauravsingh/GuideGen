@@ -407,6 +407,8 @@ how the last drift bug happened.
 > **Live and verified**
 > - Extension submitted to the Chrome Web Store — **Pending review**, id
 >   `pifkelcohogbbocldnkjlfiagjigikjl`, Unlisted. v1.0 has **no** sync in it.
+>   *v1.1.0 submitted 31 Jul 2026 on the new item
+>   `dijeonandicniffeffbcolhfldommhnp` — pending review, in-depth because of `<all_urls>`.*
 >   *Superseded 31 Jul 2026: that submission was **rejected** (Purple Potassium — `downloads`
 >   requested but not used, which was correct: v1.0 saved exports with an `<a download>`
 >   anchor). Resubmitted as a new item, `dijeonandicniffeffbcolhfldommhnp`.*
