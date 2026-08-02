@@ -251,7 +251,12 @@ on disk is one step further from it. Five things are load-bearing:
    must keep carrying them, or editing a shared guide's wording silently strips them.
 4. **`'ai'` is whitelisted in `firebase/firestore.rules`.** The export log validates `kind`
    against a fixed list, and `record()` swallows failures — so a format missing from that list
-   logs nothing, silently. A new format needs a line there *and* a rules deploy.
+   logs nothing, silently. A new format needs a line there *and* a rules publish, which is a
+   **manual step in the Firebase console** — there is no `firebase.json` or `.firebaserc` in
+   this repo, so `firebase deploy` has nothing to read and a `git push` does not touch rules.
+   `firebase/SETUP.md` §3 is the procedure: paste the whole file into the Rules tab and
+   Publish. Pasting the file rather than editing the one line is what keeps deployed and
+   committed identical.
 5. **It skips `exportSteps()`/`allImages()`.** There are no images in it, so pulling forty
    screenshots over the bridge one at a time would be forty round trips for nothing.
 
