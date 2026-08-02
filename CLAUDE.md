@@ -81,6 +81,7 @@ Local guide data lives in `chrome.storage.local`.
 | `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
 | `tools/bg-harness.mjs` | The real `background.js` in a `vm` with a stubbed `chrome`, shared by the worker tests. Add missing chrome APIs here — a missing stub throws inside the worker and surfaces as an unrelated failure two tests later. Its `storage.remove` handles arrays as well as single keys, which buffer eviction needs. |
 | `tools/context-test.mjs` | Asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
+| `tools/recorder-test.mjs` | Drives the real `recorder.js` in a stubbed DOM. Weighted towards the orphan cases — including the two that a `try` beside `sendMessage` cannot catch, which both shipped. Cases 5 and 6 fail against the pre-`safeSend` file. `node tools/recorder-test.mjs`. |
 | `tools/buffer-test.mjs` | Asserts the catch-up buffer, weighted towards when it does **not** capture. All six guards — armed origin, recording, incognito, password field, age cap, count cap — are mutation-checked; removing any one fails at least one assertion. `node tools/buffer-test.mjs`. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
@@ -156,6 +157,21 @@ Unhandled, this was one thrown error per click with the pill still sitting there
 record. `alive()` tests `chrome.runtime.id` (undefined once the context is gone), `retire()`
 detaches the listeners and removes the pill, and both `send()` and the pill's Stop button are
 wrapped in `try/catch` for the case where the context dies between the check and the call.
+
+**Every chrome call after load goes through `safeSend()`, and the reason is the callback
+rather than the call.** A `try` around `sendMessage` returns before the reply arrives, so a
+`catch` beside it cannot see anything the callback throws — and the callback is where the
+context most often dies, because the gap between asking the worker something and hearing back
+is exactly when someone hits reload on the extensions page. Reading `chrome.runtime.lastError`
+in that state throws on the `chrome.runtime` lookup itself. This shipped twice: once from
+`send()`, and again from the pill button's chained `fs_stop` → `fs_open_editor`, where the
+second call lives inside the first's reply. `tools/recorder-test.mjs` cases 5 and 6 fail
+against the version before `safeSend`.
+
+`orphaned` is declared at the top of the file, not beside `retire()` where it is used, because
+the boot path calls `askBuffer()` → `safeSend()`, which reads it. `chrome.storage` callbacks
+are always async so in Chrome the declaration has always been reached first — but that is a
+scheduling detail to not depend on.
 
 Two consequences to keep in mind:
 

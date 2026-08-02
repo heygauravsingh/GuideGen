@@ -19,6 +19,12 @@
    * attached, so there is one place that can get it wrong. */
   let buffering = false;
   let bufCount = 0;
+  /* Declared up here, not beside retire() where it is used, because the boot path
+     below calls askBuffer() -> safeSend(), which reads it. chrome.storage callbacks
+     are always async so in Chrome the declaration has always been reached first —
+     but that is a scheduling detail to not depend on, and a stub that answers
+     synchronously walks straight into the temporal dead zone. */
+  let orphaned = false;
   function mode() { return recording ? "rec" : buffering ? "buf" : null; }
   let attached = null;
 
@@ -47,15 +53,12 @@
   // Whether this page's origin is armed for buffering is the worker's call, not
   // ours — it holds the list, and asking keeps one copy of the rule.
   function askBuffer() {
-    if (!alive()) return;
-    try {
-      chrome.runtime.sendMessage({ type: "fs_buf_status" }, (r) => {
-        if (chrome.runtime.lastError || !r) return;
-        buffering = !!r.armed;
-        bufCount = r.count || 0;
-        sync();
-      });
-    } catch (e) { /* orphaned; retire() handles it on the next click */ }
+    safeSend({ type: "fs_buf_status" }, (r) => {
+      if (!r) return;
+      buffering = !!r.armed;
+      bufCount = r.count || 0;
+      sync();
+    });
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
@@ -197,7 +200,6 @@
    * page brings the current recorder back; nothing here can do that for the user.
    *
    * `chrome.runtime.id` is the cheap test: it is undefined once the context is gone. */
-  let orphaned = false;
   function alive() {
     try { return !!(chrome.runtime && chrome.runtime.id); }
     catch (e) { return false; }
@@ -211,6 +213,35 @@
     try { stop(); } catch (e) { /* the page is being torn down */ }
   }
 
+  /* Every chrome call after load goes through this, and the reason is the callback,
+   * not the call. A `try` around `sendMessage` exits before its reply arrives, so a
+   * `catch` beside it cannot see anything the callback throws — and the callback is
+   * where the context most often dies, because the gap between asking the worker
+   * something and hearing back is exactly when someone hits reload on the
+   * extensions page. Reading `chrome.runtime.lastError` in that state throws on the
+   * `chrome.runtime` lookup itself, which is how "Extension context invalidated"
+   * reaches the Errors pane instead of being swallowed.
+   *
+   * So: guard before, guard around, and guard *inside*. `cb` gets the response only
+   * when there is still a runtime to have produced it. */
+  function safeSend(msg, cb) {
+    if (orphaned) return;
+    if (!alive()) return retire();
+    try {
+      chrome.runtime.sendMessage(msg, (resp) => {
+        if (!alive()) return retire();
+        try {
+          if (chrome.runtime.lastError) return;
+          if (cb) cb(resp);
+        } catch (err) {
+          retire();
+        }
+      });
+    } catch (e) {
+      retire();
+    }
+  }
+
   function send(step) {
     if (orphaned) return;
     const m = mode();
@@ -220,27 +251,23 @@
      * not keeping, and unlike a recording the user never asked for this one. The
      * step's words are safe either way — a typed value is never recorded. */
     if (m === "buf" && passwordFocused()) step.noShot = true;
-    // Hide our pill so it never lands in the screenshot.
+    // Hide our pill so it never lands in the screenshot. Restored on the way out of
+    // every path, including the orphaned one — a hidden pill that never comes back
+    // looks like the recorder died silently.
     if (pill) pill.style.visibility = "hidden";
-    try {
-      chrome.runtime.sendMessage(
-        { type: m === "rec" ? "fs_capture_step" : "fs_buffer_step", step },
-        (resp) => {
-          if (pill) pill.style.visibility = "visible";
-          if (chrome.runtime.lastError) return;
-          if (resp && resp.ok) {
-            if (m === "rec") count = resp.count;
-            else bufCount = resp.count;
-            updatePill();
-            flash();
-          }
+    safeSend(
+      { type: m === "rec" ? "fs_capture_step" : "fs_buffer_step", step },
+      (resp) => {
+        if (pill) pill.style.visibility = "visible";
+        if (resp && resp.ok) {
+          if (m === "rec") count = resp.count;
+          else bufCount = resp.count;
+          updatePill();
+          flash();
         }
-      );
-    } catch (e) {
-      // The context died between the check above and the call.
-      if (pill) pill.style.visibility = "visible";
-      retire();
-    }
+      }
+    );
+    if (orphaned && pill) pill.style.visibility = "visible";
   }
 
   function passwordFocused() {
@@ -408,24 +435,14 @@
       (e) => {
         e.stopPropagation();
         e.preventDefault();
-        // Same orphan case as send(): a stale pill's Stop button would throw rather
-        // than do anything, so retire instead and take the pill away with it.
-        if (!alive()) return retire();
-        try {
-          chrome.runtime.sendMessage(
-            buf ? { type: "fs_buf_promote" } : { type: "fs_stop" },
-            (resp) => {
-              if (chrome.runtime.lastError) return;
-              if (resp && resp.guideId)
-                chrome.runtime.sendMessage({
-                  type: "fs_open_editor",
-                  guideId: resp.guideId,
-                });
-            }
-          );
-        } catch (err) {
-          retire();
-        }
+        // Same orphan case as send(): a stale pill's button would throw rather than
+        // do anything, so retire instead and take the pill away with it. The nested
+        // call needs its own guard — it runs in the reply, long after any try block
+        // out here has returned.
+        safeSend(buf ? { type: "fs_buf_promote" } : { type: "fs_stop" }, (resp) => {
+          if (resp && resp.guideId)
+            safeSend({ type: "fs_open_editor", guideId: resp.guideId });
+        });
       },
       true
     );
