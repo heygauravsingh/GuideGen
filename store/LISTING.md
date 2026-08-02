@@ -149,6 +149,18 @@ Used to save the narrated video export. The video is rendered in an offscreen do
 > field, and the previous wording claimed all five export formats used it, which would read
 > as the same violation restated.
 
+**Are you using remote code?** → **No, I am not using remote code.** (No justification field
+appears once No is selected.)
+
+Audited 31 Jul 2026, because `'wasm-unsafe-eval'` in the manifest CSP makes this look like a
+yes and it is not. That flag permits instantiating wasm **already in the package** — the
+espeak-ng and onnxruntime binaries under `lib/`. Chrome's question is about JS or Wasm *not
+included in the package*. Verified: every `<script src>` in `popup.html`, `offscreen.html` and
+`editor.html` is a relative bundled file; no `http(s)` script or module reference exists in any
+of the nine extension JS files; no `eval(` or `new Function(`; and every wasm/onnx path in
+`tts.js` is `lib/…`. Answering Yes would be a false declaration and would send a reviewer
+looking for a remote fetch that isn't there.
+
 **Host permission** `<all_urls>`
 ```
 GuideGen documents whatever web application the user chooses, which cannot be known in advance — it may be any internal admin panel, SaaS dashboard or intranet site. The content script must therefore be able to run on any URL the user decides to record. It is inert unless the user has explicitly started a recording, and it reads only the label and position of the element clicked. Recorded pages are stored locally and are transmitted only if the user explicitly publishes that one guide to get a shareable link.
