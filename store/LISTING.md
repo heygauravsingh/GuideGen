@@ -1,7 +1,7 @@
 # Chrome Web Store listing — copy/paste sheet
 
-Everything below is ready to paste into the Developer Dashboard. Nothing here needs
-editing except the two `<<< >>>` placeholders.
+Everything below is ready to paste into the Developer Dashboard as-is. No placeholders
+remain — audited 31 Jul 2026.
 
 ---
 
