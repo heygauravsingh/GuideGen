@@ -1295,8 +1295,29 @@ async function captureStep(step, sender) {
 // The editor lives on the dashboard now, not in the extension — one editor
 // instead of two hand-kept-in-parity copies. editor.html only still exists to
 // redirect old bookmarks here.
-const WEB_ORIGIN = "https://guide-gen.vercel.app";
+/* Two origins, and the plural is the whole point of how the move to the house domain
+ * was done. `guidegen.backpocket.website` is where the site lives now;
+ * `guide-gen.vercel.app` still serves the same site and always will, because every
+ * guide anyone has already shared is a link to it.
+ *
+ * So the move is **additive, never a cutover**. An extension released before the
+ * move talks to the old origin and keeps working. This build talks to either. Nothing
+ * has to be timed against a store review, and no shared link ever dies.
+ *
+ * `WEB_ORIGINS` is what the bridge checks against — a list, and an exact-match list at
+ * that. It is deliberately not a `*.backpocket.website` wildcard: any script on an
+ * allowed origin can read and edit every local guide, so a second product on a second
+ * subdomain must not inherit that. One entry per site that is actually the editor.
+ *
+ * `WEB_ORIGIN` is the canonical one — the address the extension *opens* — so new
+ * recordings land on the house domain. Keep it first in the list. */
+const WEB_ORIGINS = [
+  "https://guidegen.backpocket.website",
+  "https://guide-gen.vercel.app",
+];
+const WEB_ORIGIN = WEB_ORIGINS[0];
 const DASHBOARD = WEB_ORIGIN + "/app";
+const fromSite = (origin) => WEB_ORIGINS.indexOf(origin) !== -1;
 
 // Hand the dashboard our own extension id. It cannot know it otherwise: an
 // extension loaded unpacked gets an id Chrome derives locally, not the permanent
@@ -1603,7 +1624,7 @@ let bridgeChain = Promise.resolve();
 
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   // externally_connectable is the real gate. This is the belt to its braces.
-  if (!sender || sender.origin !== WEB_ORIGIN) {
+  if (!sender || !fromSite(sender.origin)) {
     sendResponse({ ok: false, error: "forbidden" });
     return false;
   }
@@ -1714,7 +1735,7 @@ function downloadVideo(url, filename) {
 }
 
 chrome.runtime.onConnectExternal.addListener((port) => {
-  if (!port.sender || port.sender.origin !== WEB_ORIGIN || port.name !== "gg_task") {
+  if (!port.sender || !fromSite(port.sender.origin) || port.name !== "gg_task") {
     return port.disconnect();
   }
   port.onDisconnect.addListener(() => {

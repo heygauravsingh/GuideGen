@@ -15,7 +15,10 @@
   const API_KEY = "AIzaSyCihDiLQ51V0C8DS07WTl70FOpC3ACkfJY";
   const IDT = "https://identitytoolkit.googleapis.com/v1/accounts";
   const TOKEN = "https://securetoken.googleapis.com/v1/token";
-  const SITE = "https://guide-gen.vercel.app";
+  /* The house domain. The old address still serves the same site and always will —
+     see WEB_ORIGINS in background.js — but anything this build *opens* should land on
+     the canonical one. */
+  const SITE = "https://guidegen.backpocket.website";
   const AUTH_KEY = "gg_auth";
 
   /* Google sign-in, via chrome.identity.launchWebAuthFlow.

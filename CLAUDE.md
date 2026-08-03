@@ -66,7 +66,7 @@ Local guide data lives in `chrome.storage.local`.
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config, v1.2.5. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `manifest.json` | MV3 config, v1.2.5. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names the two site origins (`guidegen.backpocket.website`, `guide-gen.vercel.app`) and nothing else — never a subdomain wildcard. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
 | `netpatch.js` | The only code that runs in the page's **MAIN world**. Patches `fetch`/`XHR` to report a *failed* exchange — request headers, sent body, response body — back through `postMessage`, because `chrome.webRequest` can read none of them. Masks credential header values and obvious body secrets *before* posting, so a secret never crosses the boundary. Opt-in, off by default; injected per tab by the worker via `executeScript({world:"MAIN"})`. Nothing it says is trusted — see The API log. |
@@ -81,6 +81,7 @@ Local guide data lives in `chrome.storage.local`.
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
 | `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
 | `tools/bg-harness.mjs` | The real `background.js` in a `vm` with a stubbed `chrome`, shared by the worker tests. Add missing chrome APIs here — a missing stub throws inside the worker and surfaces as an unrelated failure two tests later. Its `storage.remove` handles arrays as well as single keys, which buffer eviction needs. `evalIn(h, code)` runs an expression in the worker's own scope: `background.js`'s top-level `const`s live in the vm's global *lexical* environment, so `h.sandbox.BUF` is undefined while `evalIn(h, "BUF")` works — that is the only handle on them. |
+| `tools/origin-test.mjs` | Asserts the bridge's origin guard accepts **both** site origins — the house domain and the original `guide-gen.vercel.app`, which still serves every shared link — and rejects the apex, a sibling subdomain, plain http, and lookalikes that merely start with an allowed host. `node tools/origin-test.mjs`. |
 | `tools/note-test.mjs` | Asserts the note-insert path — the one step a *web page* creates. Weighted towards what the worker refuses: an `https:`/`blob:`/`javascript:` image URL, an SVG data URL, base64 with markup smuggled in, an oversized image, and overwriting a *recorded* step's screenshot. Drives `bridge()` directly through the vm, because the harness stubs `onMessageExternal` as a no-op. `node tools/note-test.mjs`. |
 | `tools/context-test.mjs` | Asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
 | `tools/recorder-test.mjs` | Drives the real `recorder.js` in a stubbed DOM. Weighted towards the orphan cases — including the two that a `try` beside `sendMessage` cannot catch, which both shipped. Cases 5 and 6 fail against the pre-`safeSend` file. Case 8 covers the netpatch relay's reshaping and caps; note it reaches in for the vm's `window` *proxy* (`h.win`), because `sandbox !== window` inside the context and recorder.js checks `e.source`. `node tools/recorder-test.mjs`. |
@@ -890,6 +891,19 @@ A page on `guide-gen.vercel.app` cannot read `chrome.storage.local` — differen
 different sandbox. `externally_connectable` is the only link: the dashboard calls
 `chrome.runtime.sendMessage(EXTENSION_ID, …)` and `onMessageExternal` answers. Extension id
 `dijeonandicniffeffbcolhfldommhnp`, assigned by the store and permanent.
+
+**Two origins, and the plural is deliberate.** `WEB_ORIGINS` in `background.js` lists
+`https://guidegen.backpocket.website` (the house domain, canonical — it is what the
+extension *opens*) and `https://guide-gen.vercel.app`, which still serves the same site and
+must never be retired: every guide anyone has already shared is a link to it. That is what
+made moving domains **additive rather than a cutover** — an extension released before the
+move keeps working, this build works against either, and nothing had to be timed against a
+store review. `fromSite()` is the guard both the message and port listeners use.
+
+It is an **exact-origin list and never a `*.backpocket.website` wildcard.** Any script on an
+allowed origin can read and edit every local guide, so the next product on the next
+subdomain must not inherit that, and neither should the apex marketing page.
+`tools/origin-test.mjs` asserts the lookalikes stay out.
 
 Four rules:
 
