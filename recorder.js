@@ -366,7 +366,6 @@
     if (!mode() || e.repeat) return;
     const el = e.target;
     if (!el || isOurUI(el)) return;
-    if (typing) flushTyping();   // "Type X" then "Press Enter", in that order
 
     const tag = (el.tagName || "").toLowerCase();
     const isField = tag === "input" || tag === "select" || el.isContentEditable;
@@ -396,6 +395,16 @@
     } else {
       return;
     }
+
+    /* Flushed *here*, not at the top of this handler, and that placement is the whole
+       bug this fixed. Every character of a typing burst is a `keydown` too, so
+       flushing before knowing whether this key becomes a step ended the burst on the
+       next keystroke — typing "demo" produced four steps reading `Type "d"`,
+       `Type "de"`, `Type "dem"`, `Type "demo"`, one per letter, with the 650ms
+       debounce never getting a chance to settle. By this line the key is known to be
+       Enter, Escape or a shortcut, and flushing is what keeps "Type X" ahead of
+       "Press Enter" — which is the reason a flush is here at all. */
+    if (typing) flushTyping();
 
     const now = Date.now();
     if (now - lastCaptureTs < 250) return;

@@ -385,6 +385,10 @@ function field(value, type) {
   f.getAttribute = (k) => f.attrs[k];
   return f;
 }
+function key(h, k, target, mods) {
+  (h.handlers.keydown || []).forEach((fn) =>
+    fn(Object.assign({ key: k, target, isTrusted: true, repeat: false }, mods || {})));
+}
 function type(h, f, value) {
   if (value !== undefined) f.value = value;
   (h.handlers.input || []).forEach((fn) => fn({ target: f, isTrusted: true }));
@@ -411,6 +415,31 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
      protects the fix for the missing search API. */
   check("stamped when the typing began, so its requests land on it",
         h.sent[0].step.timestamp <= t0 + 60, true);
+}
+{
+  /* Real typing fires a `keydown` per character as well as an `input`, and onKeyDown
+     used to flush the burst before deciding whether the key was a step of its own —
+     so every letter after the first ended the previous one. "Demo" came out as four
+     steps: `Type "D"`, `Type "De"`, `Type "Dem"`, `Type "Demo"`. Fails against the
+     version that flushes at the top of onKeyDown. */
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const f = field("");
+  const chars = ["D", "e", "m", "o"];
+  let val = "";
+  for (const c of chars) {
+    key(h, c, f);            // keydown, as a keyboard produces
+    val += c;
+    type(h, f, val);
+    await wait(40);
+  }
+  check("a plain character never ends the burst", h.sent.length, 0);
+  key(h, "Enter", f);
+  check("Enter flushes it as one step, then records itself",
+        h.sent.map((m) => m.step.text), ['Type "Demo" in the "Search by name" field', "Press Enter"]);
+  await wait(750);
+  check("and the settle adds nothing after it", h.sent.length, 2);
 }
 {
   const h = rec();

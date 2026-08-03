@@ -801,6 +801,12 @@ Five listeners, and three of them exist because a request went missing.
   **modifier shortcuts** (⌘K, ⌘S: often *the* action on a keyboard-driven app). A bare
   modifier, plain typing and arrow keys are not steps. A shortcut is usually pressed with
   nothing focused, so it carries no `rect` — the body's rect would ring the whole screenshot.
+  **Its `flushTyping()` goes *after* the key is known to be one of those three, never at the
+  top of the handler.** Every character of a typing burst is a `keydown` too, so flushing
+  first ended the burst on the next keystroke and the 650ms debounce never settled — typing
+  "Demo" shipped four steps, `Type "D"` … `Type "Demo"`, one per letter (guide `M3BNbgfE7yYrtv6uf5Ay`).
+  A flush still has to happen there, or "Press Enter" would be persisted before the typing it
+  submitted.
 
 `guessTitle`'s SKIP list covers `scroll` and `key` as well as `note`/`switch`/`nav`: a key name
 is not what a guide is about.
