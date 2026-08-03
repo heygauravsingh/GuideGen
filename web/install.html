@@ -129,6 +129,33 @@
   <p>A tab that was open <em>before</em> you installed the extension hasn't loaded the recorder
   yet. Reload it once and recording will work. New tabs are fine.</p>
 
+  <!-- Two features nobody finds on their own: one is behind a per-site switch, the
+       other only shows itself when a request fails. Worth pointing at directly —
+       a tester who never turns catch-up on will report that it does nothing. -->
+  <h2>Two things worth trying first</h2>
+
+  <h3>Capture the last 2 minutes</h3>
+  <p>The one that has to be switched on before it can help you, which is the awkward part of it:
+  open GuideGen on a site you actually document and turn on <strong>catch-up capture</strong>. From
+  then on, on that site, GuideGen quietly holds what you do — a small dot in the corner is the only
+  sign. Work normally for a few minutes, then open GuideGen again and press
+  <strong>Capture last 2 minutes</strong>. You get a guide of work you never pressed record for.</p>
+  <p>It is per site and off everywhere else, it holds nothing for longer than 7 days, it never runs
+  in an incognito window, and none of it is uploaded. Pending captures are listed in your dashboard
+  with how long each has left.</p>
+
+  <h3>The API log</h3>
+  <p>Every step now also records the requests the page made and what came back. Steps where
+  everything worked show a single quiet line; a step where something <em>failed</em> shows the
+  failure. The full log is behind <strong>API log</strong> in the editor's toolbar.</p>
+  <p>Go and reproduce a bug for this one — that is where it earns its place. The handoff you copy
+  will say <em>clicking Save sent POST /api/orders and got a 500</em>, which is a very different
+  message to send an engineer than "it didn't work". Only the AI handoff includes it; documents,
+  slides and video never do.</p>
+  <p>Request headers are never read, so nothing captures your tokens. If you want the response
+  bodies of failed requests too, there's a checkbox next to Start recording — it's off by default,
+  and it only ever keeps failures.</p>
+
   <!-- ============ the trap ============ -->
   <div class="callout warn">
     <p><strong>Important, if you plan to keep the guides you make now.</strong></p>

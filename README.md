@@ -1,8 +1,10 @@
 # GuideGen
 
-A self-hosted, no-subscription replica of Scribe Capture. Record a workflow in your browser and GuideGen auto-generates a step-by-step guide — an annotated screenshot for every click, with editable step text — then exports it to HTML, Markdown, PDF, PowerPoint, or a narrated video.
+Record a workflow in your browser and GuideGen auto-generates a step-by-step guide — an annotated screenshot for every click, with editable step text — then hands it over: as text an AI can act on, or as HTML, Markdown, PDF, PowerPoint or a narrated video.
 
-Everything runs locally in your browser. No account, no server, no data leaves your machine.
+The lead is the **AI handoff**. Explaining something you just did in a browser to an assistant means screenshotting it and typing the steps out by hand; that is the chore this removes. The same recording is also the document a person reads.
+
+Capture, editing, rendering and every export run on your device. Two things leave it, both deliberate: signing in, and the single guide you press **Publish** on. Everything else lives in `chrome.storage.local`.
 
 ## Install (Load unpacked)
 
@@ -41,6 +43,7 @@ Every format crops each screenshot toward the thing you clicked, so the UI is re
 | **PDF (.pdf)** | Title page + paginated steps. |
 | **PowerPoint (.pptx)** | Title slide + one slide per step. |
 | **Narrated video (.webm)** | Slideshow of your steps, narrated by a built-in offline voice. |
+| **Copy for AI** | The workflow as text on your clipboard: every step, the action it was, the URL and page title it happened on, grouped by page — plus the API log. Text only, no screenshots. |
 
 ### About the narrated video
 The video is rendered on a canvas and captured to `.webm`. With narration on, GuideGen synthesizes the speech itself — a neural voice (Piper) bundled in `lib/` and run in your browser — then mixes it into the recording. Nothing is uploaded and no voice service is called.
@@ -51,17 +54,38 @@ Video is 1080p. Like the other exports, each slide zooms toward the thing you cl
 
 The first narrated export takes a little longer while the voice model loads. The video is rendered by the extension in an offscreen document, so you can leave the dashboard tab — you no longer have to keep it focused. If the voice files are missing from `lib/`, GuideGen falls back to a **silent captioned** video (every step still shows its text on screen).
 
+## Capture the last 2 minutes
+
+The pain arrives after the fact: you finish something, then someone asks how. Switch **catch-up capture** on for a site and GuideGen holds what you do there — the last 240 actions, for up to 7 days — so you can turn recent work into a guide afterwards.
+
+- Armed **per site, off by default**. There is no always-on-everywhere mode in the UI.
+- On an armed page a small dot sits in the corner for as long as it is on. It is disclosure, not a button.
+- Redeem from the popup: **Capture last 2 minutes**, or capture the whole session. Measured back from the session's end, so an older capture offers its own last two minutes.
+- Pending captures are listed in the dashboard beside your guides, with how long each has left.
+- Never in incognito. On a screen with a password field focused it keeps the written step and takes no screenshot.
+- None of it is uploaded. Promoting one makes an ordinary local guide; publishing that is the same deliberate act it always was.
+
+## The API log
+
+Each step also records the requests the page made and what came back — `POST /api/orders → 500`. That turns "I clicked Save and it didn't work" into something a developer or a model can start on.
+
+- **Request headers are never read**, so tokens and cookies are never captured. Query strings are stripped from the addresses.
+- **Response bodies are a separate opt-in, off by default**, and even then only for requests that *failed*. Successful responses are never kept — that is where the personal data is, for none of the diagnostic value.
+- A step where everything succeeded shows one muted line. A step where something failed shows the failures. **Everything, in full, is in the API log panel** in the editor toolbar — with a failed-only filter and a copy button.
+- Only the AI handoff carries it. HTML, Markdown, PDF, PowerPoint, video and published links all leave it out, and any step's log can be deleted on its own.
+
 ## How it works (for tinkering)
 
 - `manifest.json` — MV3 config and permissions.
 - `background.js` — recording state, `captureVisibleTab` screenshots, storage.
-- `recorder.js` / `recorder.css` — content script: listens for clicks/inputs, builds step descriptions, shows the recording pill.
+- `recorder.js` / `recorder.css` — content script: listens for clicks/inputs, builds step descriptions, shows the recording pill or the catch-up dot.
+- `netpatch.js` — the only code that runs in the page's own world. Reports the body of a *failed* response, which `chrome.webRequest` cannot read. Opt-in.
 - `render.js` — draws annotations (scrim + spotlight, accent ring, numbered badge, redaction pixelation) onto a canvas.
 - `popup.html` / `popup.js` — the toolbar popup: sign in, start/stop, open the library.
 - `sync.js` — the account session, shared with the dashboard over the bridge.
 - `offscreen.html` / `offscreen.js` — invisible page that renders the narrated video, because a service worker has no canvas, audio engine or recorder.
 - `editor.html` / `redirect.js` — a redirect. The editor itself is now the dashboard at `/app`; see `web/assets/app.js`.
-- `exporters.js` — HTML / Markdown / PDF / PPTX / video generators.
+- `exporters.js` — HTML / Markdown / PDF / PPTX / video generators, plus the AI handoff and the API log text.
 - `tts.js` — offline speech synthesis for the narrated video.
 - `web/` — the website: landing page, the guide editor at `/app`, the public viewer at `/g/{id}`, and one serverless function for deleting images. `render.js` and `exporters.js` are mirrored into `web/assets/` by `tools/sync-web-assets.mjs`; edit the root copies, never the mirrors.
 - `lib/` — bundled [jsPDF](https://github.com/parallax/jsPDF) (PDF), [PptxGenJS](https://github.com/gitbrent/PptxGenJS) (PowerPoint), and the narration engine: [onnxruntime-web](https://github.com/microsoft/onnxruntime), [piper-phonemize](https://github.com/rhasspy/piper-phonemize) (espeak-ng), and a [Piper](https://github.com/rhasspy/piper) voice. The voice model and its pronunciation dictionary account for nearly all of the folder's ~90MB.
