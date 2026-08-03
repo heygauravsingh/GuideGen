@@ -454,9 +454,14 @@
       "and try again — it has to be running for this page to reach it.</div>" +
       '<div class="row"><button class="btn" id="ne-close">Close</button>' +
       '<span class="spacer"></span>' +
-      '<a class="btn brand-btn" target="_blank" rel="noopener" ' +
-      'href="https://chromewebstore.google.com/detail/' + window.GGBridge.STORE_ID +
-      '">Get the extension</a></div>'
+      /* `/install`, not the Chrome Web Store: the listing is still in review, so the
+         store URL is a 404 for everyone who isn't signed in as the developer — this
+         dialog was sending a reader who wanted the video to a dead page. `/install`
+         hands them the build that exists and switches to the store link on its own
+         once there is one. Opens in a new tab so they keep their place in the guide
+         they were reading. */
+      '<a class="btn brand-btn" target="_blank" rel="noopener" href="/install">' +
+      "Get the extension</a></div>"
     );
     document.getElementById("ne-close").onclick = closeModal;
   }
