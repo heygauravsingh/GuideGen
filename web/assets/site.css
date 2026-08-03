@@ -677,6 +677,11 @@ header.site .row .spacer { flex: 1; }
 @media (pointer: coarse) {
   .vstep .anchor { opacity: 1; }
   .zoombtn { opacity: 1; }
+  /* Nothing here is ever hovered, so anything hover reveals has to start open. Key
+     it on the pointer, not the width: a narrow window on a desktop still has a mouse. */
+  .ins-btn { opacity: 1; }
+  .ins-btn .lbl { max-width: 140px; margin-left: 6px; }
+  .btn.exp .lbl { max-width: 240px; margin-left: 7px; }
 }
 
 /* A recipient's most likely second action is printing it. */
@@ -826,6 +831,71 @@ header.site .row .spacer { flex: 1; }
 }
 .step .shot canvas { width: 100%; height: auto; display: block; }
 .step .shot.redacting { cursor: crosshair; }
+
+/* ---- add a step here ----------------------------------------------------------
+   A + between every pair of steps. Quiet until the row is hovered, because there is
+   one of these between all thirteen steps and thirteen permanent buttons down the
+   middle of the page would compete with the steps themselves. The row keeps its
+   height either way, so nothing moves when it appears. */
+.insert { height: 26px; display: flex; align-items: center; justify-content: center; position: relative; }
+.insert::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+  background: var(--brand); opacity: 0; transition: opacity var(--fast);
+}
+.insert:hover::before, .insert:focus-within::before { opacity: 0.35; }
+.ins-btn {
+  display: inline-flex; align-items: center; gap: 0; overflow: hidden;
+  border: 1px dashed var(--line); background: var(--bg); color: var(--muted);
+  border-radius: 999px; padding: 4px 8px; cursor: pointer; line-height: 1;
+  font-size: 12.5px; font-weight: 620; z-index: 1;
+  opacity: 0; transition: opacity var(--fast), color var(--fast), border-color var(--fast), background var(--fast);
+}
+.ins-btn svg { width: 14px; height: 14px; flex: none; }
+.ins-btn .lbl {
+  max-width: 0; white-space: nowrap; overflow: hidden;
+  transition: max-width var(--fast), margin-left var(--fast);
+}
+.insert:hover .ins-btn, .ins-btn:focus-visible { opacity: 1; }
+.insert:hover .ins-btn .lbl, .ins-btn:focus-visible .lbl { max-width: 140px; margin-left: 6px; }
+.ins-btn:hover { color: var(--brand-2); border-color: var(--brand); background: var(--brand-soft); border-style: solid; }
+
+/* ---- an icon button that grows into its label ---------------------------------
+   "Redact" was a legal word for a picture-editing action. The icon is the blur tool
+   every image editor draws as a droplet, and the label it expands into says what it
+   does. The label is always in the DOM — it is the accessible name — so this is
+   decoration on top of a button that is already readable to a screen reader.
+   A `max-width` transition, not `display`, so a host page or a user setting that
+   kills transitions degrades to an always-open label rather than to nothing. */
+.btn.exp { overflow: hidden; }
+.btn.exp .lbl {
+  max-width: 0; white-space: nowrap; overflow: hidden;
+  transition: max-width var(--fast), margin-left var(--fast);
+}
+.btn.exp:hover .lbl, .btn.exp:focus-visible .lbl, .btn.exp.open .lbl { max-width: 240px; margin-left: 7px; }
+
+/* ---- the add/edit step dialog -------------------------------------------------- */
+.modal .field label { display: block; font-size: 12px; font-weight: 650; color: var(--ink-2); margin-bottom: 6px; }
+.modal .field label .opt { font-weight: 500; color: var(--faint); text-transform: none; letter-spacing: 0; }
+.modal .field textarea {
+  width: 100%; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  border-radius: var(--r-sm); padding: 10px 12px; outline: 0; resize: vertical;
+  font-family: inherit; font-size: 14.5px; line-height: 1.55;
+}
+.modal .field textarea:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring); }
+.modal .drop {
+  border: 1px dashed var(--line); border-radius: var(--r); background: var(--panel-2);
+  padding: 14px; text-align: center; cursor: pointer;
+  transition: border-color var(--fast), background var(--fast);
+}
+.modal .drop:hover, .modal .drop:focus-visible, .modal .drop.over {
+  border-color: var(--brand); background: var(--brand-soft); outline: 0;
+}
+.modal .drop-empty { display: flex; flex-direction: column; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.modal .drop-empty svg { width: 22px; height: 22px; }
+.modal .drop img {
+  max-width: 100%; max-height: 210px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); display: block; margin: 0 auto 10px;
+}
 
 /* ---- the API log -------------------------------------------------------------
    A guide must not turn into a log file. A single-page app fires requests on

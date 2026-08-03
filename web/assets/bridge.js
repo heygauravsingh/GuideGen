@@ -175,9 +175,14 @@ window.GGBridge = (function () {
   function deleteStep(guideId, stepId) {
     return send({ type: "gg_delete_step", guideId: guideId, stepId: stepId });
   }
-  function addNote(guideId, text) {
-    return send({ type: "gg_add_note", guideId: guideId, text: text })
-      .then(function (r) { return r.step; });
+  /* `index` is where in the guide it goes — the + the user actually pressed — and
+     `image` an optional data URL. Both are checked worker-side, not here: this file
+     runs on a web page, so nothing it sends is trusted by the other end. */
+  function addNote(guideId, text, index, image) {
+    return send({
+      type: "gg_add_note", guideId: guideId, text: text,
+      index: index, image: image || null,
+    }).then(function (r) { return r.step; });
   }
   function deleteGuide(guideId) {
     return send({ type: "gg_delete_guide", guideId: guideId });

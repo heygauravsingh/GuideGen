@@ -251,6 +251,13 @@
     // whole frame and let the caller letterbox it.
     if (step && step.baked) return { x: 0, y: 0, w: srcW, h: srcH };
 
+    /* A note's image was chosen by hand, not captured — a diagram, a photo, a shot
+     * from somewhere else. Every heuristic below is about finding the interesting
+     * part of a *browser viewport*: trimming uniform margins and zooming toward the
+     * thing that was clicked. Applied to a picture somebody deliberately picked,
+     * that is just cropping their image for them. Show all of it. */
+    if (step && step.type === "note") return { x: 0, y: 0, w: srcW, h: srcH };
+
     const maxZoom = opts.maxZoom || 1.5; // never magnify more than this
     const dpr = step.dpr || 1;
     const canvas = opts.canvas || null;

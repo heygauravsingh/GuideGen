@@ -362,16 +362,27 @@
         a = await annoDataUrl(s, i + 1, 1400, DOC_ASPECT);
         if (a) box = contain(a.w, a.h, CW, PH - 2 * M - headH - 24);
       }
-      const blockH = headH + (box ? box.h + 12 : 0) + 16;
+
+      /* A note with no picture gets the paper card the HTML export has always given
+       * it — the same tint, and an ochre edge so it reads as an aside rather than as
+       * a step whose screenshot failed to render. */
+      const asCard = s.type === "note" && !a;
+      const blockH = headH + (box ? box.h + 12 : 0) + (asCard ? 18 : 0) + 16;
       if (y + blockH > PH - M && y > M) {
         doc.addPage();
         y = M;
+      }
+      if (asCard) {
+        doc.setFillColor(246, 236, 226);
+        doc.roundedRect(M - 10, y - 4, CW + 20, headH + 14, 6, 6, "F");
+        doc.setFillColor(194, 65, 12);
+        doc.rect(M - 10, y - 4, 3, headH + 14, "F");
       }
       doc.setTextColor(26, 23, 19);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text(lines, M, y + 12);
-      y += headH;
+      y += headH + (asCard ? 18 : 0);
       if (a && box) {
         doc.addImage(a.data, "PNG", M + (CW - box.w) / 2, y, box.w, box.h);
         y += box.h + 14;
@@ -406,6 +417,22 @@
     for (let i = 0; i < steps.length; i++) {
       const s = steps[i];
       const sl = pptx.addSlide();
+
+      /* A note with no picture is a section slide, not a step with a blank middle.
+       * It used to get the dark step header *and* the same sentence again in grey
+       * underneath — the text twice, once too small to read from a room. Now it is
+       * the one thing on the slide, set large on paper, which is also what makes an
+       * imageless note worth adding: it becomes the divider in a deck. */
+      if (s.type === "note" && !s.screenshot) {
+        sl.background = { color: "F4F1EA" };
+        sl.addShape(pptx.ShapeType.rect, { x: 0, y: 3.34, w: 0.9, h: 0.09, fill: { color: "C2410C" } });
+        sl.addText(s.text || "", {
+          x: 1.4, y: 2.0, w: 10.5, h: 3.5,
+          fontSize: 34, bold: true, color: "1A1713", align: "left", valign: "middle",
+        });
+        continue;
+      }
+
       sl.addText(
         [
           { text: i + 1 + ".  ", options: { bold: true, color: "E39A63" } },

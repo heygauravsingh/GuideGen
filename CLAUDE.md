@@ -66,7 +66,7 @@ Local guide data lives in `chrome.storage.local`.
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config, v1.2.4. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `manifest.json` | MV3 config, v1.2.5. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
 | `netpatch.js` | The only code that runs in the page's **MAIN world**. Patches `fetch`/`XHR` to report a *failed* exchange — request headers, sent body, response body — back through `postMessage`, because `chrome.webRequest` can read none of them. Masks credential header values and obvious body secrets *before* posting, so a secret never crosses the boundary. Opt-in, off by default; injected per tab by the worker via `executeScript({world:"MAIN"})`. Nothing it says is trusted — see The API log. |
@@ -81,6 +81,7 @@ Local guide data lives in `chrome.storage.local`.
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
 | `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
 | `tools/bg-harness.mjs` | The real `background.js` in a `vm` with a stubbed `chrome`, shared by the worker tests. Add missing chrome APIs here — a missing stub throws inside the worker and surfaces as an unrelated failure two tests later. Its `storage.remove` handles arrays as well as single keys, which buffer eviction needs. `evalIn(h, code)` runs an expression in the worker's own scope: `background.js`'s top-level `const`s live in the vm's global *lexical* environment, so `h.sandbox.BUF` is undefined while `evalIn(h, "BUF")` works — that is the only handle on them. |
+| `tools/note-test.mjs` | Asserts the note-insert path — the one step a *web page* creates. Weighted towards what the worker refuses: an `https:`/`blob:`/`javascript:` image URL, an SVG data URL, base64 with markup smuggled in, an oversized image, and overwriting a *recorded* step's screenshot. Drives `bridge()` directly through the vm, because the harness stubs `onMessageExternal` as a no-op. `node tools/note-test.mjs`. |
 | `tools/context-test.mjs` | Asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
 | `tools/recorder-test.mjs` | Drives the real `recorder.js` in a stubbed DOM. Weighted towards the orphan cases — including the two that a `try` beside `sendMessage` cannot catch, which both shipped. Cases 5 and 6 fail against the pre-`safeSend` file. Case 8 covers the netpatch relay's reshaping and caps; note it reaches in for the vm's `window` *proxy* (`h.win`), because `sandbox !== window` inside the context and recorder.js checks `e.source`. `node tools/recorder-test.mjs`. |
 | `tools/buffer-test.mjs` | Asserts the catch-up buffer, weighted towards when it does **not** capture. All the guards — armed origin, recording, incognito, password field, age cap, count cap, session-granular eviction, unarmed context steps — are mutation-checked; removing any one fails at least one assertion. It shrinks `BUF.maxSteps` via `evalIn` rather than writing 245 steps to prove the cap. `node tools/buffer-test.mjs`. |
@@ -753,6 +754,55 @@ replaced:
 Icons are inline SVG built in `web/assets/app.js` (`ICON` + `svg()`); no icon font, no image
 files. The step number sits above the drag grip in `.gutter` so it lines up with the first line
 of step text — the grip is `opacity: 0` until hover but still occupies its box.
+
+## Steps you add yourself (app.js + background.js)
+A `note` is the one step a **web page** creates, and since v1.2.5 it can carry a picture
+the user chose. Two shapes, one dialog: a caption on an image, or — with no image — a
+section slide styled like the rest of the guide.
+
+- **The affordance is a `+` between every pair of steps**, not a button in the toolbar.
+  What it replaced appended an empty text step to the *end* of the guide, so both things
+  anyone actually wants ("explain this *here*", "include this picture") took several more
+  moves and one of them was impossible. There is a row before the first step and after
+  the last, which is also what makes an empty guide fillable by hand.
+- **Every image is validated in the worker by `cleanImage()`**, because a web page sent
+  it. Base64 `data:image/(png|jpeg|webp|gif)` only: a `blob:` or `https:` URL would make
+  a guide depend on something outside itself, and **SVG is refused even as a data URL** —
+  it is a document that can carry script and fetch remote references, and it renders in
+  the editor and in every export. There is a size cap for the same reason.
+- **`gg_update_step` will only replace a *note's* picture.** A recorded screenshot is
+  evidence of what was on screen at the moment of the click; letting the page overwrite
+  one would make a guide something you can quietly rewrite the history of. Replacing a
+  note's image clears its `blurs`, because a rect that covered something in the old
+  picture lands somewhere arbitrary in the new one — worse than losing it, since it still
+  looks done.
+- **The index is clamped, never rejected.** The user did press `+`; throwing their text
+  away over a stale index from the page would be the wrong answer. A negative index read
+  as "append" until `tools/note-test.mjs` said so.
+- **`dpr` is 1 and `focusRegion` returns the full frame for a note.** An uploaded image
+  has no CSS-px relationship to anything, and every crop heuristic in `render.js` is about
+  finding the interesting part of a *browser viewport* — applied to a picture somebody
+  chose, it just crops their image for them.
+- **An imageless note is a section slide in the exports**: paper background and one large
+  ink line in PPTX (it used to get the dark step header *and* the same sentence again in
+  grey underneath), the tinted card with an ochre edge in PDF and HTML, and the quiet card
+  the video renderer already drew.
+- Client-side, `readImage()` downscales to 1600px WebP before it crosses the bridge — a
+  phone photo as a PNG data URL is tens of megabytes of `sendMessage` payload. That is an
+  optimisation, not the safeguard; the worker still validates and caps.
+- `tools/note-test.mjs` is weighted towards refusals and is mutation-checked.
+
+## The blur control (app.js)
+The button that opens redaction mode is an **icon that expands into "Blur sensitive
+information"** on hover or focus. It said *Redact* — a legal-department word for a
+picture-editing action, which half the people who need it read as paperwork or don't read
+at all. The icon is the droplet every image editor uses for blur.
+
+Three details: the label is always in the DOM (it is the accessible name and the tooltip),
+so this is decoration over a button that is already readable; it uses a `max-width`
+transition rather than `display`, so reduced-motion or a killed transition degrades to an
+always-open label instead of to nothing; and `@media (pointer: coarse)` starts it open,
+because a touch screen never hovers. `.ins-btn` follows the same three rules.
 
 ## Dialogs (app.js + viewer.js)
 Both surfaces share one contract, and the details are there because their absence was

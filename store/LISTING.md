@@ -50,8 +50,10 @@ WHAT YOU GET
 • What the page did, not just what you clicked — the requests each step fired and the status
   that came back, and optionally the full exchange as a cURL. Credential values are masked
   before anything is stored. It travels with the AI handoff and with no other export
-• Redaction — drag a box over anything sensitive and it's pixelated in every export
-• Notes — add context steps that aren't clicks
+• Blur sensitive information — drag a box over anything sensitive and it's pixelated in
+  every export, permanently
+• Add steps of your own between the recorded ones, with a picture if you have one — and
+  without one, the text becomes a section slide in your exports
 • Reorder, rewrite or delete any step
 
 EXPORT TO

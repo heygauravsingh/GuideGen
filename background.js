@@ -1343,6 +1343,37 @@ function lightStep(s) {
   return out;
 }
 
+/* An image the *page* sent us, for a note step. Returns the data URL or null.
+ *
+ * Three things it has to refuse, and the order matters because the cheap test is the
+ * one that keeps the rest cheap:
+ *
+ * 1. **Anything that isn't a base64 `data:image/...`.** A `blob:` or `https:` URL
+ *    stored here would make the guide depend on something outside it, and a
+ *    `javascript:` one would be handed to an `<img src>` by every consumer. The whole
+ *    picture has to live inside the guide, or an export made tomorrow breaks.
+ * 2. **SVG**, even as a data URL. It is a document, not a bitmap: it can carry script
+ *    and fetch remote references, and it renders inside the editor and in every
+ *    export. The four raster types below are all a screenshot or a photo needs.
+ * 3. **Anything oversized.** The dashboard downscales to 1600px WebP before sending,
+ *    so a legitimate note image is a few hundred KB. The cap is what stops one note
+ *    filling `chrome.storage.local`, and it is enforced here rather than there
+ *    because the sender is a web page. */
+const NOTE_IMG = {
+  types: /^data:image\/(png|jpe?g|webp|gif);base64,/i,
+  maxChars: 8 * 1024 * 1024,   // ~6MB decoded
+};
+function cleanImage(v) {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  if (s.length > NOTE_IMG.maxChars) return null;
+  if (!NOTE_IMG.types.test(s)) return null;
+  // Base64 only past the comma — a stray quote or angle bracket means it isn't.
+  const body = s.slice(s.indexOf(",") + 1);
+  if (!body.length || /[^A-Za-z0-9+/=\s]/.test(body)) return null;
+  return s;
+}
+
 function cleanRect(r) {
   if (!r || typeof r !== "object") return null;
   const n = (v) => (typeof v === "number" && isFinite(v) ? v : null);
@@ -1449,6 +1480,24 @@ async function bridge(msg) {
         delete s.network;
         delete s.networkMore;
       }
+      /* A note's picture can be changed or taken off again — `null` removes it. Only
+       * for a note: a recorded step's screenshot is evidence of what was on screen at
+       * the moment of the click, and letting a page overwrite it would make a guide
+       * something you can quietly rewrite the history of. Redactions go with it,
+       * because a rect that pixelated something in the old image lands somewhere
+       * arbitrary in the new one. */
+      if (s.type === "note" && "image" in p) {
+        if (p.image === null) {
+          s.screenshot = null;
+          s.blurs = [];
+        } else {
+          const shot = cleanImage(p.image);
+          if (!shot) return { ok: false, error: "That image couldn't be read." };
+          s.screenshot = shot;
+          s.dpr = 1;
+          s.blurs = [];
+        }
+      }
       await set({ [K.step(s.id)]: s });
       return { ok: true };
     }
@@ -1479,23 +1528,53 @@ async function bridge(msg) {
       return { ok: true, stepCount: next.length };
     }
 
+    /* A note, inserted where the user pressed the + rather than appended to the end.
+     * It may carry a picture of its own — one they chose, not one we captured — so a
+     * note is now either a caption on an image or a section divider, which is what
+     * makes it worth having at all.
+     *
+     * Everything here is validated as if a stranger sent it, because a web page did:
+     * the index is clamped rather than trusted, and the image has to survive
+     * `cleanImage()` before it is stored. */
     case "gg_add_note": {
       const gi = (await get(K.index, [])).find((g) => g.id === guideId);
       if (!gi) return { ok: false, error: "That guide isn't on this device." };
       const order = await get(K.order(guideId), []);
+      let shot = null;
+      if (msg.image != null) {
+        shot = cleanImage(msg.image);
+        if (!shot) return { ok: false, error: "That image couldn't be read." };
+      }
       const step = {
         id: uid(),
         guideId,
-        seq: order.length + 1,
+        seq: 1,
         type: "note",
-        text: typeof msg.text === "string" ? msg.text : "",
-        screenshot: null,
+        text: typeof msg.text === "string" ? msg.text.slice(0, 2000) : "",
+        screenshot: shot,
+        // 1, because an uploaded image has no CSS-px relationship to anything. The
+        // editor's redaction maths reads this and would otherwise scale by a ratio
+        // that means nothing here.
+        dpr: 1,
         blurs: [],
       };
-      order.push(step.id);
+      /* Clamped, never rejected. A stale index from the page is the page's problem,
+       * but the user did press +, and throwing their text away over an off-by-one
+       * would be the wrong answer. Absent or unparseable means "at the end"; a
+       * number is clamped into range — including a negative one, which read as
+       * "append" before `tools/note-test.mjs` said so. */
+      const asked = Number(msg.index);
+      const at = Number.isFinite(asked)
+        ? Math.max(0, Math.min(order.length, Math.floor(asked)))
+        : order.length;
+      // `fs_steporder_<guideId>` is what defines order; `seq` is a capture-time
+      // artefact that nothing downstream reads (every exporter numbers from the
+      // array index). Set it to something sensible and don't renumber the guide.
+      step.seq = at + 1;
+      order.splice(at, 0, step.id);
       await set({ [K.step(step.id)]: step, [K.order(guideId)]: order });
       await setStepCount(guideId, order.length);
-      return { ok: true, step: lightStep(step) };
+      return { ok: true, step: lightStep(step), index: at };
     }
 
     case "gg_delete_guide": {

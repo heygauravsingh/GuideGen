@@ -32,8 +32,8 @@ Typing is one step per burst, not per keystroke — "Type "Demo"" settles after 
 ## Edit
 
 - Every step is a card: edit the description inline, reorder with **↑/↓**, or **Delete** it.
-- **Redact:** click *Redact* on a step, then drag a box over anything sensitive (passwords, emails, account numbers). The region is pixelated in every export. Password fields are auto-masked at capture time.
-- **+ Note:** add a text-only step for context or instructions.
+- **Blur sensitive information:** press the droplet on a step, then drag a box over anything sensitive (passwords, emails, account numbers). The region is pixelated in every export, permanently. Password fields are auto-masked at capture time.
+- **Add a step of your own:** hover between any two steps and press **+**. Write the line you want the reader to see, and add a picture if you have one — a diagram, a photo, a screenshot from somewhere else. Without a picture the text becomes a section slide styled like the rest of the guide: a divider in the slide deck, a tinted card in the document and the web page. The + is there before the first step and after the last, so a guide can be written by hand from nothing.
 - The title (top bar) and all edits save automatically. Guides persist across browser restarts.
 
 ## Export

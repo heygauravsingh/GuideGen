@@ -76,7 +76,13 @@
     up: '<path d="M12 19V5m0 0-6 6m6-6 6 6"/>',
     down: '<path d="M12 5v14m0 0 6-6m-6 6-6-6"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
-    redact: '<rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 12h8"/>',
+    /* The blur tool, drawn the way every image editor draws it: a droplet. "Redact"
+       is a legal-department word — half the people who need this button read it as
+       something to do with paperwork, or don't read it at all. The droplet plus
+       "Blur sensitive information" says what pressing it does. */
+    redact: '<path d="M12 3.2c3.2 3.4 5.4 6.2 5.4 9a5.4 5.4 0 0 1-10.8 0c0-2.8 2.2-5.6 5.4-9z"/><path d="M9.6 12.6h.01M12 14.6h.01M14.4 12.2h.01M11 10.6h.01"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    image: '<rect x="3" y="4" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M3 16l4-3 3 2 4-4 7 5"/>',
     check: '<path d="m5 13 4 4L19 7"/>',
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>',
     // Up-and-down arrows: a request went out and something came back.
@@ -97,6 +103,18 @@
   function textBtn(label, icon) {
     var b = mk("button", "btn sm");
     b.innerHTML = (icon ? svg(icon) : "") + label;
+    return b;
+  }
+  /* An icon that grows into its label on hover or focus. The label is always in the
+     DOM — it is the accessible name and the tooltip — so this is a visual affordance
+     and never the only way to know what the button is. Coarse pointers get it
+     expanded from the start, since there is no hover to reveal it with. */
+  function expandBtn(icon, label) {
+    var b = mk("button", "btn sm exp");
+    b.innerHTML = svg(icon) + '<span class="lbl"></span>';
+    b.querySelector(".lbl").textContent = label;
+    b.title = label;
+    b.setAttribute("aria-label", label);
     return b;
   }
 
@@ -551,9 +569,9 @@
     if (!isLocal) bits.push("shared guide");
     el("ed-meta").textContent = bits.join(" · ");
 
-    // Note is a local-only action: a note has no baked image, so adding one to a
-    // shared guide would need a re-publish to appear anywhere.
-    el("ed-note").hidden = !isLocal;
+    /* Adding a step of your own is local-only, so the + rows are only rendered for a
+       local guide — a step added to an already-published one would need a re-publish
+       to appear anywhere, and there is no picture for it on this machine to bake. */
 
     /* The API log button carries the failure count in its own label, because that
      * is the number someone opening a captured bug report is looking for and it
@@ -586,10 +604,14 @@
     wrap.innerHTML = "";
     if (!cur.steps.length) {
       wrap.innerHTML = '<div class="blank"><h2>This guide has no steps</h2>' +
-        "<p>Record again, or add a note to start writing it by hand.</p></div>";
+        "<p>Record again, or add a step of your own to start writing it by hand.</p></div>";
+      if (isLocal) wrap.appendChild(insertRow(0));
       return;
     }
     cur.steps.forEach(function (step, i) {
+      // A + before every step and one after the last, so "add something here" is
+      // answerable at the place you are looking rather than at the top of the page.
+      if (isLocal) wrap.appendChild(insertRow(i));
       var card = isLocal ? localCard(step, i) : remoteCard(step, i);
       wrap.appendChild(card);
       // Size the textarea only once it is laid out in the document. Doing it while
@@ -598,6 +620,7 @@
       var ta = card.querySelector("textarea");
       if (ta) autoGrow(ta);
     });
+    if (isLocal) wrap.appendChild(insertRow(cur.steps.length));
     if (isLocal) hydrateImages();
     renderActivity();
   }
@@ -680,6 +703,192 @@
     return { card: card, gutter: gutter, content: content, ta: ta };
   }
 
+  /* ---------------------------------------------------------------- adding a step
+   *
+   * The old affordance was a "Note" button in the toolbar that appended an empty
+   * text step to the end of the guide — so the two things anyone actually wants
+   * ("put an explanation *here*" and "include this picture") both took several more
+   * moves, and one of them wasn't possible at all.
+   *
+   * Now: a + between every pair of steps, and one dialog that takes a line of text
+   * and, optionally, an image. With an image it is a step of your own alongside the
+   * recorded ones. Without, the text becomes a section slide styled like the rest of
+   * the guide — a divider in the deck, a tinted card in the document.
+   */
+  function insertRow(index) {
+    var row = mk("div", "insert");
+    var btn = mk("button", "ins-btn");
+    btn.innerHTML = svg(ICON.plus) + '<span class="lbl">Add a step here</span>';
+    btn.title = "Add a step here";
+    btn.setAttribute("aria-label", "Add a step at position " + (index + 1));
+    btn.addEventListener("click", function () { openStepDialog(index); });
+    row.appendChild(btn);
+    return row;
+  }
+
+  var MAX_NOTE_W = 1600;   // same cap as every exporter and the publish pipeline
+
+  /* Read a picked file, downscale it and re-encode as WebP. Done here rather than in
+     the worker for one reason: what crosses the bridge is a `sendMessage` payload, and
+     a 12-megapixel phone photo as a PNG data URL is tens of megabytes. The worker
+     validates and caps whatever arrives regardless — see `cleanImage()` — because this
+     code runs on a web page and cannot be the safeguard. */
+  function readImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file) return resolve(null);
+      if (!/^image\//.test(file.type) || /svg/i.test(file.type)) {
+        return reject(new Error("Pick a PNG, JPEG, WebP or GIF image."));
+      }
+      var fr = new FileReader();
+      fr.onerror = function () { reject(new Error("That file couldn't be read.")); };
+      fr.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("That file isn't an image we can read.")); };
+        img.onload = function () {
+          var scale = Math.min(1, MAX_NOTE_W / Math.max(1, img.naturalWidth));
+          var c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+          c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          var cx = c.getContext("2d");
+          cx.imageSmoothingQuality = "high";
+          cx.drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL("image/webp", 0.9));
+        };
+        img.src = String(fr.result);
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  /* One dialog for both jobs: inserting a step, and changing the picture on one that
+     already exists. `step` null means insert at `index`. */
+  function openStepDialog(index, step) {
+    var editing = !!step;
+    var picked = editing ? null : null;      // a new data URL, once one is chosen
+    var dropped = false;                     // has the user touched the image field
+
+    el("modal").innerHTML =
+      "<h3>" + (editing ? "Edit this step" : "Add a step") + "</h3>" +
+      '<p class="sub">Write the line you want the reader to see. Add a picture if you have ' +
+      "one — without it, the text becomes a section slide in your exports.</p>" +
+      '<div class="field"><label for="nt-text">Text</label>' +
+      '<textarea id="nt-text" rows="3" maxlength="2000" placeholder="Before you start, make sure you have…"></textarea></div>' +
+      '<div class="field"><label for="nt-file">Picture <span class="opt">optional</span></label>' +
+      '<div class="drop" id="nt-drop" tabindex="0" role="button" aria-controls="nt-file">' +
+      '<div class="drop-empty">' + svg(ICON.image) +
+      "<span>Click to choose an image, or drop one here</span></div>" +
+      '<img id="nt-prev" alt="" hidden />' +
+      '<button class="btn sm" id="nt-clear" type="button" hidden>Remove picture</button>' +
+      "</div>" +
+      '<input type="file" id="nt-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden /></div>' +
+      '<p class="msg" id="nt-msg" role="status" aria-live="polite"></p>' +
+      '<div class="row"><span class="spacer"></span>' +
+      '<button class="btn" id="nt-cancel">Cancel</button>' +
+      '<button class="btn brand-btn" id="nt-ok">' + (editing ? "Save" : "Add step") + "</button></div>";
+    openModal();
+
+    var ta = el("nt-text");
+    var file = el("nt-file");
+    var drop = el("nt-drop");
+    var prev = el("nt-prev");
+    var clear = el("nt-clear");
+    var msg = el("nt-msg");
+
+    if (editing) {
+      ta.value = step.text || "";
+      if (step.hasImage) {
+        // The image itself lives in the extension; pull it over to show it.
+        GGBridge.stepImage(step.id).then(function (src) {
+          if (src && !dropped) showPreview(src);
+        }).catch(function () { /* the placeholder stands */ });
+      }
+    }
+    ta.focus();
+
+    function showPreview(src) {
+      prev.src = src;
+      prev.hidden = false;
+      clear.hidden = false;
+      drop.querySelector(".drop-empty").hidden = true;
+    }
+    function clearPreview() {
+      prev.removeAttribute("src");
+      prev.hidden = true;
+      clear.hidden = true;
+      drop.querySelector(".drop-empty").hidden = false;
+    }
+
+    function take(f) {
+      say("nt-msg", "", "");
+      readImage(f).then(function (url) {
+        if (!url) return;
+        picked = url;
+        dropped = true;
+        showPreview(url);
+      }).catch(function (e) { say("nt-msg", e.message, "err"); });
+    }
+
+    drop.addEventListener("click", function (e) {
+      if (e.target.closest("#nt-clear")) return;
+      file.click();
+    });
+    drop.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); }
+    });
+    ["dragenter", "dragover"].forEach(function (t) {
+      drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("over"); });
+    });
+    ["dragleave", "drop"].forEach(function (t) {
+      drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+    });
+    drop.addEventListener("drop", function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) take(f);
+    });
+    file.addEventListener("change", function () { take(file.files && file.files[0]); });
+    clear.addEventListener("click", function (e) {
+      e.stopPropagation();
+      picked = null;
+      dropped = true;         // "I touched this and left it empty" — removes on save
+      clearPreview();
+    });
+
+    el("nt-cancel").addEventListener("click", closeModal);
+    el("nt-ok").addEventListener("click", function () {
+      var text = ta.value.trim();
+      if (!text && !picked) {
+        return say("nt-msg", "Add some text, a picture, or both.", "err");
+      }
+      el("nt-ok").disabled = true;
+      msg.textContent = "Saving…";
+
+      var job;
+      if (editing) {
+        var patch = { text: text };
+        // Only send `image` if the field was actually touched, so saving a reworded
+        // caption doesn't re-upload — or silently drop — the existing picture.
+        if (dropped) patch.image = picked;
+        job = GGBridge.updateStep(step.id, patch).then(function () {
+          step.text = text;
+          if (dropped) step.hasImage = !!picked;
+        });
+      } else {
+        job = GGBridge.addNote(cur.id, text, index, picked).then(function (fresh) {
+          cur.steps.splice(index, 0, fresh);
+        });
+      }
+
+      job.then(function () {
+        closeModal();
+        renderEditor();
+        toast(editing ? "Step updated" : "Step added");
+      }).catch(function (e) {
+        el("nt-ok").disabled = false;
+        say("nt-msg", e.message, "err");
+      });
+    });
+  }
+
   // ---- local step card: everything editable ----
 
   function localCard(step, i) {
@@ -718,20 +927,27 @@
 
     if (step.hasImage) {
       var wasOn = !!redacting[step.id];
-      var redactBtn = textBtn(wasOn ? "Done" : "Redact", wasOn ? ICON.check : ICON.redact);
-      if (wasOn) redactBtn.classList.add("brand-btn");
+      var BLUR_LABEL = "Blur sensitive information";
+      var redactBtn = expandBtn(wasOn ? ICON.check : ICON.redact, wasOn ? "Done blurring" : BLUR_LABEL);
+      // Once you're in blur mode the label is the way out, so it stays open.
+      if (wasOn) redactBtn.classList.add("brand-btn", "open");
       redactBtn.addEventListener("click", function () {
         var shotEl = s.card.querySelector(".shot");
         var on = shotEl.classList.toggle("redacting");
         if (on) redacting[step.id] = true; else delete redacting[step.id];
-        redactBtn.innerHTML = (on ? svg(ICON.check) : svg(ICON.redact)) + (on ? "Done" : "Redact");
+        var label = on ? "Done blurring" : BLUR_LABEL;
+        redactBtn.innerHTML = svg(on ? ICON.check : ICON.redact) + '<span class="lbl"></span>';
+        redactBtn.querySelector(".lbl").textContent = label;
+        redactBtn.title = label;
+        redactBtn.setAttribute("aria-label", label);
         redactBtn.classList.toggle("brand-btn", on);
+        redactBtn.classList.toggle("open", on);
       });
       tools.appendChild(redactBtn);
 
       if ((step.blurs || []).length) {
         var clear = textBtn("Clear " + step.blurs.length, ICON.undo);
-        clear.title = "Remove all redactions on this step";
+        clear.title = "Remove every blurred area on this step";
         clear.addEventListener("click", function () {
           step.blurs = [];
           GGBridge.updateStep(step.id, { blurs: [] }).then(function () {
@@ -741,6 +957,15 @@
         });
         tools.appendChild(clear);
       }
+    }
+
+    /* A step you added yourself is the only one whose picture is yours to change —
+       a recorded screenshot is evidence of what was on screen when you clicked, and
+       the worker refuses to overwrite one. */
+    if (step.type === "note") {
+      var edit = expandBtn(ICON.image, step.hasImage ? "Change the picture" : "Add a picture");
+      edit.addEventListener("click", function () { openStepDialog(i, step); });
+      tools.appendChild(edit);
     }
 
     if ((step.network || []).length) s.content.appendChild(netInline(step, i));
@@ -1431,19 +1656,7 @@
     }, 400);
   });
 
-  // ---- add note ----
-
   el("ed-netlog").addEventListener("click", function () { openNetLog(null); });
-
-  el("ed-note").addEventListener("click", function () {
-    if (!cur || cur.kind !== "local") return;
-    GGBridge.addNote(cur.id, "Add a note or instruction here…").then(function (step) {
-      cur.steps.push(step);
-      renderEditor();
-      var last = el("ed-steps").querySelector(".step:last-of-type textarea");
-      if (last) { autoGrow(last); last.focus(); last.select(); }
-    }).catch(function (e) { say("ed-msg", e.message, "err"); });
-  });
 
   // ---- delete guide ----
 
