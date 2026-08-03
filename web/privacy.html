@@ -34,7 +34,7 @@
 
 <main class="wrap narrow doc">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated 30 July 2026</p>
+  <p class="updated">Last updated 3 August 2026</p>
 
   <div class="callout">
     <p><strong>The short version.</strong> The GuideGen browser extension records your workflow and
@@ -67,6 +67,11 @@
 
   <p>While a guide is unpublished, none of this leaves your machine. The extension makes no
   analytics, telemetry or tracking requests at any point.</p>
+
+  <p>The same list applies to catch-up capture, which records the same things on a site you have
+  switched it on for and holds them for up to seven days so you can turn recent activity into a
+  guide after the fact. It is off until you enable it, per site, and none of it is ever uploaded.
+  Section&nbsp;9a covers it in full.</p>
 
   <p>From version 1.1 the editor is a page on this website rather than a page inside the extension,
   so that there is one editor to keep good instead of two. When you open it, that page asks the
@@ -210,6 +215,10 @@
       published guides and their images within 30 days.</li>
     <li><strong>Local guides</strong> are deleted from the extension itself, or by uninstalling it,
       which discards its storage. No copy exists elsewhere.</li>
+    <li><strong>Catch-up captures</strong> delete themselves after seven days, whether or not you
+      have used them, and are capped in size before that. You can discard one at any point from
+      your dashboard or the extension, and switching catch-up capture off for a site stops it
+      holding anything new.</li>
   </ul>
 
   <h2>8. Your rights</h2>
@@ -222,8 +231,37 @@
 
   <p>The extension asks for access to all websites because it cannot know in advance which
   application you will want to document — it may be any internal dashboard or tool. The recorder
-  does nothing unless you have explicitly started a recording, and it reads only the label and
-  on-screen position of the element you click.</p>
+  does nothing unless you have explicitly started a recording, or have switched on catch-up
+  capture for that specific site (see below), and it reads only the label and on-screen position
+  of the element you click.</p>
+
+  <h2>9a. Catch-up capture</h2>
+
+  <p><b>What it is.</b> "Capture last 2 minutes" lets you make a guide out of something you have
+  already finished. That is only possible if the extension was capturing while you worked, so on
+  any site you switch it on for, GuideGen records each action and its screenshot as you go and
+  discards them again — keeping only a rolling window of recent activity.</p>
+
+  <p><b>It is off until you turn it on, per site.</b> There is no global switch in the extension's
+  interface and it is never on by default. You enable it for one website at a time, and you can
+  switch it off again at any point. While it is on, that site's pages show a small marker in the
+  corner for as long as it is running.</p>
+
+  <p><b>What is kept, and for how long.</b> The same information a recording captures — the label
+  and position of the control, the page URL and title, and a screenshot of the visible page — held
+  in the extension's own local storage on your device. It is capped, and anything older than
+  <b>seven days</b> is deleted automatically whether or not you have used it. You can delete it
+  yourself at any time from your dashboard or the extension.</p>
+
+  <p><b>It is never uploaded.</b> Nothing held by catch-up capture is sent to us or to anyone else.
+  It is not part of publishing: turning a capture into a guide creates an ordinary guide on your
+  device, and that guide is only ever uploaded if you then press Publish on it, exactly as with a
+  recording you started yourself.</p>
+
+  <p><b>Two things it will not capture.</b> It does not run in private or incognito windows at all.
+  And when a password field is focused, it keeps the written step but takes no screenshot — typed
+  values are never recorded in either case, but a login screen is the one picture least worth
+  keeping.</p>
 
   <p>It also asks to create an <em>offscreen document</em>. That is a Chrome mechanism for doing work
   that needs a page but has no need to be seen: it is used to render the narrated video, because

@@ -49,6 +49,10 @@
         annotated screenshots and the written steps — and one click copies the whole thing as text
         your assistant can act on, with the URL every step happened on.
       </p>
+      <p class="lede">
+        Forgot to press start? On sites you've turned it on for, GuideGen can make the guide out of
+        the last two minutes you <a href="#catchup">already worked</a>.
+      </p>
       <div class="cta-row">
         <a href="/install" class="btn brand-btn lg">Install it now</a>
         <a href="#how" class="btn lg">See how it works</a>
@@ -80,6 +84,65 @@
         Same chore, different desks: a QA engineer filing a reproduction, a product manager writing
         an enhancement spec or a UX review, product marketing drafting a release note, HR walking a
         new joiner through a system for the first time. One recording covers all of them.
+      </p>
+    </div>
+  </section>
+
+  <!-- The hook. It sits *after* the handoff because the handoff is the positioning — this
+       is the thing that gets someone to install, and the only claim on this page that no
+       competitor can currently make.
+
+       Marketed by the promise ("the last 2 minutes"), never by the mechanism ("a rolling
+       buffer"). The moment this section starts explaining ring buffers it has lost. Two
+       things here are load-bearing and must not be softened into a better-sounding claim:
+       it is **off until you turn it on for a site**, and it works by having been capturing
+       and discarding all along. Say both plainly — the second one is what a reasonable
+       person is suspicious about, and answering it before they ask is the whole reason
+       this section can exist without sounding like spyware.
+
+       Deliberately NOT tint, to break the run of tinted sections either side of it. -->
+  <section id="catchup">
+    <div class="wrap">
+      <span class="note-tag">In the beta build</span>
+      <h2 class="sec">You already did it. Capture the last 2 minutes.</h2>
+      <p class="sec-lede">
+        Every tool that records a workflow needs you to know, in advance, that you are about to
+        want a guide. Nobody ever knows that. You finish the thing — and <em>then</em> somebody
+        asks how you did it, or the bug turns out to be worth filing, or the new joiner needs the
+        steps. By then the recording you didn't start is the one you needed.
+      </p>
+      <div class="steps">
+        <div>
+          <h3>Turn it on for one site</h3>
+          <p>Open GuideGen on the admin panel, dashboard or tool you actually document, and switch
+          on catch-up capture. One site at a time, off everywhere else, and nothing changes about
+          how you work.</p>
+        </div>
+        <div>
+          <h3>Just work</h3>
+          <p>No recording to remember, no pill counting steps at you. A small dot in the corner is
+          the only sign it's on — hover it and it says so.</p>
+        </div>
+        <div>
+          <h3>Press Capture last 2 minutes</h3>
+          <p>Open GuideGen when you're done. The last two minutes you already worked become a
+          guide, with the screenshots and the written steps — ready to hand to a person, or to
+          paste into an assistant.</p>
+        </div>
+      </div>
+      <p style="color:var(--muted);margin-top:30px">
+        <b>How it can capture something you already did:</b> it can't screenshot the past, and
+        nobody can. On a site you've armed, GuideGen has been capturing as you clicked and
+        throwing it away — keeping only a rolling window, for seven days, on your device. That is
+        also why it is off until you switch it on for a specific site: a capture buffer that
+        runs everywhere by default eventually holds a picture of your bank, and no wording on a
+        settings page makes that reasonable.
+      </p>
+      <p style="color:var(--muted)">
+        What's held never leaves your machine — it isn't uploaded, and it is deleted after seven
+        days whether you use it or not. It never runs in a private window. And on a screen with a
+        password field focused, it keeps the written step and takes no picture at all. Your
+        dashboard lists what's waiting, with how long each one has left.
       </p>
     </div>
   </section>
@@ -252,6 +315,23 @@
           export, or send the shareable link.</p>
         </details>
         <details>
+          <summary>Is GuideGen watching everything I do?</summary>
+          <p>No. It records while you have a recording running, and — separately — on any single
+          site you have switched catch-up capture on for. Nothing else. Catch-up is off everywhere
+          until you turn it on for a specific site, one site at a time, and while it is on there is
+          a dot in the corner of the page saying so. What it holds stays on your device, expires
+          after seven days, and is never uploaded; you can also discard it yourself at any point
+          from your dashboard.</p>
+        </details>
+        <details>
+          <summary>How can it capture the last two minutes if I never pressed record?</summary>
+          <p>Because on a site you've armed it has been capturing all along and discarding as it
+          goes, keeping only a rolling window. There is no clever trick and no way around it —
+          screenshots of the past do not exist, so something has to have been running. That is
+          exactly why this is per-site and off by default rather than always on everywhere, and
+          why the page shows a dot while it is happening.</p>
+        </details>
+        <details>
           <summary>Can it automate the workflow, not just describe it?</summary>
           <p>No. GuideGen records what a control was called and where it was on screen, not a
           selector that would survive the page changing — so the handoff is for explaining and
@@ -296,8 +376,9 @@
         <details>
           <summary>Why does it ask for access to all websites?</summary>
           <p>Because it cannot know in advance which application you'll want to document — it might
-          be any internal dashboard. The recorder does nothing until you press start, and it reads
-          only the label and position of the element you click.</p>
+          be any internal dashboard. The recorder does nothing until you press start — or, on a site
+          you've switched catch-up capture on for, until you work on that site — and it reads only
+          the label and position of the element you click.</p>
         </details>
         <details>
           <summary>Is it really free?</summary>
