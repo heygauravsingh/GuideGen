@@ -43,6 +43,50 @@
     } catch (e) { return ""; }
   }
 
+  /* How long the recording was — not an estimate of how long the task takes. The
+     wording on the page says "recorded in" for exactly that reason. */
+  function fmtDur(ms) {
+    if (!ms || ms < 1000) return "";
+    var s = Math.round(ms / 1000);
+    if (s < 90) return s + " seconds";
+    var m = Math.round(s / 60);
+    if (m < 60) return m + (m === 1 ? " minute" : " minutes");
+    var h = Math.floor(m / 60);
+    return h + (h === 1 ? " hour" : " hours") + (m % 60 ? " " + (m % 60) + " min" : "");
+  }
+
+  function shortUrl(u) {
+    try {
+      var x = new URL(u);
+      var s = x.hostname.replace(/^www\./, "") + (x.pathname === "/" ? "" : x.pathname);
+      return s.length > 64 ? s.slice(0, 63) + "…" : s;
+    } catch (e) { return String(u || "").slice(0, 64); }
+  }
+
+  // Only ever emit an href we know is http(s). A published document is data from
+  // another user's machine, and `javascript:` in an href is the oldest trick there is.
+  function safeUrl(u) {
+    try {
+      var x = new URL(u);
+      return (x.protocol === "http:" || x.protocol === "https:") ? x.href : "";
+    } catch (e) { return ""; }
+  }
+
+  function initials(name) {
+    var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "";
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  }
+
+  function copyText(text, okMsg) {
+    if (!navigator.clipboard) return toast("Copying isn't available in this browser.");
+    navigator.clipboard.writeText(text).then(function () {
+      toast(okMsg);
+    }, function () {
+      toast("Couldn't copy — copy it from the address bar instead.");
+    });
+  }
+
   var toastTimer = null;
   function toast(msg) {
     var t = document.getElementById("toast");
@@ -89,6 +133,7 @@
   document.addEventListener("keydown", function (e) {
     var o = document.getElementById("overlay");
     var open = o.classList.contains("open");
+    if (e.key === "Escape" && lb) { closeLightbox(); return; }
     if (e.key === "Escape") {
       var menu = document.getElementById("exp-menu");
       if (menu) menu.classList.remove("open");
@@ -476,11 +521,57 @@
     var title = g.title || "Untitled guide";
     document.title = title + " — GuideGen";
 
-    var html =
-      '<div class="viewer-head"><h1></h1><div class="meta">' +
-      "<span>" + steps.length + (steps.length === 1 ? " step" : " steps") + "</span>" +
-      (g.createdAt ? '<span class="sep"></span><span>' + esc(fmtDate(g.createdAt)) + "</span>" : "") +
-      "</div></div>";
+    var dur = fmtDur(g.durationMs);
+    var start = safeUrl(g.startUrl);
+    var who = String(g.ownerName || "").trim();
+
+    var meta = [];
+    if (who) {
+      meta.push('<span class="who"><span class="av">' + esc(initials(who)) + "</span>" +
+                esc(who.slice(0, 60)) + "</span>");
+    }
+    meta.push("<span>" + steps.length + (steps.length === 1 ? " step" : " steps") + "</span>");
+    if (dur) meta.push("<span>recorded in " + esc(dur) + "</span>");
+    if (g.createdAt) meta.push("<span>" + esc(fmtDate(g.createdAt)) + "</span>");
+
+    var html = '<div class="viewer-head">';
+    /* The app the flow happened in, from the page titles the steps carry. A monogram
+       tile rather than the site's favicon on purpose: fetching a favicon means asking
+       a third party for it on every read, and this page loads nothing from an
+       external host it doesn't already serve images from. */
+    if (g.app) {
+      html += '<div class="appchip"><span class="tile">' +
+              esc(String(g.app).trim().charAt(0).toUpperCase()) + "</span>" +
+              esc(String(g.app).slice(0, 40)) + "</div>";
+    }
+    html += "<h1></h1>";
+    if (g.description) html += '<p class="vdesc"></p>';
+    html += '<div class="meta">' + meta.join('<span class="sep"></span>') + "</div>";
+
+    /* Where to begin. Without this a recipient lands on step 1 — often a click inside
+       a search box — with no way of reaching the screen it happened on. Scribe leads
+       with the same thing as its step 1; kept out of the numbering here so the step
+       numbers still match the editor, the PDF and the handoff. */
+    if (start) {
+      html +=
+        '<div class="startrow">' +
+        '<a class="btn brand-btn" href="' + esc(start) + '" target="_blank" rel="noopener noreferrer">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>' +
+        "Start here</a>" +
+        '<code class="starturl">' + esc(shortUrl(start)) + "</code></div>";
+    }
+
+    /* A table of contents, because a 13-step guide is 6000px of page and a reader
+       arriving from a chat message usually wants one specific step. Collapsed by
+       default — it is navigation, not content. */
+    if (steps.length > 3) {
+      html += '<details class="vtoc"><summary>All ' + steps.length + " steps</summary><ol>";
+      steps.forEach(function (s, i) {
+        html += '<li><a href="#step-' + (i + 1) + '">' + esc(s.text || "Step " + (i + 1)) + "</a></li>";
+      });
+      html += "</ol></details>";
+    }
+    html += "</div>";
 
     if (!steps.length) {
       html += '<p style="color:var(--muted)">This guide has no steps yet.</p>';
@@ -488,15 +579,32 @@
 
     steps.forEach(function (s, i) {
       var isNote = s.type === "note";
+      var n = i + 1;
+      // Navigations are the one step type whose subject *is* a URL — so it gets to be
+      // a link the reader can follow, rather than an address to retype.
+      var link = s.type === "nav" ? safeUrl(s.url) : "";
       html +=
-        '<div class="vstep' + (isNote ? " note" : "") + '">' +
-        '<div class="n">' + (i + 1) + "</div>" +
+        '<div class="vstep' + (isNote ? " note" : "") + '" id="step-' + n + '">' +
+        '<div class="n">' + n + "</div>" +
         '<div class="body">' +
         (isNote ? '<span class="note-tag">Note</span>' : "") +
-        '<p class="txt">' + esc(s.text || "") + "</p>" +
+        '<div class="txtrow"><p class="txt">' + esc(s.text || "") + "</p>" +
+        '<button class="anchor" data-step="' + n + '" title="Copy a link to step ' + n +
+        '" aria-label="Copy a link to step ' + n + '">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg>' +
+        "</button></div>" +
+        (link
+          ? '<a class="vlink" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">' +
+            esc(shortUrl(link)) +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>'
+          : "") +
         (s.imageUrl
-          ? '<figure><img loading="lazy" decoding="async" alt="Step ' + (i + 1) +
-            '" src="' + esc(s.imageUrl) + '" /></figure>'
+          ? '<figure><img loading="lazy" decoding="async" alt="Step ' + n +
+            '" src="' + esc(s.imageUrl) + '" />' +
+            '<button class="zoombtn" data-src="' + esc(s.imageUrl) + '" data-n="' + n +
+            '" aria-label="Enlarge the screenshot for step ' + n + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21M11 8v6M8 11h6"/></svg>' +
+            "Zoom</button></figure>"
           : "") +
         "</div></div>";
     });
@@ -511,16 +619,240 @@
       '<a class="btn brand-btn" style="padding:8px 13px;font-size:13.5px" href="/install">' +
       "Get it free</a></div>";
 
-    main.className = "wrap narrow viewer";
+    /* Not `.narrow`. That is a 720px reading column, and this is an image-first
+       document — a 1600px screenshot rendered into 672px of it made small UI text
+       unreadable, which is the whole thing a reader came to look at. */
+    main.className = "wrap viewer";
     main.innerHTML = html;
     main.querySelector(".viewer-head h1").textContent = title;
+    var d = main.querySelector(".vdesc");
+    if (d) d.textContent = g.description;
     renderExportBar();
+    wireSteps();
+    wireHeader(title, steps.length);
+    wirePromo(g);
+    jumpToHash();
+  }
+
+  // ------------------------------------------------------ step-level affordances
+
+  function wireSteps() {
+    main.addEventListener("click", function (e) {
+      var a = e.target.closest(".anchor");
+      if (a) {
+        var n = a.dataset.step;
+        history.replaceState(null, "", location.pathname + "#step-" + n);
+        copyText(location.origin + location.pathname + "#step-" + n,
+                 "Link to step " + n + " copied");
+        return;
+      }
+      var z = e.target.closest(".zoombtn");
+      if (z) return openLightbox(z.dataset.src, z.dataset.n);
+      // The picture itself is the biggest target on the page and the obvious thing to
+      // press; the button exists so the affordance is visible, not to be the only way in.
+      var img = e.target.closest(".vstep figure img");
+      if (img) {
+        var btn = img.parentNode.querySelector(".zoombtn");
+        openLightbox(img.getAttribute("src"), btn ? btn.dataset.n : "");
+      }
+    });
+  }
+
+  /* Someone landing on /g/{id}#step-7 from a chat message. The images above it are
+     lazy and have no intrinsic size until they load, so the anchor drifts as they
+     arrive — hence the second, later scroll rather than a single one. */
+  function jumpToHash() {
+    var m = (location.hash || "").match(/^#step-(\d+)$/);
+    if (!m) return;
+    var target = document.getElementById("step-" + m[1]);
+    if (!target) return;
+    var go = function () { target.scrollIntoView({ block: "start" }); };
+    go();
+    target.classList.add("flash");
+    setTimeout(go, 400);
+    setTimeout(function () { target.classList.remove("flash"); }, 2200);
+  }
+
+  // ------------------------------------------------------ lightbox
+
+  /* Zoom, because a screenshot of a dense admin panel is not readable at page width
+     and never will be. Deliberately its own overlay rather than the modal: the modal
+     is a dialog contract (focus trap, Cancel/confirm) and this is a picture. Pan is
+     pointer events with capture, the same rule as the editor's redaction — mouse
+     events aren't synthesized for touch drags, so a mouse-only version does nothing
+     at all on a phone, which is where zoom matters most. */
+  var lb = null;
+  function openLightbox(src, n) {
+    if (!src) return;
+    closeLightbox();
+    var scale = 1, tx = 0, ty = 0, dragging = false, lastX = 0, lastY = 0;
+
+    lb = document.createElement("div");
+    lb.className = "lightbox";
+    lb.innerHTML =
+      '<div class="lb-bar">' +
+      (n ? '<span class="lb-n">Step ' + esc(n) + "</span>" : "") +
+      '<span class="lb-sp"></span>' +
+      '<button class="lb-btn" data-z="out" aria-label="Zoom out">−</button>' +
+      '<button class="lb-btn" data-z="reset" aria-label="Fit to screen">Fit</button>' +
+      '<button class="lb-btn" data-z="in" aria-label="Zoom in">+</button>' +
+      '<button class="lb-btn lb-x" data-z="close" aria-label="Close">✕</button>' +
+      "</div>" +
+      '<div class="lb-stage"><img alt="' + (n ? "Step " + esc(n) : "Screenshot") + '" src="' + esc(src) + '" /></div>';
+    document.body.appendChild(lb);
+    document.body.classList.add("modal-open");
+
+    var stage = lb.querySelector(".lb-stage");
+    var img = lb.querySelector("img");
+    var apply = function () {
+      img.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + scale + ")";
+      stage.classList.toggle("zoomed", scale > 1);
+    };
+    var zoom = function (next, cx, cy) {
+      next = Math.min(6, Math.max(1, next));
+      if (next === scale) return;
+      // Keep whatever is under the cursor under the cursor.
+      if (cx != null) {
+        var r = stage.getBoundingClientRect();
+        var ox = cx - r.left - r.width / 2 - tx;
+        var oy = cy - r.top - r.height / 2 - ty;
+        tx -= ox * (next / scale - 1);
+        ty -= oy * (next / scale - 1);
+      }
+      scale = next;
+      if (scale === 1) { tx = 0; ty = 0; }
+      apply();
+    };
+
+    lb.querySelector(".lb-bar").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-z]");
+      if (!b) return;
+      if (b.dataset.z === "close") return closeLightbox();
+      if (b.dataset.z === "in") return zoom(scale * 1.5);
+      if (b.dataset.z === "out") return zoom(scale / 1.5);
+      scale = 1; tx = 0; ty = 0; apply();
+    });
+    // A click on the backdrop closes; a click on the picture does not, or panning
+    // would dismiss the thing you were reading.
+    lb.addEventListener("click", function (e) {
+      if (e.target === lb || e.target === stage) closeLightbox();
+    });
+    img.addEventListener("dblclick", function (e) {
+      zoom(scale > 1 ? 1 : 2.5, e.clientX, e.clientY);
+    });
+    stage.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      zoom(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY);
+    }, { passive: false });
+    img.addEventListener("pointerdown", function (e) {
+      if (scale <= 1) return;
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      try { img.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ }
+    });
+    img.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      tx += e.clientX - lastX; ty += e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      apply();
+    });
+    img.addEventListener("pointerup", function () { dragging = false; });
+    img.addEventListener("pointercancel", function () { dragging = false; });
+
+    lb.querySelector(".lb-x").focus();
+  }
+
+  function closeLightbox() {
+    if (!lb) return;
+    lb.remove();
+    lb = null;
+    // Only this overlay put the lock on — the modal manages its own.
+    if (!document.getElementById("overlay").classList.contains("open")) {
+      document.body.classList.remove("modal-open");
+    }
+  }
+
+  // ------------------------------------------------------ sticky header + progress
+
+  /* Six thousand pixels down a guide, the header said "GuideGen" and nothing about
+     what you were reading. It now carries the title and which step you are on, plus a
+     read-progress line along the bottom edge — one IntersectionObserver for the
+     title, one scroll handler for the rest. */
+  function wireHeader(title, total) {
+    var slot = document.getElementById("hdr-title");
+    var count = document.getElementById("hdr-step");
+    var bar = document.getElementById("hdr-bar");
+    var h1 = main.querySelector(".viewer-head h1");
+    if (slot && h1) {
+      slot.textContent = title;
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (entries) {
+          slot.classList.toggle("show", !entries[0].isIntersecting);
+        }, { rootMargin: "-58px 0px 0px 0px" }).observe(h1);
+      }
+    }
+
+    var steps = [].slice.call(main.querySelectorAll(".vstep"));
+    var tick = function () {
+      var top = window.scrollY || document.documentElement.scrollTop;
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      if (bar) bar.style.width = (max > 0 ? Math.min(100, (top / max) * 100) : 0) + "%";
+      if (!count || !steps.length) return;
+      // The step whose top has passed the header: what the reader is looking at.
+      var n = 0;
+      for (var i = 0; i < steps.length; i++) {
+        if (steps[i].getBoundingClientRect().top <= 120) n = i + 1;
+      }
+      count.textContent = n ? "Step " + n + " of " + total : "";
+      count.classList.toggle("show", !!n);
+    };
+    window.addEventListener("scroll", tick, { passive: true });
+    window.addEventListener("resize", tick);
+    tick();
+  }
+
+  // ------------------------------------------------------ the growth loop
+
+  /* The footer CTA is at the bottom of a page most readers never reach the bottom of.
+     This is the same offer, positioned where it can actually be seen — and dismissible,
+     because a bar you cannot get rid of on someone else's document is an advert. */
+  function wirePromo(g) {
+    var bar = document.getElementById("promo");
+    if (!bar) return;
+    try { if (sessionStorage.getItem("gg_promo_off") === "1") return; } catch (e) { /* blocked */ }
+    var dur = fmtDur(g.durationMs);
+    bar.innerHTML =
+      "<span>This guide wrote itself" + (dur ? " in <b>" + esc(dur) + "</b>" : "") +
+      " while someone did the work once.</span>" +
+      '<span class="sp"></span>' +
+      '<a class="btn brand-btn" href="/install">Get GuideGen free</a>' +
+      '<button class="x" id="promo-x" aria-label="Dismiss">✕</button>';
+    document.getElementById("promo-x").addEventListener("click", function () {
+      bar.classList.remove("show");
+      try { sessionStorage.setItem("gg_promo_off", "1"); } catch (e) { /* blocked */ }
+    });
+    var tick = function () {
+      var top = window.scrollY || document.documentElement.scrollTop;
+      var max = document.documentElement.scrollHeight - window.innerHeight;
+      var seen = max > 0 ? top / max : 0;
+      // Not immediately: someone who opened the link deserves to read a step first.
+      bar.classList.toggle("show", seen > 0.2 && seen < 0.94);
+    };
+    window.addEventListener("scroll", tick, { passive: true });
+    tick();
   }
 
   // ---------------------------------------------------------------- boot
 
   document.getElementById("print-btn").addEventListener("click", function () {
     window.print();
+  });
+
+  /* The reader's most likely *first* action is passing it on, and until now the page
+     offered no way to — a shared link that can only be re-shared out of the address
+     bar is a viral surface with the loop cut. Strips any #step-n so what gets pasted
+     is the guide, not wherever the sender happened to be scrolled to. */
+  document.getElementById("copy-btn").addEventListener("click", function () {
+    copyText(location.origin + location.pathname, "Link copied");
   });
 
   id = guideId();

@@ -131,5 +131,73 @@ console.log("\n=== 5. guessTitle ignores context steps ===");
   check("title comes from the click, not the tab name", title, "How to view Presentation in Canva");
 }
 
+// ---------------------------------------------------------------------------
+/* A nav step that only restates where the click before it went is noise — four of
+   thirteen steps on a real recording. These are the cases where it must stay. */
+console.log("\n=== 6. a navigation the previous step already explains ===");
+{
+  const h = harness();
+  const drop = (steps) => h.sandbox.dropCausedNavs(steps).keep.map((s) => s.type + ":" + (s.text || ""));
+  const at = (t) => 1000 + t;
+
+  check("a click's own navigation is dropped", drop([
+    { type: "click", text: "Click", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(900) },
+    { type: "click", text: "Click 2", tabId: 1, timestamp: at(4000) },
+  ]), ["click:Click", "click:Click 2"]);
+
+  check("so is a redirect chain behind it", drop([
+    { type: "click", text: "Click", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(500) },
+    { type: "nav", text: "Go to b", tabId: 1, timestamp: at(900) },
+    { type: "click", text: "Click 2", tabId: 1, timestamp: at(4000) },
+  ]), ["click:Click", "click:Click 2"]);
+
+  /* A tile that opens a new tab: the click's screenshot is the old page and the nav's
+     is the new one, and a brand-new tab's switch step is rejected before it is ever
+     written (its url is still about:blank). Drop this and the destination is nowhere
+     in the guide. */
+  check("a navigation in another tab stays", drop([
+    { type: "click", text: "Click", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 2, timestamp: at(600) },
+  ]), ["click:Click", "nav:Go to a"]);
+
+  // Typed into the address bar minutes later: nothing in the guide explains it.
+  check("a navigation long after the last action stays", drop([
+    { type: "click", text: "Click", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(60000) },
+  ]), ["click:Click", "nav:Go to a"]);
+
+  check("the first step is never dropped", drop([
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(0) },
+    { type: "click", text: "Click", tabId: 1, timestamp: at(900) },
+  ]), ["nav:Go to a", "click:Click"]);
+
+  /* The click's picture is of the page it was clicked on — the result shows up in the
+     *next* step's picture. When the nav is last there is no next step, so it is the
+     only record of how the flow ended. */
+  check("a trailing navigation is the outcome, and stays", drop([
+    { type: "click", text: "Click", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(900) },
+  ]), ["click:Click", "nav:Go to a"]);
+
+  check("a navigation after a scroll stays — a scroll didn't cause it", drop([
+    { type: "scroll", text: "Scroll down the page", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(600) },
+    { type: "click", text: "Click", tabId: 1, timestamp: at(4000) },
+  ]), ["scroll:Scroll down the page", "nav:Go to a", "click:Click"]);
+
+  check("typing that submits still explains its navigation", drop([
+    { type: "key", text: "Press Enter", tabId: 1, timestamp: at(0) },
+    { type: "nav", text: "Go to a", tabId: 1, timestamp: at(700) },
+    { type: "click", text: "Click", tabId: 1, timestamp: at(4000) },
+  ]), ["key:Press Enter", "click:Click"]);
+
+  check("a tab switch is not a navigation and is left alone", drop([
+    { type: "click", text: "Click", tabId: 1, timestamp: at(0) },
+    { type: "switch", text: 'Switch to the "X" tab', tabId: 2, timestamp: at(500) },
+  ]), ["click:Click", 'switch:Switch to the "X" tab']);
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

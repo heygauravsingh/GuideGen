@@ -934,6 +934,44 @@ not two. If you touch it:
 That is how the editor knows to offer Update and Unpublish instead of minting a second
 document — and a second link — on every press.
 
+## The published guide page (viewer.js + g.html)
+The only surface a stranger meets, so it is a growth surface as much as a document.
+Everything here came out of reading a competitor's shared guide beside ours.
+
+- **`.viewer` is 1040px wide and states its own horizontal padding.** Not `.narrow`
+  (720px): that is a reading column and this is an image-first document — a 1600px
+  capture rendered into 672px made the small UI text, the thing the reader came for,
+  unreadable. The padding is stated because `padding: 34px 0 90px` is a *shorthand*
+  and silently overrode `.wrap`'s `0 22px`, so on a phone every title, step and
+  screenshot ran into the edge of the display.
+- **The header block answers "should I trust this, and where do I start".**
+  `ownerName`, `durationMs`, `app`, `description` and `startUrl` are all written by
+  `headerFields()` in `publish.js` — one builder, used by publish *and* republish, so
+  the two can never describe the same guide differently. Two rules inside it: the
+  owner's **name** travels and their **email never does**, and `durationMs` is the
+  length of the recording, which is why the page says "recorded in" and not "takes".
+- **`startUrl` is not step 1.** It renders as a `Start here` link above the steps,
+  outside the numbering, so step numbers still match the editor, the PDF and the
+  handoff. It was already being read by the AI handoff (`guide.startUrl`) before it
+  was ever published — the export just quietly lost it.
+- **The lightbox is not the modal.** The modal is a dialog contract (focus trap,
+  confirm/cancel); this is a picture. It sits at `z-index: 200` and is **opaque**:
+  at 0.92 alpha the sticky header's `backdrop-filter` kept compositing through it, so
+  the wordmark and buttons floated on top of the screenshot. Pan is pointer events
+  with capture — mouse events aren't synthesized for touch drags, and a phone is
+  exactly where zoom matters.
+- **The header's mobile rule is the viewer's own.** `site.css`'s 560px rule pins the
+  wordmark to row one and the nav to row two, which is right for the dashboard's five
+  nav links and wrong for three icon buttons — it dropped Print onto a second row on
+  every phone. The `.vrow` override is written to out-specify it (`header.site
+  .row.vrow nav`, not `.vrow nav`), because the generic rule is later in the file.
+- **The promo bar is dismissible and late.** It appears past 20% scrolled and stores
+  the dismissal in `sessionStorage`. An advert you can't remove from someone else's
+  document is a different product.
+- **No new Firestore rules were needed.** `firestore.rules` validates `title`,
+  `steps`, `ownerUid` and `visibility` and does not whitelist guide keys — unlike the
+  export log, where a new field *does* need a rules publish.
+
 ## Exports from a public guide (viewer.js)
 The owner can switch on `allowExport`, and a signed-in reader then builds the guide as a
 document on their own machine. Four things govern it:
@@ -996,6 +1034,15 @@ channel is a surprise otherwise.
   into that same field (matched on `rect` within 4px + same `url`). The typing step is kept —
   its screenshot shows the entered value. Deliberately narrow; it will not merge across
   different elements or a click followed by another click.
+- **`dropCausedNavs()`** drops a `nav` step that only restates where the click before it
+  already went — `Click "Rider Management"` followed by `Go to …/rider-management` is one
+  thing written down twice, and it was four of thirteen steps on a real recording. Three
+  guards, all tested: **same tab only** (a click that opens a new tab produces the *only*
+  record of that tab in its nav step, since a blank new tab's switch step is rejected),
+  **only after an action** (a nav after a nav or a scroll is not explained by it), and
+  **never the last step** (a click's screenshot is the page it was clicked on; the result
+  shows up in the next step's picture, and when there is no next step the nav is the
+  outcome). `NAV_CAUSED_MS` is 12s.
 - **`guessTitle()`** replaces the `Untitled guide — <timestamp>` placeholder with
   "How to view &lt;label&gt; in &lt;App&gt;". It scans **backwards** for the last label passing
   `looksLikeName()`, because flows end on incidental clicks — taking the literal last step once

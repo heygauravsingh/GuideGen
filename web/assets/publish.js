@@ -122,6 +122,57 @@ window.GGPublish = (function () {
     }, Promise.resolve()).then(function () { return out; });
   }
 
+  /* The header fields — everything a reader needs before they read step 1, and the
+   * one part of a published document that isn't a step.
+   *
+   * All of it is derived here rather than asked of the caller, so publish and
+   * republish cannot describe the same guide differently. Four notes:
+   *
+   * - **`startUrl` is where the flow begins**, and without it a shared guide opens
+   *   mid-flow on a search box with no way for the recipient to get to that screen.
+   *   `viewer.js` already read `guide.startUrl` for the AI handoff; it was never
+   *   sent, so a recipient's handoff lost it too.
+   * - **`ownerName`, never the owner's email.** The name is what the owner chose to
+   *   be called and is already on the guides they share; their address is not
+   *   theirs to leak to everyone holding the link. Absent when they never gave one,
+   *   and the viewer then shows no author rather than a blank avatar.
+   * - **`durationMs` is real recorded time**, first step to last. It is the honest
+   *   version of Scribe's "made in 38 seconds": we are not estimating how long the
+   *   task takes, we are saying how long the recording was.
+   * - **`app` is derived from the steps, not stored anywhere.** Page titles carry
+   *   the vendor's own casing ("uEngage", which no hostname gives you) — the same
+   *   reasoning as `appName()` in background.js, kept separate because the worker's
+   *   copy runs over local steps and this one over published ones. */
+  function headerFields(guide, steps) {
+    var session = window.GG.current() || {};
+    var first = steps[0] || {};
+    var startUrl = guide.startUrl || first.url || "";
+    var stamps = steps.map(function (s) { return s.timestamp || 0; })
+                      .filter(function (t) { return t > 0; });
+    var out = {
+      description: String(guide.description || "").slice(0, 600),
+      startUrl: startUrl,
+      ownerName: String(session.name || "").slice(0, 80),
+      app: appLabel(steps, startUrl),
+    };
+    if (stamps.length > 1) {
+      var span = Math.max.apply(null, stamps) - Math.min.apply(null, stamps);
+      // A recording someone left open for an hour says nothing useful, and a
+      // negative span would mean a clock change mid-recording.
+      if (span > 0 && span < 3 * 3600 * 1000) out.durationMs = span;
+    }
+    return out;
+  }
+
+  var GENERIC_TAIL = /\s[|–—-]\s.*$/;
+  function appLabel(steps, startUrl) {
+    for (var i = 0; i < steps.length; i++) {
+      var t = String(steps[i].pageTitle || "").replace(GENERIC_TAIL, "").trim();
+      if (t && t.length <= 40) return t.slice(0, 40);
+    }
+    try { return new URL(startUrl).hostname.replace(/^www\./, ""); } catch (e) { return ""; }
+  }
+
   /* First publish: create the document. Returns { remoteId, assetTag, url }. */
   function publish(guide, steps, opts) {
     opts = opts || {};
@@ -132,7 +183,7 @@ window.GGPublish = (function () {
 
     return buildSteps(steps, session.uid, assetTag, prog).then(function (published) {
       prog(0.9, "Publishing…");
-      return window.GG.createGuide({
+      return window.GG.createGuide(Object.assign({
         ownerUid: session.uid,
         title: guide.title || "Untitled guide",
         visibility: "link",
@@ -144,7 +195,7 @@ window.GGPublish = (function () {
         // recipient tries to log an export, so it wants to exist from the start
         // rather than being absent and coerced.
         allowExport: false,
-      });
+      }, headerFields(guide, steps)));
     }).then(function (remoteId) {
       prog(1, "Published");
       return { remoteId: remoteId, assetTag: assetTag, url: location.origin + "/g/" + remoteId };
@@ -183,7 +234,7 @@ window.GGPublish = (function () {
       }
       return buildSteps(steps, session.uid, assetTag, prog).then(function (published) {
         prog(0.9, "Updating the shared guide…");
-        return window.GG.patchGuide(remoteId, {
+        return window.GG.patchGuide(remoteId, Object.assign({
           title: guide.title || "Untitled guide",
           stepCount: published.length,
           steps: published,
@@ -191,7 +242,7 @@ window.GGPublish = (function () {
           // Keep the old tags listed until they're confirmed gone, so a failed
           // purge can still be cleaned up when the guide is deleted.
           assetTags: oldTags.concat([assetTag]),
-        }).then(function () { return oldTags; });
+        }, headerFields(guide, steps))).then(function () { return oldTags; });
       });
     }).then(function (oldTags) {
       if (!oldTags.length) {

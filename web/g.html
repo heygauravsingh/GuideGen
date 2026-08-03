@@ -44,21 +44,37 @@
 <body>
 
 <header class="site">
-  <div class="row">
+  <div class="row vrow">
     <a class="brand" href="/">
       <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
       <span>GuideGen</span>
     </a>
+    <!-- Both filled and shown by viewer.js once the reader has scrolled past the
+         title: six thousand pixels into a guide, a header that only says "GuideGen"
+         has stopped telling you what you are reading. -->
+    <span class="hdr-title" id="hdr-title"></span>
+    <span class="spacer"></span>
+    <span class="hdr-step" id="hdr-step"></span>
     <nav>
+      <button class="btn" id="copy-btn" style="padding:8px 13px;font-size:13.5px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg>
+        <span class="t">Copy link</span>
+      </button>
       <button class="btn" id="print-btn" style="padding:8px 13px;font-size:13.5px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg>
-        Print
+        <span class="t">Print</span>
       </button>
       <!-- Filled by viewer.js only when the owner has switched exports on. -->
       <span id="export-slot"></span>
     </nav>
   </div>
+  <!-- Read progress, along the header's own bottom edge. -->
+  <div class="hdr-bar" id="hdr-bar"></div>
 </header>
+
+<!-- The growth loop, positioned where it can be seen. Filled by viewer.js, shown
+     only once the reader is into the guide, and dismissible. -->
+<div class="promo" id="promo"></div>
 
 <main class="wrap narrow viewer" id="main">
   <!-- skeleton while loading; replaced wholesale -->

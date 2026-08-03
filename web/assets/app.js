@@ -539,6 +539,10 @@
     var isLocal = cur.kind === "local";
 
     el("ed-title").value = g.title || "";
+    el("ed-desc").value = g.description || "";
+    // Grown here rather than in the input handler alone: a textarea reads
+    // scrollHeight 0 until it is in the document, same trap as the step cards.
+    autoGrow(el("ed-desc"));
     el("ed-share-label").textContent =
       (cur.kind === "remote" || g.remoteId) ? "Sharing" : "Share";
 
@@ -1407,6 +1411,26 @@
     if (e.key === "Enter") { e.preventDefault(); el("ed-title").blur(); }
   });
 
+  // ---- description ----
+
+  /* Saved on the same 400ms debounce as the title, and to the same two places. On a
+     published guide it patches the document directly, so the shared page picks up a
+     reworded intro without re-uploading a single image. */
+  var descTimer = null;
+  el("ed-desc").addEventListener("input", function () {
+    if (!cur) return;
+    autoGrow(el("ed-desc"));
+    cur.guide.description = el("ed-desc").value;
+    clearTimeout(descTimer);
+    descTimer = setTimeout(function () {
+      var d = cur.guide.description;
+      var p = cur.kind === "local"
+        ? GGBridge.updateGuide(cur.id, { description: d })
+        : GG.patchGuide(cur.id, { description: d });
+      p.catch(function (e) { say("ed-msg", e.message, "err"); });
+    }, 400);
+  });
+
   // ---- add note ----
 
   el("ed-netlog").addEventListener("click", function () { openNetLog(null); });
@@ -1797,7 +1821,15 @@
       bar.style.width = Math.round((p || 0) * 100) + "%";
       note(m);
     };
-    var guide = { title: cur.guide.title || "Untitled guide" };
+    /* startUrl and description travel with the publish: the first is how a
+       recipient reaches the screen step 1 starts on, the second is the only thing
+       on the page written for them rather than derived. Both live on the local
+       index entry, and on the document itself once it has been published. */
+    var guide = {
+      title: cur.guide.title || "Untitled guide",
+      startUrl: cur.guide.startUrl || "",
+      description: cur.guide.description || "",
+    };
 
     allImages(function (p, m) { onProgress(p * 0.05, m); })
       .then(function (steps) {

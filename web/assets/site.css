@@ -429,7 +429,15 @@ footer.site .spacer { flex: 1; }
 .acct { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--muted); }
 
 /* ---------- public guide viewer ---------- */
-.viewer { padding: 34px 0 90px; }
+/* Two things about this one line, both of them bugs that shipped:
+   - The horizontal padding is stated. `padding: 34px 0 90px` is a shorthand, so it
+     overrode `.wrap`'s `0 22px` and set left/right to zero — invisible on a desktop,
+     where a 720px column sits in the middle of the screen, and on a phone the title,
+     the step text and every screenshot ran into the edge of the display.
+   - It is **wider than `.narrow`**, and no longer uses it. 720px is a reading column;
+     this is an image-first document, and a 1600px screenshot rendered into 672px of
+     it made the small UI text — the thing the reader came for — unreadable. */
+.viewer { padding: 34px 22px 90px; max-width: 1040px; }
 .viewer-head { margin-bottom: 30px; }
 .viewer-head h1 {
   font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.03em;
@@ -486,8 +494,179 @@ footer.site .spacer { flex: 1; }
 .vskel.img { height: 210px; border-radius: var(--r); margin-top: 14px; }
 .vskel.w60 { width: 60%; } .vskel.w40 { width: 40%; } .vskel.title { height: 30px; width: 70%; margin-bottom: 18px; }
 
+/* ---------- viewer: header, and what it carries once you scroll ---------- */
+header.site .row .spacer { flex: 1; }
+.hdr-title {
+  font-size: 14.5px; font-weight: 600; color: var(--ink-2); letter-spacing: -0.01em;
+  max-width: 42ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; transform: translateY(3px); transition: opacity var(--fast), transform var(--fast);
+  pointer-events: none;
+}
+.hdr-title.show { opacity: 1; transform: none; }
+.hdr-step {
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  font-variant-numeric: tabular-nums; opacity: 0; transition: opacity var(--fast);
+}
+.hdr-step.show { opacity: 1; }
+/* Read progress, on the header's own bottom edge — no extra row of chrome. */
+/* Anchored to the sticky header, which is already a positioned element. */
+.hdr-bar {
+  height: 2px; width: 0; background: var(--brand);
+  position: absolute; left: 0; bottom: -1px;
+}
+
+/* ---------- viewer: the header block ---------- */
+.appchip {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 13px;
+  font-size: 13px; font-weight: 620; color: var(--ink-2);
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 11px 4px 4px;
+}
+.appchip .tile {
+  width: 21px; height: 21px; border-radius: 50%; flex: none;
+  background: var(--brand); color: var(--on-brand);
+  display: grid; place-items: center; font-size: 11.5px; font-weight: 700;
+}
+.vdesc {
+  margin: 10px 0 14px; color: var(--ink-2); font-size: 16.5px; line-height: 1.6;
+  max-width: 68ch;
+}
+.viewer-head .meta .who { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); font-weight: 560; }
+.viewer-head .meta .av {
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  background: var(--pri); color: var(--pri-fg);
+  display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+}
+.startrow { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; margin-top: 20px; }
+.startrow .starturl {
+  font-size: 12.5px; color: var(--muted); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 5px 9px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.vtoc { margin-top: 20px; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+.vtoc summary {
+  cursor: pointer; padding: 11px 15px; font-size: 14px; font-weight: 620; color: var(--ink-2);
+  list-style: none;
+}
+.vtoc summary::-webkit-details-marker { display: none; }
+.vtoc summary::before { content: "▸ "; color: var(--faint); }
+.vtoc[open] summary::before { content: "▾ "; }
+.vtoc ol { margin: 0; padding: 2px 15px 13px 34px; }
+.vtoc li { color: var(--muted); font-size: 14px; line-height: 1.55; }
+.vtoc a { color: var(--ink-2); }
+
+/* ---------- viewer: a step ---------- */
+.vstep .txtrow { display: flex; align-items: flex-start; gap: 8px; }
+.vstep .txtrow .txt { flex: 1; min-width: 0; }
+.vstep .anchor {
+  flex: 0 0 auto; width: 27px; height: 27px; border-radius: var(--r-sm);
+  border: 1px solid transparent; background: transparent; color: var(--faint);
+  display: grid; place-items: center; cursor: pointer;
+  opacity: 0; transition: opacity var(--fast), color var(--fast), background var(--fast);
+}
+.vstep .anchor svg { width: 15px; height: 15px; }
+.vstep:hover .anchor, .vstep .anchor:focus-visible { opacity: 1; }
+.vstep .anchor:hover { background: var(--panel-2); color: var(--ink-2); }
+.vstep .vlink {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 7px;
+  font-size: 13.5px; color: var(--brand-2); font-weight: 560;
+}
+.vstep .vlink svg { width: 13px; height: 13px; }
+.vstep figure { position: relative; }
+.vstep figure img { cursor: zoom-in; }
+.zoombtn {
+  position: absolute; right: 10px; bottom: 10px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 11px; border-radius: var(--r-sm); cursor: pointer;
+  font-size: 12.5px; font-weight: 620; line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(24, 21, 17, 0.72); color: #fff;
+  backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity var(--fast);
+}
+.zoombtn svg { width: 14px; height: 14px; }
+.vstep figure:hover .zoombtn, .zoombtn:focus-visible { opacity: 1; }
+/* Arriving on /g/{id}#step-7 — say which one without moving anything. */
+.vstep.flash { background: var(--brand-soft); border-radius: var(--r); }
+
+/* ---------- viewer: lightbox ---------- */
+/* Above the sticky header (z-index 30) *and* the modal overlay, and opaque: at 0.92
+   the header's own backdrop-filter kept re-compositing through it, so the page's
+   wordmark and buttons sat on top of the picture. */
+.lightbox {
+  position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column;
+  background: #131110;
+}
+.lb-bar {
+  display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+  color: rgba(255, 255, 255, 0.9); font-size: 13.5px; font-weight: 600;
+}
+.lb-bar .lb-sp { flex: 1; }
+.lb-btn {
+  min-width: 34px; height: 34px; padding: 0 10px; border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.08);
+  color: #fff; font-size: 15px; font-weight: 620; cursor: pointer; line-height: 1;
+}
+.lb-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.lb-stage {
+  flex: 1; min-height: 0; display: grid; place-items: center;
+  overflow: hidden; padding: 0 14px 18px; cursor: zoom-in;
+}
+.lb-stage.zoomed { cursor: grab; }
+.lb-stage img {
+  max-width: 100%; max-height: 100%; border-radius: var(--r);
+  background: #fff; transform-origin: center center;
+  transition: transform 90ms linear; touch-action: none; user-select: none;
+}
+
+/* ---------- viewer: the promo bar ---------- */
+.promo {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: none; align-items: center; gap: 12px;
+  padding: 12px 22px; font-size: 14px; color: var(--ink-2);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-top: 1px solid var(--line);
+}
+.promo.show { display: flex; }
+.promo .sp { flex: 1; }
+.promo .x {
+  width: 30px; height: 30px; border-radius: var(--r-sm); flex: none;
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  cursor: pointer; font-size: 13px;
+}
+.promo .x:hover { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .promo { padding: 10px 14px; font-size: 13px; }
+  .promo span:first-child { max-width: 22ch; }
+}
+
+/* The viewer's header is not the dashboard's: it holds three compact actions rather
+   than a nav of links, and the generic two-row rule at 560px dropped Print onto a
+   second line on every phone. Icon-only below 700px keeps it to one row down to
+   ~360px, and lets it wrap on its own below that rather than being pinned to two. */
+/* Selectors written to out-specify the generic 560px header rule below, which pins
+   the wordmark to row one and the nav to row two — that rule exists for the
+   dashboard's five nav links and is wrong for three icon buttons. */
+@media (max-width: 700px) {
+  header.site .row.vrow { flex-wrap: wrap; row-gap: 6px; height: auto; min-height: 62px; }
+  header.site .row.vrow nav { order: 0; flex-basis: auto; margin-left: 0; }
+  header.site .row.vrow .theme-toggle { order: 0; margin-left: auto; }
+  .vrow .btn .t { display: none; }
+  .vrow .btn { padding: 8px 10px !important; }
+  .vrow .hdr-title, .vrow .hdr-step { display: none; }
+  .viewer { padding-left: 16px; padding-right: 16px; }
+  .zoombtn { opacity: 1; }        /* no hover on a touch screen */
+}
+@media (pointer: coarse) {
+  .vstep .anchor { opacity: 1; }
+  .zoombtn { opacity: 1; }
+}
+
 /* A recipient's most likely second action is printing it. */
 @media print {
+  .promo, .lightbox, .hdr-bar, .vstep .anchor, .zoombtn, .vtoc { display: none !important; }
   header.site, footer.site, .viewer-foot, .overlay, .toast { display: none !important; }
   body.modal-open { overflow: visible; }
   body { background: #fff; color: #000; }
@@ -524,6 +703,23 @@ footer.site .spacer { flex: 1; }
 .ed-title:hover { border-color: var(--line); }
 .ed-title:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring); }
 .ed-top .submeta { color: var(--muted); font-size: 13px; padding: 0 9px; }
+
+/* The shared guide's intro. Styled like the title — quiet until you touch it — because
+   it is the same kind of thing: a field that usually just reads as text.
+   `font-family: inherit` as its own declaration, never inside a `font:` shorthand:
+   that shorthand is invalid with `inherit` and silently drops a textarea to the UA's
+   monospace default. */
+.ed-desc {
+  display: block; width: 100%; resize: none; overflow: hidden;
+  margin: 4px 0 18px; padding: 9px 11px;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: transparent; color: var(--ink-2);
+  font-family: inherit; font-size: 15px; line-height: 1.6;
+  outline: 0; transition: border-color var(--fast), background var(--fast);
+}
+.ed-desc::placeholder { color: var(--faint); }
+.ed-desc:hover { border-color: var(--line); }
+.ed-desc:focus { border-color: var(--brand); background: var(--panel); box-shadow: 0 0 0 3px var(--brand-ring); }
 
 .btn.sm { padding: 7px 11px; font-size: 13px; }
 .btn.icon { padding: 8px; }

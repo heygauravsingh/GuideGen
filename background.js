@@ -195,6 +195,45 @@ function mergeRedundant(steps) {
   return { keep, dropped };
 }
 
+/* A `nav` step that only says where the click before it already went.
+ *
+ * `Click "Rider Management"` followed by `Go to …/rider-management` is one thing
+ * happening, written down twice, and a reader has to work out that they are the same
+ * — which is four of thirteen steps on a real recording. The navigation only earns a
+ * step when nothing in the guide explains it: the first step, a page reached by
+ * typing a URL, or one that arrives long after whatever preceded it.
+ *
+ * Three guards, each of them load-bearing:
+ *
+ * - **Same tab only.** Clicking a tile that opens a *new* tab produces a click step
+ *   holding the old page and a nav step holding the new one, and the switch step for
+ *   a brand-new tab is rejected before it is written (its url is still `about:blank`).
+ *   Drop that nav and the destination never appears in the guide at all.
+ * - **Only after an action.** A nav following another nav, a scroll or a note is not
+ *   explained by it, so it stays.
+ * - **Never the last step.** A click's screenshot is of the page it was clicked on;
+ *   the destination shows up in the *next* step's picture. When the nav is last there
+ *   is no next step, so it is the only record of the outcome. */
+const NAV_CAUSED_MS = 12000;
+function dropCausedNavs(steps) {
+  const CAUSE = { click: 1, key: 1, input: 1 };
+  const keep = [];
+  const dropped = [];
+  steps.forEach((cur, i) => {
+    // `keep`, not `steps`: a redirect chain writes two navs, and the second is
+    // explained by the same click as the first.
+    const prev = keep[keep.length - 1];
+    const caused =
+      cur.type === "nav" && i < steps.length - 1 &&
+      prev && CAUSE[prev.type] &&
+      prev.tabId != null && prev.tabId === cur.tabId &&
+      (cur.timestamp || 0) - (prev.timestamp || 0) <= NAV_CAUSED_MS;
+    if (caused) dropped.push(cur);
+    else keep.push(cur);
+  });
+  return { keep, dropped };
+}
+
 async function finalizeGuide(guideId) {
   if (!guideId) return;
   const orderKey = K.order(guideId);
@@ -209,7 +248,10 @@ async function finalizeGuide(guideId) {
   const index = await get(K.index, []);
   const gi = index.find((x) => x.id === guideId);
 
-  const { keep, dropped } = mergeRedundant(steps);
+  const merged = mergeRedundant(steps);
+  const navs = dropCausedNavs(merged.keep);
+  const keep = navs.keep;
+  const dropped = merged.dropped.concat(navs.dropped);
   const writes = {};
 
   /* Fold the API log onto the steps, then delete it. It is scratch space, not part
@@ -1382,6 +1424,9 @@ async function bridge(msg) {
       if (!gi) return { ok: false, error: "That guide isn't on this device." };
       const p = msg.patch || {};
       if (typeof p.title === "string") gi.title = p.title;
+      /* The one-paragraph intro shown above the steps on a published guide. Capped
+       * here rather than only in the editor, because a web page is the sender. */
+      if (typeof p.description === "string") gi.description = p.description.slice(0, 600);
       // Publishing writes these back so the dashboard can offer Update instead of
       // creating a second document — and a second link — on every press.
       if ("remoteId" in p) gi.remoteId = p.remoteId || null;
