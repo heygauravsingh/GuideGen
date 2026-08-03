@@ -130,7 +130,7 @@
   // actions on each, and a flat list hides where the page changed.
   const ACTION = {
     click: "click", input: "type", key: "keypress",
-    switch: "tab switch", nav: "navigation", note: "note",
+    switch: "tab switch", nav: "navigation", note: "note", scroll: "scroll",
   };
 
   /* One logged request as a cURL command.
@@ -237,13 +237,23 @@
             out += "      ```\n";
           }
           if (r.body) {
-            // Fenced, because a JSON error body full of braces and quotes wrecks the
-            // surrounding Markdown otherwise — and a model reads a fence as data.
+            /* Fenced, because a JSON body full of braces and quotes wrecks the
+             * surrounding Markdown otherwise — and a model reads a fence as data.
+             *
+             * A failure gets more room than a success, which is the one place this
+             * export second-guesses the log. Bodies are kept for every request now,
+             * and forty full result sets is a handoff no chat window will accept —
+             * whereas the failure is the thing being asked about. The log drawer's
+             * own copy button (`apiLogText`) trims nothing, so nothing is lost. */
+            const cap = r.ok ? 8 : 24;
+            const lines = r.body.split("\n");
             out += "      ```\n";
-            r.body.split("\n").slice(0, 24).forEach((line) => {
+            lines.slice(0, cap).forEach((line) => {
               out += "      " + line.slice(0, 300) + "\n";
             });
             out += "      ```\n";
+            if (lines.length > cap)
+              out += "      *(" + (lines.length - cap) + " more lines — full body in the API log)*\n";
             if (r.bodyTruncated)
               out += "      *(response truncated from " + r.bodyTruncated + " characters)*\n";
           }

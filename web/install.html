@@ -172,10 +172,11 @@
   will say <em>clicking Save sent POST /api/orders and got a 500</em>, which is a very different
   message to send an engineer than "it didn't work". Only the AI handoff includes it; documents,
   slides and video never do.</p>
-  <p>Tick <strong>Include API request details</strong> next to Start recording and every request
-  carries a <code>curl</code> you can copy — its headers and the body that was sent — plus the
-  response body of anything that <em>failed</em>. A successful response is never kept. It's off by
-  default, so tick it before the recording you want it in.</p>
+  <p>Tick <strong>Include full API requests &amp; responses</strong> next to Start recording and
+  every request carries a <code>curl</code> you can copy, with what came back — successes included.
+  It's off by default, so tick it before the recording you want it in. Do be deliberate: a
+  successful response is often real data, and it's the one thing GuideGen keeps that you can't look
+  at first.</p>
   <p>Credential header values are masked before anything is stored, along with query-string values
   and obvious secrets in a submitted body, so nothing captures your tokens. That does mean the
   cURL documents the call rather than replaying it — paste your own token in to re-run it.</p>

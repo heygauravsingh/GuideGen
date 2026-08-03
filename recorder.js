@@ -139,7 +139,12 @@
   function start(m) {
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("change", onChange, true);
+    document.addEventListener("input", onInput, true);
     document.addEventListener("keydown", onKeyDown, true);
+    // Passive, and on the capture phase: a scroll container inside the page bubbles
+    // nothing, so a listener on window alone misses every scrollable panel — which
+    // on an admin dashboard is where the list actually is.
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
     window.addEventListener("message", onNetMessage);
     askNetPatch();
     showPill(m);
@@ -147,8 +152,15 @@
   function stop() {
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("change", onChange, true);
+    document.removeEventListener("input", onInput, true);
     document.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("scroll", onScroll, { capture: true });
     window.removeEventListener("message", onNetMessage);
+    // A pending burst must not fire after the listeners are gone: on an orphaned
+    // context its send() would throw, and on a stopped recording it would append a
+    // step to a guide the user has already been handed.
+    if (typing) { clearTimeout(typing.timer); typing = null; }
+    clearTimeout(scrollTimer);
     hidePill();
   }
 
@@ -159,6 +171,11 @@
   function onPointerDown(e) {
     if (!mode() || e.button !== 0) return;
     if (!e.target || isOurUI(e.target)) return;
+    /* A pending typing burst is flushed *first*, so the steps arrive in the order
+       they happened. Steps are persisted in arrival order, so leaving it to the
+       650ms timer would put `Type "Demo"` after `Click "Demo Restaurant"` — the guide
+       reading as though the result was clicked before it was searched for. */
+    if (typing) flushTyping();
     // attribute the click to the control, not the inner span that was hit
     const el = actionableTarget(e.target);
     if (!el) return;
@@ -178,6 +195,139 @@
     });
   }
 
+  /* Typing, captured while it happens rather than when the field is left.
+   *
+   * `change` only fires on blur, and a search box is the case that breaks: you type,
+   * the page fires a request per keystroke, you read the results and click one —
+   * without ever blurring the field. So there was no step for the typing at all, and
+   * because `attachNetwork` hangs a request on the step it followed, the search
+   * requests had nothing to attach to and were dropped. The most interesting call on
+   * the page was the one the log was missing.
+   *
+   * Two details make this work rather than just fire:
+   *
+   * - **Debounced to the settle**, so "Demo" is one step reading `Type "Demo"`, not
+   *   four steps reading `Type "D"`. The screenshot is taken then too, which is when
+   *   the field shows the whole value and the results are on screen.
+   * - **Stamped with the *first* keystroke of the burst.** The requests happen while
+   *   you type — before the settle — so a step stamped at the settle sits after its
+   *   own consequences and `attachNetwork` gives them to the previous step instead.
+   *   The timestamp anchors the step to when the typing began; the picture is still
+   *   the one from the end. */
+  const TYPE_SETTLE = 650;
+  let typing = null; // { el, startTs, timer }
+
+  function typeable(el) {
+    if (!el || isOurUI(el)) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    if (el.isContentEditable) return true;
+    if (tag !== "input" && tag !== "textarea") return false;
+    const type = (el.type || "").toLowerCase();
+    return !["button", "submit", "reset", "file", "hidden", "checkbox", "radio", "range", "color"].includes(type);
+  }
+
+  function onInput(e) {
+    if (!mode() || !typeable(e.target)) return;
+    const el = e.target;
+    // A different field means the previous burst is over: flush it, or switching
+    // fields quickly would merge two values into one step.
+    if (typing && typing.el !== el) flushTyping();
+    if (!typing) typing = { el, startTs: Date.now(), timer: null };
+    clearTimeout(typing.timer);
+    typing.timer = setTimeout(flushTyping, TYPE_SETTLE);
+  }
+
+  function flushTyping() {
+    const t = typing;
+    typing = null;
+    if (!t) return;
+    clearTimeout(t.timer);
+    if (!mode() || !t.el || !t.el.isConnected) return;
+    const el = t.el;
+    const type = (el.type || "").toLowerCase();
+    // The value is never recorded for a password — same rule as onChange, and the
+    // one place it must not be relaxed for the sake of a better step description.
+    let val = el.isContentEditable ? el.textContent : el.value;
+    if (type === "password") val = "••••••••";
+    if (!String(val || "").length) return;   // typed and cleared is not a step
+    lastTyped = { el, val: String(val) };
+    const rect = el.getBoundingClientRect();
+    /* Deliberately does **not** touch `lastCaptureTs`. That is the 250ms guard
+       against one click firing twice, and typing is not a click: setting it here
+       swallowed the click that came straight after a search — you type, you click the
+       result, and the click never became a step. */
+    send({
+      type: "input",
+      url: location.href,
+      pageTitle: document.title,
+      timestamp: t.startTs,
+      dpr: window.devicePixelRatio || 1,
+      point: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+      rect: clampRect(rect),
+      text: describeInput(el, val),
+    });
+  }
+
+  /* Scrolling, which used to be invisible.
+   *
+   * On its own a scroll is not much of an instruction — but an infinite list loads
+   * its next page on scroll, and with no step there, those requests belonged to
+   * nothing and were dropped exactly as the search ones were. It is also genuinely
+   * part of a long flow: "the button is further down" is a step a reader needs.
+   *
+   * Deliberately stingy: one step per settle, and only when the page has moved more
+   * than half a viewport since the last one it recorded. A step per wheel tick would
+   * bury the guide and spend the capture rate limit on nothing. */
+  const SCROLL_SETTLE = 500;
+  const SCROLL_GAP_MS = 1200;
+  let scrollTimer = null;
+  let lastScrollY = null;
+  let lastScrollTs = 0;
+
+  function scrollY() {
+    return window.scrollY || (document.documentElement || {}).scrollTop || 0;
+  }
+
+  function onScroll() {
+    if (!mode()) return;
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(flushScroll, SCROLL_SETTLE);
+  }
+
+  function flushScroll() {
+    if (!mode()) return;
+    // Typing that moves the page (a field scrolling into view) is not a scroll step;
+    // the typing step is the one that means something.
+    if (typing) return;
+    const y = scrollY();
+    if (lastScrollY === null) lastScrollY = 0;
+    const moved = Math.abs(y - lastScrollY);
+    const now = Date.now();
+    if (moved < Math.max(240, window.innerHeight * 0.5)) return;
+    if (now - lastScrollTs < SCROLL_GAP_MS || now - lastCaptureTs < 400) return;
+    const down = y > lastScrollY;
+    lastScrollY = y;
+    lastScrollTs = now;
+    lastCaptureTs = now;
+    const doc = document.documentElement || {};
+    const atEnd = y + window.innerHeight >= (doc.scrollHeight || 0) - 4;
+    send({
+      // No point and no rect: nothing was clicked, so render.js draws the screenshot
+      // unannotated, exactly as it does for a tab switch.
+      type: "scroll",
+      url: location.href,
+      pageTitle: document.title,
+      timestamp: now,
+      dpr: window.devicePixelRatio || 1,
+      text: atEnd ? "Scroll to the bottom of the page" : down ? "Scroll down the page" : "Scroll up the page",
+    });
+  }
+
+  // Set by flushTyping so onChange can tell whether the value it is looking at has
+  // already been recorded — otherwise blurring a field after typing writes the step
+  // twice.
+  let lastTyped = null;
+
   function onChange(e) {
     if (!mode()) return;
     const el = e.target;
@@ -186,6 +336,10 @@
     if (!["input", "textarea", "select"].includes(tag)) return;
     const type = (el.type || "").toLowerCase();
     if (["button", "submit", "reset", "file", "hidden"].includes(type)) return;
+    // The typing path has usually already recorded this. A select, a checkbox and a
+    // date picker never go through it, so change is still the only event for those.
+    if (typing && typing.el === el) flushTyping();
+    if (lastTyped && lastTyped.el === el && lastTyped.val === String(el.value)) return;
     let val = el.value;
     if (type === "password") val = "••••••••";
     if (type === "checkbox" || type === "radio")
@@ -209,27 +363,56 @@
   // or a form. Without this the guide jumps from "type" straight to the results
   // with no step explaining what happened.
   function onKeyDown(e) {
-    if (!mode() || e.key !== "Enter" || e.repeat) return;
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!mode() || e.repeat) return;
     const el = e.target;
     if (!el || isOurUI(el)) return;
+    if (typing) flushTyping();   // "Type X" then "Press Enter", in that order
+
     const tag = (el.tagName || "").toLowerCase();
-    if (tag === "textarea") return; // a newline, not a submit
     const isField = tag === "input" || tag === "select" || el.isContentEditable;
-    if (!isField) return;
+    const mod = e.metaKey || e.ctrlKey;
+    let text = null;
+
+    if (e.key === "Enter" && !e.altKey && !mod) {
+      if (tag === "textarea") return;            // a newline, not a submit
+      if (!isField) return;                     // a button's Enter is its click
+      text = "Press Enter";
+    } else if (e.key === "Escape") {
+      /* Escape closes the dialog, clears the search, cancels the edit. Without it a
+         guide jumps from a form to the list behind it with nothing explaining how it
+         was dismissed — and a page that reloads its list on cancel had those
+         requests belonging to no step. */
+      text = "Press Escape";
+    } else if (mod && e.key && e.key.length === 1) {
+      /* A keyboard shortcut is an action, and on the apps worth documenting it is
+         often *the* action — ⌘K opens the command palette, ⌘S saves. Single
+         characters only: a bare modifier, or Ctrl held while scrolling, is not one. */
+      const parts = [];
+      if (e.metaKey) parts.push("⌘");
+      if (e.ctrlKey) parts.push("Ctrl");
+      if (e.altKey) parts.push("Alt");
+      if (e.shiftKey) parts.push("Shift");
+      text = "Press " + parts.join("+") + (parts.length ? "+" : "") + e.key.toUpperCase();
+    } else {
+      return;
+    }
+
     const now = Date.now();
     if (now - lastCaptureTs < 250) return;
     lastCaptureTs = now;
-    const rect = el.getBoundingClientRect();
+    // A shortcut is usually pressed with nothing focused, and the body's rect is the
+    // whole page — which would draw a ring around the entire screenshot. No rect
+    // means an unannotated capture, which is the honest picture for a keypress.
+    const rect = isField && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
     send({
       type: "key",
       url: location.href,
       pageTitle: document.title,
       timestamp: now,
       dpr: window.devicePixelRatio || 1,
-      point: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
-      rect: clampRect(rect),
-      text: "Press Enter",
+      point: rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : undefined,
+      rect: rect ? clampRect(rect) : undefined,
+      text,
     });
   }
 

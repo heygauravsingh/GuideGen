@@ -1,4 +1,4 @@
-/* Tier 2 of the API log: the whole failed exchange, as a cURL.
+/* Tier 2 of the API log: the whole exchange, as a cURL.
  *
  * This file is the only code in the extension that runs in the page's **MAIN
  * world**, and it has to. `chrome.webRequest` cannot read a response body at any
@@ -48,15 +48,19 @@
  *   below this layer, and an HttpOnly cookie is invisible to any page script. So a
  *   captured cURL is not a replayable session token — it is the shape of the call.
  *
- * **The line is drawn between request and response, not between success and
- * failure.** That was the first cut and it was wrong in practice: a guide of a flow
- * that *worked* — which is most guides — held nothing but status lines, so the cURL
- * was missing in exactly the case where nothing had gone wrong. The request side is
- * reported for every call now: it is small, bounded, and something the user
- * themselves sent. A **response body is still kept only for a failure** — a 2xx body
- * is the bulk of the data and the bulk of the risk (customer records, personal
- * details, whole result sets) for the least value, since if it worked the status
- * line already said so.
+ * **Every call, request and response.** This narrowed twice and both cuts were
+ * wrong for the same reason: what people want from this feature is the exchange for
+ * the request they are looking at, and they do not know in advance which one that
+ * is. Failures-only left a working flow with nothing but status lines; request-only
+ * left "what did it come back with" unanswerable, which is half of debugging a
+ * search that returns the wrong rows.
+ *
+ * That is a real exposure and it is why this whole tier is **opt-in and off by
+ * default**: a successful response body can be customer records, addresses, a whole
+ * result set. Three things keep it as narrow as a full capture can be — values under
+ * credential-looking keys are masked here before anything is posted (an access token
+ * in a *login response* is the case that matters), bodies are trimmed, and none of
+ * it is ever uploaded or published. The switch's own label says what it keeps.
  */
 (() => {
   const MARK = "__ggNetPatched";
@@ -111,9 +115,12 @@
    * API call a browser makes. Anything else is passed through as text — the cap is
    * the only protection there, and that is stated in the docs rather than pretended
    * away. */
-  function maskBody(body) {
+  function maskBody(body, limit) {
     if (typeof body !== "string" || !body) return body || "";
-    const s = body.slice(0, REQ_LIMIT);
+    // Trimmed before parsing, because a 4MB result set should not be walked to be
+    // thrown away. The caller decides which limit applies — a response is allowed
+    // more room than a sent body.
+    const s = body.slice(0, limit || REQ_LIMIT);
     // JSON
     if (/^[\s]*[{[]/.test(s)) {
       try {
@@ -164,7 +171,9 @@
           source: TAG,
           url: String(url || ""),
           status: status,
-          body: String(body == null ? "" : body).slice(0, LIMIT),
+          // Masked like a request body: a sign-in response carries the token this
+          // file exists not to leak, and it is a 200.
+          body: maskBody(String(body == null ? "" : body), LIMIT).slice(0, LIMIT),
           req: req || null,
         },
         // Same document only. A '*' target would hand failed API responses to
@@ -212,9 +221,12 @@
                 () => report(res.url, res.status, "", req)
               );
             } else if (res) {
-              // Succeeded: the request travels, the response body does not. Not even
-              // read — a clone of a 200 is the one thing this file must not touch.
-              report(res.url, res.status, "", req);
+              // Succeeded: the body travels too, masked the same way. clone() is what
+              // keeps the page's own read intact.
+              res.clone().text().then(
+                (t) => report(res.url, res.status, t, req),
+                () => report(res.url, res.status, "", req)
+              );
             }
           } catch (e) { /* already-consumed or opaque response */ }
           return res;
@@ -260,11 +272,9 @@
         this.addEventListener("load", () => {
           try {
             const url = this[MARK + "_u"] || this.responseURL;
-            // Succeeded: the request travels, the response is not even read.
-            if (this.status < 400) return report(url, this.status, "", req);
             // Only the text-ish response types can be read without touching the
-            // page's own view of the data. blob and arraybuffer are skipped —
-            // they are downloads, not API errors.
+            // page's own view of the data. blob and arraybuffer are skipped — they
+            // are downloads, and a base64'd binary is bytes nobody will read.
             const rt = this.responseType;
             let out = "";
             if (rt === "" || rt === "text") out = this.responseText;

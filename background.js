@@ -154,7 +154,9 @@ function guessTitle(steps, startUrl) {
   // Titles come from things the user acted on. A context step's quoted text is a tab
   // title, so `stepLabel` would happily lift it — and "How to view Canva in Canva" is
   // what that produces.
-  const SKIP = { note: 1, switch: 1, nav: 1 };
+  // A scroll's text has no quoted label to lift, and a keypress's is a key name —
+  // neither is a thing the guide is *about*, so neither may name it.
+  const SKIP = { note: 1, switch: 1, nav: 1, scroll: 1, key: 1 };
   const real = steps.filter((s) => s && !SKIP[s.type]);
   let label = "";
   for (let i = real.length - 1; i >= 0; i--) {
@@ -911,7 +913,10 @@ const NET = {
   // Per guide, and per buffer. Entries are ~120 bytes; bodies dominate, which is
   // what the separate body caps are for.
   maxEntries: 600,
-  maxBodies: 40,
+  // Bodies arrive for every call now, not only failures. At ~2KB of kept text each
+  // this is a few hundred KB per guide — one screenshot — and a step firing 40
+  // requests is exactly the step someone is debugging.
+  maxBodies: 250,
   // The request side arrives for every call, not only failures, so it needs its own
   // and larger ceiling: at ~400 bytes an entry this is well under a megabyte per
   // guide, and one shared cap would let successful requests eat the room error
@@ -932,6 +937,10 @@ const NET = {
   // crosses the boundary, this one means a page that posts an unmasked value
   // still cannot get it stored.
   maskedHeader: /auth|cookie|token|secret|api[-_]?key|session|credential|signature/i,
+  // Keys inside a body, request or response. The response case is the one that
+  // matters most now that a 200 is captured: a sign-in returns the token this is
+  // here to keep out of a guide. Mirrors netpatch.js's MASKED_KEY.
+  maskedKey: /pass|pwd|token|secret|otp|auth|card|cvv|cvc|ssn|api[-_]?key|credential/i,
   mask: "…GuideGen-masked…",
   // `xmlhttprequest` covers fetch as well as XHR in Chrome. Everything else is
   // page furniture — images, fonts, stylesheets — or telemetry (`ping` is
@@ -1049,13 +1058,9 @@ function netRecord(details, status, error) {
     if (scheme !== "https") entry.scheme = scheme;
     if (error) entry.error = String(error).replace(/^net::/, "");
     netAppend(target.key, entry, target.kind === "buf");
-    /* Remember it briefly so what netpatch.js sends can be matched to it.
-     *
-     * **Every request, not only the failures.** The request side (headers, the body
-     * that was sent) travels for any call, because a guide of a flow that worked
-     * otherwise had no cURL in it at all — which is most guides, and was the first
-     * thing anyone noticed. What stays failures-only is the *response* body, and
-     * `netBody` is where that is enforced. */
+    /* Remember it briefly so what netpatch.js sends can be matched to it. Every
+     * request, whatever its status: the exchange is captured in full when the user
+     * asked for it, and the status is not what decides whether they will want it. */
     if (target.bodies) {
       netAwaitingBody.push({ entry, key: target.key, isBuf: target.kind === "buf" });
       netAwaitingBody = netAwaitingBody.filter((x) => Date.now() - x.entry.ts < NET.windowMs);
@@ -1099,35 +1104,38 @@ async function netBody(msg, sender) {
   if (!hit) return { ok: false };
   netAwaitingBody = netAwaitingBody.filter((x) => x !== hit);
 
-  // **The one rule that cannot move: a response body only for a failure.** The
-  // request side travels for every call; a 2xx body is where the customer records
-  // are. netpatch.js does not even read a successful response, and this is the
-  // second guard on the same rule — the page shares the channel and could send one
-  // anyway.
-  const failed = status >= 400 || status === 0;
-  const raw = failed ? String(msg.body || "") : "";
+  /* Both halves of every call, and the reason the success/failure line is gone is
+   * in the netpatch.js header: nobody knows in advance which request they will need
+   * the response of, and "it returned the wrong rows" is not a failure status.
+   *
+   * What holds instead is the *opt-in* — this code only runs when the user ticked
+   * the box for this recording — plus masking, caps, and the fact that none of it is
+   * ever uploaded. `netScrubBody` is the worker's own pass over what netpatch.js
+   * already masked, because the page shares that channel and could post a token
+   * back unmasked. */
+  const raw = netScrubBody(String(msg.body || ""));
   const body = raw.slice(0, NET.bodyChars);
   const req = msg.req && typeof msg.req === "object" ? msg.req : null;
   const reqHeaders = req ? netScrubHeaders(req.headers) : [];
-  const rawReqBody = req ? String(req.body || "") : "";
+  const rawReqBody = netScrubBody(req ? String(req.body || "") : "");
   const reqBody = rawReqBody.slice(0, NET.reqBodyChars);
   netChain = netChain
     .then(async () => {
       const list = await get(target.key, []);
-      /* Two caps, because the two halves cost different amounts. A response body is
-       * kilobytes and only a failure has one, so `maxBodies` stays where it was. The
-       * request side is a few hundred bytes and now arrives for *every* call on a
-       * single-page app, so it gets its own, larger ceiling — one shared cap would
-       * mean forty successful requests using up the room forty error bodies needed. */
-      const wantBody = !!body;
-      if (wantBody && list.filter((e) => e.body).length >= NET.maxBodies) return;
-      if (!wantBody && list.filter((e) => e.reqHeaders || e.reqBody).length >= NET.maxReqs) return;
+      /* Two caps, because the two halves cost different amounts: a body is kilobytes,
+       * a request line is hundreds of bytes. Both are counted per log, and a request
+       * that is over the body cap still records its request side — losing the cURL
+       * because a response was too long would be the wrong half to drop. */
+      const overBodies = list.filter((e) => e.body).length >= NET.maxBodies;
+      const overReqs = list.filter((e) => e.reqHeaders || e.reqBody).length >= NET.maxReqs;
+      if (overBodies && overReqs) return;
       const e = list.filter(
         (x) => x.ts === hit.entry.ts && x.path === hit.entry.path && x.status === status
       )[0];
       if (!e) return;
-      if (body) e.body = body;
-      if (raw.length > body.length) e.bodyTruncated = raw.length;
+      if (body && !overBodies) e.body = body;
+      if (body && !overBodies && raw.length > body.length) e.bodyTruncated = raw.length;
+      if (overReqs) { await set({ [target.key]: list }); return; }
       if (reqHeaders.length) e.reqHeaders = reqHeaders;
       if (reqBody) e.reqBody = reqBody;
       if (rawReqBody.length > reqBody.length) e.reqBodyTruncated = rawReqBody.length;
@@ -1135,6 +1143,43 @@ async function netBody(msg, sender) {
     })
     .catch(() => {});
   return { ok: true };
+}
+
+/* The worker's own pass over a body netpatch.js already masked.
+ *
+ * Same reasoning as netScrubHeaders: the page shares the `postMessage` channel, so
+ * anything arriving on it gets masked here too rather than trusted. Only JSON and
+ * form-encoded are walked, which between them are nearly every API body a browser
+ * sends or receives; anything else is left as text and bounded by the cap alone.
+ * Deliberately duplicated work — one of the two ends has to have the last word. */
+function netScrubBody(text) {
+  const s = String(text || "");
+  if (!s) return "";
+  if (/^\s*[{[]/.test(s)) {
+    try {
+      const walk = (v) => {
+        if (Array.isArray(v)) return v.map(walk);
+        if (v && typeof v === "object") {
+          const o = {};
+          for (const k of Object.keys(v)) o[k] = NET.maskedKey.test(k) ? NET.mask : walk(v[k]);
+          return o;
+        }
+        return v;
+      };
+      return JSON.stringify(walk(JSON.parse(s)));
+    } catch (e) { /* not JSON after all */ }
+  }
+  if (/^[^=&\s]+=[^&]*(&|$)/.test(s) && s.indexOf("\n") === -1) {
+    try {
+      return s.split("&").map((kv) => {
+        const i = kv.indexOf("=");
+        if (i < 0) return kv;
+        const k = kv.slice(0, i);
+        return NET.maskedKey.test(decodeURIComponent(k)) ? k + "=" + NET.mask : kv;
+      }).join("&");
+    } catch (e) { /* leave it */ }
+  }
+  return s;
 }
 
 /* Assigns logged requests to the steps that caused them: the last step at or

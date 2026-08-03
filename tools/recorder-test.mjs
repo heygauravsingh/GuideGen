@@ -96,6 +96,11 @@ function harness(opts) {
       onChanged: { addListener() {} },
     },
   };
+  // documentElement doubles as the scroll root: recorder.js reads scrollTop and
+  // scrollHeight off it, and a stub without them makes every scroll look like a
+  // scroll to the bottom.
+  body.scrollTop = 0;
+  body.scrollHeight = 6000;
   const document = {
     body,
     documentElement: body,
@@ -111,7 +116,7 @@ function harness(opts) {
   const sandbox = {
     chrome, document, console,
     location: { href: "https://dash.uengage.in/orders", origin: "https://dash.uengage.in" },
-    innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2,
+    innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2, scrollY: 0,
     setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number, Error, Boolean,
     addEventListener(t, fn) { (winHandlers[t] = winHandlers[t] || []).push(fn); },
     removeEventListener(t, fn) {
@@ -361,6 +366,179 @@ console.log("\n=== 9. the catch-up CTA ===");
   let threw = null;
   try { drain(h, true); } catch (e) { threw = String(e.message); }
   check("an orphaned reply does not throw", threw, null);
+}
+
+// ---------------------------------------------------------------------------
+// Typing and scrolling — the two things that were invisible, and the reason a
+// search API never made it into a log: `change` only fires on blur, so typing
+// produced no step, and a request with no step before it is dropped by
+// attachNetwork.
+console.log("\n=== 10. typing becomes a step while it happens ===");
+
+function field(value, type) {
+  const f = el("input");
+  f.type = type || "text";
+  f.value = value;
+  f.isContentEditable = false;
+  // describeInput looks for a label; without one it falls back to the placeholder.
+  f.attrs.placeholder = "Search by name";
+  f.getAttribute = (k) => f.attrs[k];
+  return f;
+}
+function type(h, f, value) {
+  if (value !== undefined) f.value = value;
+  (h.handlers.input || []).forEach((fn) => fn({ target: f, isTrusted: true }));
+}
+const rec = () => harness({ state: { recording: true, guideId: "g1", stepCount: 0 } });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const f = field("");
+  const t0 = Date.now();
+  // Four keystrokes, as a person types.
+  for (const v of ["D", "De", "Dem", "Demo"]) { type(h, f, v); await wait(40); }
+  check("nothing is sent mid-burst", h.sent.length, 0);
+  await wait(750);
+  check("the settle sends exactly one step", h.sent.length, 1);
+  check("with the whole value, not the first letter",
+        /Type "Demo"/.test(h.sent[0].step.text), true);
+  /* Stamped at the *first* keystroke, not the settle. The search requests fire while
+     you type — a step stamped at the end sits after its own consequences, and
+     attachNetwork hands them to the previous step instead. This is the assertion that
+     protects the fix for the missing search API. */
+  check("stamped when the typing began, so its requests land on it",
+        h.sent[0].step.timestamp <= t0 + 60, true);
+}
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const f = field("");
+  type(h, f, "Demo");
+  // The click comes before the 650ms settle would have fired.
+  click(h);
+  check("a click flushes the pending typing first, in order",
+        h.sent.map((m) => m.step.type), ["input", "click"]);
+  check("and the click is not swallowed by the typing's own debounce",
+        h.sent.filter((m) => m.step.type === "click").length, 1);
+  await wait(750);
+  check("the settle does not then send it twice", h.sent.length, 2);
+}
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const f = field("");
+  type(h, f, "Demo");
+  await wait(750);
+  // Blurring after typing fires `change` with the same value. Without the dedupe
+  // that is the same step twice.
+  (h.handlers.change || []).forEach((fn) => fn({ target: f }));
+  check("blurring afterwards does not record it again", h.sent.length, 1);
+}
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const p = field("hunter2", "password");
+  type(h, p);
+  await wait(750);
+  check("a typed password is never the value", /hunter2/.test(JSON.stringify(h.sent)), false);
+  check("it says what was typed without saying it",
+        /Type your password/.test(h.sent[0].step.text), true);
+}
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const f = field("");
+  type(h, f, "x");
+  type(h, f, "");        // typed and cleared
+  await wait(750);
+  check("typing and clearing is not a step", h.sent.length, 0);
+}
+
+console.log("\n=== 11. scrolling, stingily ===");
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const scroll = (y) => {
+    h.sandbox.scrollY = y;
+    h.body.scrollTop = y;
+    (h.handlers.scroll || []).forEach((fn) => fn({ target: h.body }));
+  };
+  scroll(120);
+  await wait(600);
+  check("a nudge is not a step", h.sent.length, 0);
+  scroll(1400);
+  await wait(600);
+  check("half a viewport or more is", h.sent.map((m) => m.step.type), ["scroll"]);
+  check("and it reads as an instruction", h.sent[0].step.text, "Scroll down the page");
+  // No point and no rect: nothing was clicked, so render.js draws the screenshot
+  // unannotated rather than ringing an arbitrary box.
+  check("with nothing highlighted",
+        [h.sent[0].step.point, h.sent[0].step.rect], [undefined, undefined]);
+
+  h.sent.length = 0;
+  scroll(2000);
+  await wait(600);
+  check("a second scroll too soon after the first is dropped", h.sent.length, 0);
+  await wait(700);
+  scroll(3400);
+  await wait(600);
+  check("once the gap has passed, it records again", h.sent.length, 1);
+
+  h.sent.length = 0;
+  await wait(1300);      // clear of SCROLL_GAP_MS
+  scroll(5100);          // scrollHeight 6000, innerHeight 900
+  await wait(600);
+  check("reaching the end says so", h.sent[0].step.text, "Scroll to the bottom of the page");
+}
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const f = field("");
+  type(h, f, "Demo");
+  h.sandbox.scrollY = 2000;
+  h.body.scrollTop = 2000;
+  (h.handlers.scroll || []).forEach((fn) => fn({ target: h.body }));
+  await wait(700);
+  // A field scrolling into view while you type is not a scroll worth a step; the
+  // typing is the thing that happened.
+  check("a scroll during a typing burst is not its own step",
+        h.sent.map((m) => m.step.type), ["input"]);
+}
+
+console.log("\n=== 12. keys beyond Enter ===");
+{
+  const h = rec();
+  await settle();
+  const key = (ev) => (h.handlers.keydown || []).forEach((fn) => fn(ev));
+
+  h.sent.length = 0;
+  key({ key: "Escape", target: el("div") });
+  check("Escape is a step — it is how dialogs and searches get dismissed",
+        h.sent.map((m) => m.step.text), ["Press Escape"]);
+
+  await wait(300);
+  h.sent.length = 0;
+  key({ key: "k", metaKey: true, target: el("div") });
+  check("a shortcut is an action, and often *the* action",
+        h.sent.map((m) => m.step.text), ["Press ⌘+K"]);
+  check("with nothing highlighted, since nothing was focused",
+        h.sent[0].step.rect, undefined);
+
+  await wait(300);
+  h.sent.length = 0;
+  key({ key: "Shift", target: el("div") });
+  key({ key: "a", target: el("div") });
+  key({ key: "ArrowDown", target: el("div") });
+  check("a bare modifier, plain typing and arrow keys are not", h.sent.length, 0);
 }
 
 console.log(failures ? `\n${failures} failed\n` : "\nall passed\n");

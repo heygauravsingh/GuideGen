@@ -213,12 +213,12 @@
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0-3 3m3-3 3 3"/></svg></span>
           <h3>What the page actually did</h3>
           <p>Each step also records the requests it fired and what came back — <em>POST /api/orders
-          → 500</em> — and every one of them can be copied as a <code>curl</code>: the headers and
-          the body that was sent, plus the response for anything that failed. That turns "I clicked
-          Save and it didn't work" into a bug report a developer or a model can act on without
-          asking you to do it again. Credential values are masked before anything is stored.
-          Failures surface on the step; the rest is one click away, and it goes in the AI handoff
-          only.</p>
+          → 500</em> — and every one of them can be copied as a <code>curl</code> with its response:
+          the headers, the body sent, the body returned. That turns "I clicked Save and it didn't
+          work" into a bug report a developer or a model can act on without asking you to do it
+          again. Credential values are masked before anything is stored, and the whole thing is an
+          opt-in you tick per recording. Failures surface on the step; the rest is one click away,
+          and it goes in the AI handoff only.</p>
         </div>
 
         <div class="card">
@@ -372,11 +372,12 @@
           so a <code>password</code> field never lands in a log. Your browser cookies aren't
           readable this way at all. The practical consequence: the cURL documents the call, it does
           not replay it — paste your own token in if you want to re-run it.</p>
-          <p>Request details are themselves a separate opt-in that is off by default. With it on,
-          every request carries its cURL — and a <em>response</em> body is kept only when the
-          request failed. A successful response isn't recorded, isn't even read: that's where the
-          customer records are, and the status code already told you it worked. Any step's log can
-          also be deleted on its own from the editor.</p>
+          <p>The full exchange is itself an opt-in that's off by default, and worth being
+          deliberate about: with it on, successful responses are kept too, and those often hold real
+          data — customer records, a whole result set. Turn it on for the recording where you're
+          capturing a bug, not as a standing default. Bodies are trimmed, credential-looking keys
+          are masked even inside them, any step's log can be deleted from the editor, and none of it
+          is ever uploaded — publishing a guide never publishes its log.</p>
         </details>
         <details>
           <summary>Is GuideGen watching everything I do?</summary>

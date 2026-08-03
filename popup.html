@@ -289,10 +289,10 @@
     <label class="opt" id="bodyOpt">
       <input type="checkbox" id="netBodies" />
       <span>
-        <b>Include API request details</b>
-        <small>Keeps every request as a copyable cURL — headers and the body you sent — plus the
-        response body of anything that <b>fails</b>. A successful response is never kept.
-        Credential values are masked. Off by default.</small>
+        <b>Include full API requests &amp; responses</b>
+        <small>Every request as a copyable cURL, with what came back — including successful
+        responses, which may hold real customer data. Credential values are masked and nothing is
+        ever uploaded. Off by default; tick it before recording a bug.</small>
       </span>
     </label>
 
@@ -330,7 +330,7 @@
       <label class="opt tight" id="bufBodyOpt" hidden>
         <input type="checkbox" id="bufBodies" />
         <span>
-          <b>Include API request details</b>
+          <b>Include full API requests &amp; responses</b>
           <small>Held for 7 days on armed sites, like the rest of the capture.</small>
         </span>
       </label>

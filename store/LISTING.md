@@ -163,9 +163,9 @@ Used to record the API log: while the user is recording a guide (or on a site th
 >
 > Note also what `webRequest` **cannot** do, because it explains the rest of the design:
 > it cannot read a request or response body, and it is not what reads request headers
-> either. Both come from `netpatch.js` in the page's MAIN world, are opt-in and off by
-> default, and are limited to failed requests. That is **not** a `webRequest` capability
-> and must not be justified as one.
+> either. All of that comes from `netpatch.js` in the page's MAIN world and is opt-in,
+> off by default, chosen per recording. That is **not** a `webRequest` capability and
+> must not be justified as one.
 >
 > **v1.2 changed a claim that appears in the old listing copy.** Tier 2 now captures the
 > request side of a failed exchange — header *names*, the sent body — so that the log can
@@ -212,15 +212,21 @@ GuideGen documents whatever web application the user chooses, which cannot be kn
 
 **v1.2 adds the API log, and it does *not* add a category — check that reasoning rather than
 assuming it.** The request summary is *Website content* and *Web history*, both already
-declared. A failed exchange — request headers, the body sent, the body returned — is also
-*Website content*: it is content the recorded page produced or submitted. It is opt-in, off by
-default, never uploaded, and excluded from a published guide, so nothing here becomes
-*transmitted* data. Credential header values, query-string values and obvious secrets in a sent
-body are masked before storage, in the page and again in the worker, so no *Authentication
-information* belonging to the recorded site is held either. Three things would change this
-answer and none is true today: capturing successful requests (which would routinely contain
-personal data belonging to third parties), keeping a real credential value, or including the log
-in what publishing uploads. If any of them ever ships, revisit this table before shipping it.
+declared. The exchange — request headers, the body sent, the body returned — is also *Website
+content*: it is content the recorded page produced or submitted. It is opt-in, off by default,
+never uploaded, and excluded from a published guide, so nothing here becomes *transmitted* data.
+Credential header values, query-string values and credential-looking keys inside a body are
+masked before storage, in the page and again in the worker, so no *Authentication information*
+belonging to the recorded site is held either.
+
+**v1.2.3 widened this and the reasoning was re-checked rather than assumed.** Tier 2 now keeps
+the body of a *successful* response as well as a failed one — an earlier version of this note
+said that would be the thing to revisit, so: it is still *Website content* and still local-only,
+so the table does not move, and the mitigations that carry it are the opt-in default (off,
+per recording), the masking, the trimming, per-step deletion in the editor, and the publish
+whitelist. What **would** move this table is including the log in what publishing uploads, or
+keeping a real credential value. Neither is true, and `web/assets/publish.js` names the fields
+it sends precisely so the first cannot happen by accident.
 
 *On the first two together:* declare both rather than picking one. They cover different
 things — *who the account belongs to* versus *the secrets that prove it* — and this build

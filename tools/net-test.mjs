@@ -210,27 +210,46 @@ console.log("\n=== 6. Tier 2 bodies: off unless asked for ===");
 }
 
 // ---------------------------------------------------------------------------
-console.log("\n=== 7. Tier 2: only failures, and only what was really seen ===");
+console.log("\n=== 7. Tier 2: the whole exchange, and only what was really seen ===");
 {
   const { h, guideId } = await recording(true);
   request(h, { method: "GET", url: "https://api.uengage.in/customers", status: 200 });
   await tick(150);
-  const r = await send(h, {
+  await send(h, {
     type: "fs_net_body", url: "https://api.uengage.in/customers", status: 200,
-    body: '[{"name":"real person","phone":"98xxxxxx"}]',
+    body: '{"rows":[{"name":"a person","phone":"98xxxxxx"}],"access_token":"live-abc"}',
     req: { method: "GET", headers: [["accept", "application/json"]], body: "" },
   }, { tab: TAB });
-  await tick(150);
+  await tick(200);
   const e200 = (h.store["fs_net_" + guideId] || [])[0];
-  // The request side of a successful call *is* kept — without it a guide of a flow
-  // that worked has no cURL in it at all, which is most guides. What is refused is
-  // the 200's *body*: that is where the customer records are, for none of the
-  // diagnostic value, and netpatch.js does not even read it.
+  // A success carries its exchange now. The failures-only rule was cut twice and
+  // both cuts left the log unable to answer the question someone opened it with —
+  // "it returned the wrong rows" is not a failure status. What holds instead is the
+  // opt-in (asserted below), the masking, and that none of it is ever uploaded.
   check("a 200's request is kept", e200.reqHeaders, [["accept", "application/json"]]);
-  check("a 200's body is refused — that is the PII, for none of the value",
-        "body" in e200, false);
-  check("and it never reaches storage at all",
-        /real person|98xxxxxx/.test(JSON.stringify(h.store)), false);
+  check("and its body too", /"name":"a person"/.test(e200.body), true);
+  // The reason the masking matters more now than it did: a sign-in response is a 200.
+  check("a credential-looking key in a *response* is masked, whoever posted it",
+        /live-abc/.test(JSON.stringify(h.store)), false);
+  check("and the mask says so rather than dropping the field",
+        /access_token":"…GuideGen-masked…/.test(e200.body), true);
+}
+{
+  // The switch is the whole protection now, so it is worth its own assertion at the
+  // 200 end as well as the failure end.
+  const { h, guideId } = await recording(false);
+  request(h, { method: "GET", url: "https://api.uengage.in/customers", status: 200 });
+  await tick(150);
+  const r = await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/customers", status: 200,
+    body: '[{"name":"a person"}]',
+    req: { method: "GET", headers: [["accept", "*/*"]], body: "" },
+  }, { tab: TAB });
+  await tick(150);
+  check("with the opt-in off, a 200's exchange is refused like a failure's", (r || {}).ok, false);
+  check("nothing was written", "body" in (h.store["fs_net_" + guideId] || [])[0], false);
+  check("and the patch was never injected to collect it",
+        h.injected.filter((x) => (x.files || []).includes("netpatch.js")).length, 0);
 }
 {
   const { h, guideId } = await recording(true);

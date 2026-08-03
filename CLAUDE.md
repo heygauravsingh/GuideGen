@@ -66,7 +66,7 @@ Local guide data lives in `chrome.storage.local`.
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config, v1.2.2. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `manifest.json` | MV3 config, v1.2.3. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
 | `netpatch.js` | The only code that runs in the page's **MAIN world**. Patches `fetch`/`XHR` to report a *failed* exchange — request headers, sent body, response body — back through `postMessage`, because `chrome.webRequest` can read none of them. Masks credential header values and obvious body secrets *before* posting, so a secret never crosses the boundary. Opt-in, off by default; injected per tab by the worker via `executeScript({world:"MAIN"})`. Nothing it says is trusted — see The API log. |
@@ -123,7 +123,8 @@ Local guide data lives in `chrome.storage.local`.
 Step object:
 ```
 {
-  id, guideId, seq, type: "click" | "input" | "key" | "note" | "switch" | "nav",
+  id, guideId, seq,
+  type: "click" | "input" | "key" | "note" | "switch" | "nav" | "scroll",
   url, pageTitle, timestamp,
   tabId,                   // which tab it happened in; only the API log reads it
   dpr,                     // bitmap px per CSS px for this step's screenshot
@@ -338,20 +339,31 @@ report someone can act on; "clicked Save, it didn't work" is a guessing game. Th
   catch-up origin. Method, path, status, duration. `webRequest` **cannot read a response
   body**, at any permission level, and never could — so the cheap tier is free of the one
   thing that makes this feature dangerous.
-- **Tier 2, the exchange, as a cURL** — request headers and the body that was sent, for
-  *every* request, plus the response body **of a failure only**. Needs the page's own
-  `fetch`/`XHR`, so `netpatch.js` runs in the **MAIN world**. Opt-in, off by default, on both
-  surfaces separately (`fs_state.captureBodies` for a recording, chosen at Start;
-  `fs_buf_bodies` for catch-up).
+- **Tier 2, the whole exchange, as a cURL** — request headers, the body sent and the body
+  returned, for **every** request whatever its status. Needs the page's own `fetch`/`XHR`, so
+  `netpatch.js` runs in the **MAIN world**. Opt-in, off by default, on both surfaces separately
+  (`fs_state.captureBodies` for a recording, chosen at Start; `fs_buf_bodies` for catch-up).
 
-**The line is request-vs-response, not success-vs-failure — and it moved once, for a reason
-worth keeping.** Tier 2 first captured only failed exchanges, which meant a guide of a flow that
-*worked* held nothing but status lines: the cURL was missing in exactly the case where nothing
-had gone wrong, which is most guides. That was the first thing anyone noticed in production. So
-the request side now travels for every call — it is small, bounded (`NET.maxReqs`), and
-something the user themselves sent — while a **response body is still failures-only**
-(`NET.maxBodies`). Two caps, because a response body is kilobytes and a request is hundreds of
-bytes; one shared cap let forty successful requests eat the room forty error bodies needed.
+**This narrowed twice and both cuts were wrong. Don't re-narrow it.** First it was failed
+exchanges only, which left a guide of a flow that *worked* — most guides — holding nothing but
+status lines. Then it was every request but responses only on failure, which left "what did it
+come back with" unanswerable, and *"the search returned the wrong rows"* is not a failure status.
+Both times the log could not answer the question its user opened it with, because **which request
+matters is not knowable from the status code.**
+
+What carries the safety instead, now that a 200's body is kept:
+
+- **The opt-in is the protection**, so it must stay off by default and stay per-recording. The
+  label says what it keeps (`Include full API requests & responses`), and the privacy policy has
+  a callout rather than a clause.
+- **`netScrubBody` masks credential-looking keys inside a body**, in the worker, over what
+  netpatch.js already masked in the page. A sign-in *response* is a 200 and carries the token —
+  that is the case this exists for.
+- **Two caps** (`NET.maxBodies` 250, `NET.maxReqs` 400), because a body is kilobytes and a
+  request line is hundreds of bytes. A request over the body cap still records its request side:
+  losing the cURL because one response was long is the wrong half to drop.
+- **Nothing changes about publishing.** `publish.js` whitelists fields, so no body has ever left
+  the machine, and that is now load-bearing rather than tidy.
 
 **Why Tier 2 is the exchange and not just the response.** A status line says a call failed and
 nothing about what was sent, so acting on it means asking the reporter to reproduce it — which
@@ -375,12 +387,10 @@ Rules that are not negotiable:
    made the cURL a guess. The names identify the call; the values are where ids and session
    keys ride. `maskBody`/`MASKED_KEY` in netpatch.js does the same job for a sent body, so a
    login request's password never lands.
-3. **A response body only for a failure.** A 2xx body is the bulk of the data and the bulk of
-   the risk for none of the value: if it worked, the status line already said so. Guarded
-   twice, at both ends — `netpatch.js` does not even *read* a successful response, and
-   `netBody` discards `msg.body` unless the status says it failed, because the page shares that
-   channel and could send one anyway. Mutation-checked: dropping the worker-side guard fails
-   two assertions in `tools/net-test.mjs`.
+3. **Secrets are masked inside bodies, not just headers.** `NET.maskedKey` /
+   netpatch.js's `MASKED_KEY` cover `password`, `token`, `access_token`, `api_key` and friends
+   in JSON and form-encoded bodies, in both directions. Mutation-checked: `tools/net-test.mjs`
+   asserts an `access_token` in a **200 response** never reaches storage.
 4. **The exchange annotates a request; it never creates one.** The page shares the
    `postMessage` channel `netpatch.js` uses, so it is matched against something `webRequest`
    independently saw (tab + status + path) and dropped otherwise. `netBody` is a source of
@@ -519,7 +529,11 @@ on disk is one step further from it. Five things are load-bearing:
    `firebase/SETUP.md` §3 is the procedure: paste the whole file into the Rules tab and
    Publish. Pasting the file rather than editing the one line is what keeps deployed and
    committed identical.
-5. **It skips `exportSteps()`/`allImages()`.** There are no images in it, so pulling forty
+5. **A success's body is clamped harder than a failure's** (8 lines against 24) — the one place
+   an export second-guesses the log. Bodies exist for every request now, and forty full result
+   sets is a handoff no chat window will take, while the failure is the thing being asked about.
+   `apiLogText` (the drawer's Copy log) trims nothing, so nothing is actually lost.
+6. **It skips `exportSteps()`/`allImages()`.** There are no images in it, so pulling forty
    screenshots over the bridge one at a time would be forty round trips for nothing.
 
 ## Narration (video export)
@@ -761,6 +775,35 @@ noticeable:
   collapsed and re-expanded under the scroll position. Redaction mode also lives in the
   module-level `redacting` map rather than on the DOM, because the full re-render dropped it:
   hiding three fields on one screenshot meant pressing Redact three times.
+
+## What counts as a step (recorder.js)
+Five listeners, and three of them exist because a request went missing.
+
+- **`pointerdown`** → a `click` step. Capture phase, attributed to the enclosing control.
+- **`input`, debounced 650ms** → an `input` step. `change` only fires on **blur**, and a search
+  box is the case that breaks: you type, the page fires a request per keystroke, you read the
+  results and click one — never blurring the field. So there was no step for the typing, and
+  since `attachNetwork` hangs a request on the step it followed, **the search requests were
+  dropped**. The most interesting call on the page was the one the log was missing.
+  Two details are load-bearing: the step is **stamped with the first keystroke of the burst**,
+  not the settle, or it sits after its own consequences and they attach to the previous step;
+  and `flushTyping` must **not** touch `lastCaptureTs`, which is the 250ms double-click guard —
+  setting it there swallowed the click that came straight after a search.
+- **`change`** → still the only event for a select, a checkbox and a date picker. Dedupes
+  against `lastTyped`, or blurring after typing writes the step twice.
+- **`scroll`, debounced, capture phase, passive** → a `scroll` step. Not much of an instruction
+  on its own, but an infinite list loads its next page on scroll and those requests belonged to
+  nothing either. Stingy on purpose: one per settle, only past half a viewport, `SCROLL_GAP_MS`
+  between them, and never during a typing burst. **Capture phase matters** — a scrollable panel
+  inside the page doesn't bubble, and on an admin dashboard that panel is where the list is.
+- **`keydown`** → a `key` step for Enter in a field, **Escape** (how dialogs and searches get
+  dismissed — and a page that reloads its list on cancel had those requests orphaned), and
+  **modifier shortcuts** (⌘K, ⌘S: often *the* action on a keyboard-driven app). A bare
+  modifier, plain typing and arrow keys are not steps. A shortcut is usually pressed with
+  nothing focused, so it carries no `rect` — the body's rect would ring the whole screenshot.
+
+`guessTitle`'s SKIP list covers `scroll` and `key` as well as `note`/`switch`/`nav`: a key name
+is not what a guide is about.
 
 ## Step wording (recorder.js)
 Conventions, chosen to match how a person writes instructions:
