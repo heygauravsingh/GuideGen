@@ -133,6 +133,54 @@
     switch: "tab switch", nav: "navigation", note: "note",
   };
 
+  /* One logged request as a cURL command.
+   *
+   * The status line alone (`POST /api/orders → 500`) tells you a call failed and
+   * nothing about what was sent, so acting on it means asking the reporter to
+   * reproduce it. A cURL is the one format an engineer and a model both already
+   * read, and it carries the method, the address, the headers and the sent body in
+   * a shape that can be pasted straight into a terminal.
+   *
+   * Two things it deliberately is *not*:
+   *
+   * - **Not replayable as-is.** Credential header values are masked at capture
+   *   (see netpatch.js) and query values are masked in the path, so this documents
+   *   a call rather than re-issuing it. The trailing comment says so in the output
+   *   itself — a cURL that looks runnable and silently 401s wastes more time than
+   *   one that admits what is missing.
+   * - **Not built from Tier 1 alone.** Without `reqHeaders`/`reqBody` there is no
+   *   request to describe, so this returns "" and callers fall back to the status
+   *   line. Emitting `curl -X POST url` off a summary would look like a capture and
+   *   be a guess.
+   *
+   * Single-quoted with the POSIX `'\''` escape, so a body containing quotes, braces
+   * or newlines survives a paste into a shell.
+   */
+  function shellQuote(s) {
+    return "'" + String(s).replace(/'/g, "'\\''") + "'";
+  }
+
+  function curlOf(r) {
+    if (!r) return "";
+    const heads = r.reqHeaders || [];
+    if (!heads.length && !r.reqBody) return "";
+    const url = (r.scheme || "https") + "://" + (r.host || "") + (r.path || "");
+    const lines = ["curl -X " + (r.method || "GET") + " " + shellQuote(url)];
+    heads.forEach((h) => {
+      lines.push("  -H " + shellQuote(h[0] + ": " + h[1]));
+    });
+    if (r.reqBody) lines.push("  --data-raw " + shellQuote(r.reqBody));
+    let out = lines.join(" \\\n");
+    const notes = [];
+    if (heads.some((h) => /…GuideGen-masked…/.test(h[1])))
+      notes.push("credential header values are masked — paste your own to replay");
+    if (/\?.*=…/.test(r.path || "")) notes.push("query values are masked");
+    if (r.reqBodyTruncated) notes.push("sent body truncated from " + r.reqBodyTruncated + " characters");
+    notes.push("cookies are not captured");
+    out += "\n# " + notes.join("; ");
+    return out;
+  }
+
   function aiText(guide, steps) {
     const n = steps.length;
     let out = "# " + (guide.title || "Untitled guide") + "\n\n";
@@ -144,7 +192,9 @@
     // warning tends to treat it as prose rather than as evidence.
     if (steps.some((s) => (s.network || []).length))
       out += "Requests the page made are listed under the step that triggered them, " +
-        "with their status.\n";
+        "with their status. Failed ones may carry the full exchange as a cURL " +
+        "command plus the response; credential values in it are masked, so treat it " +
+        "as a record of the call rather than something to re-run.\n";
     out += "\n";
 
     let lastUrl = null;
@@ -177,6 +227,15 @@
           const status = r.error ? r.error : r.status || "no response";
           out += "    - `" + r.method + " " + (r.host ? r.host : "") + r.path +
             "` → **" + status + "**" + (r.ms != null ? " (" + r.ms + "ms)" : "") + "\n";
+          // The request, as a cURL, when the exchange was captured. Fenced as `bash`
+          // so a model reads it as a command rather than as prose, and placed before
+          // the response because that is the order they happened in.
+          const curl = curlOf(r);
+          if (curl) {
+            out += "      ```bash\n";
+            curl.split("\n").forEach((line) => { out += "      " + line + "\n"; });
+            out += "      ```\n";
+          }
           if (r.body) {
             // Fenced, because a JSON error body full of braces and quotes wrecks the
             // surrounding Markdown otherwise — and a model reads a fence as data.
@@ -220,6 +279,12 @@
         const status = r.error ? r.error : r.status || "no response";
         rows.push("- `" + r.method + " " + (r.host || "") + r.path + "` → **" + status + "**" +
           (r.ms != null ? " (" + r.ms + "ms)" : ""));
+        const curl = curlOf(r);
+        if (curl) {
+          rows.push("  ```bash");
+          curl.split("\n").forEach((line) => rows.push("  " + line));
+          rows.push("  ```");
+        }
         if (r.body) {
           rows.push("  ```");
           r.body.split("\n").forEach((line) => rows.push("  " + line));
@@ -825,7 +890,7 @@
    * `GET /api/session → 200` on every slide of a video is noise at best. If you add
    * an exporter, leave it out of that one too. */
   window.FSExport = {
-    html, markdown, ai, aiText, apiLogText, pdf, pptx, video,
+    html, markdown, ai, aiText, apiLogText, curlOf, pdf, pptx, video,
     PACES, DEFAULT_PACE, stepSecs,
   };
 })();

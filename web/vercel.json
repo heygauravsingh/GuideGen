@@ -4,6 +4,17 @@
   "rewrites": [
     {
       "source": "/g/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebookcatalog|whatsapp|slackbot|slack-imgproxy|twitterbot|linkedinbot|telegrambot|discordbot|redditbot|pinterest|skypeuripreview|embedly|iframely|quora link preview|vkshare|applebot|bingbot|googlebot|google-inspectiontool|mastodon|bitlybot|flipboard|tumblr|yandex|duckduckbot|preview).*"
+        }
+      ],
+      "destination": "/api/og?id=:id"
+    },
+    {
+      "source": "/g/:id",
       "destination": "/g"
     }
   ],

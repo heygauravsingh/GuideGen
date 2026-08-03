@@ -67,10 +67,20 @@ The pain arrives after the fact: you finish something, then someone asks how. Sw
 
 ## The API log
 
-Each step also records the requests the page made and what came back — `POST /api/orders → 500`. That turns "I clicked Save and it didn't work" into something a developer or a model can start on.
+Each step also records the requests the page made and what came back — `POST /api/orders → 500`. Switch on the opt-in and a *failed* request carries the whole exchange, copyable as a `curl`:
 
-- **Request headers are never read**, so tokens and cookies are never captured. Query strings are stripped from the addresses.
-- **Response bodies are a separate opt-in, off by default**, and even then only for requests that *failed*. Successful responses are never kept — that is where the personal data is, for none of the diagnostic value.
+```bash
+curl -X POST 'https://api.uengage.in/v2/orders?store=…' \
+  -H 'content-type: application/json' \
+  -H 'authorization: …GuideGen-masked…' \
+  --data-raw '{"store_id":4412,"items":[{"sku":"BRG-1","qty":2}]}'
+# credential header values are masked — paste your own to replay; cookies are not captured
+```
+
+That turns "I clicked Save and it didn't work" into a bug report a developer or a model can start on without asking you to reproduce it.
+
+- **Credential header values are never stored.** A header whose name looks like a credential (`authorization`, `cookie`, `x-api-key`, …) keeps its name and loses its value; the same goes for query-string values and obvious secrets in a sent body. So a cURL documents a call — it can't replay it.
+- **The exchange is a separate opt-in, off by default** — request headers, sent body, response body — and even then only for requests that *failed*. A successful call's contents are never kept: that is where the personal data is, for none of the diagnostic value.
 - A step where everything succeeded shows one muted line. A step where something failed shows the failures. **Everything, in full, is in the API log panel** in the editor toolbar — with a failed-only filter and a copy button.
 - Only the AI handoff carries it. HTML, Markdown, PDF, PowerPoint, video and published links all leave it out, and any step's log can be deleted on its own.
 

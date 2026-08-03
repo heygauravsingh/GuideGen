@@ -501,10 +501,15 @@
         "</div></div>";
     });
 
+    /* The one place a reader who was sent this can become a user, so it says what
+       the tool did rather than only naming it — and points at /install, where they
+       can actually get it, instead of the home page they'd have to navigate from. */
     html +=
-      '<div class="viewer-foot"><span>Made with GuideGen</span>' +
+      '<div class="viewer-foot"><span>Made with <b>GuideGen</b> — this guide wrote ' +
+      "itself while someone did the work once.</span>" +
       '<span class="spacer"></span>' +
-      '<a class="btn" style="padding:8px 13px;font-size:13.5px" href="/">Make your own guide</a></div>';
+      '<a class="btn brand-btn" style="padding:8px 13px;font-size:13.5px" href="/install">' +
+      "Get it free</a></div>";
 
     main.className = "wrap narrow viewer";
     main.innerHTML = html;

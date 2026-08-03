@@ -80,12 +80,15 @@ console.log("\n=== 2. a recording logs the summary ===");
   const log = h.store["fs_net_" + guideId] || [];
   check("both requests are held", log.length, 2);
   check("method, host and path", [log[0].method, log[0].host, log[0].path],
-        ["POST", "api.uengage.in", "/v2/orders?…"]);
-  check("the query string never lands — ids and tokens ride in it",
+        ["POST", "api.uengage.in", "/v2/orders?token=…"]);
+  // Names identify the call — ?page=2 and ?export=1 are different requests — while
+  // the values are where the ids and session keys are.
+  check("a query value never lands, though its name does",
         /secret/.test(JSON.stringify(log)), false);
   check("status and outcome", [log[0].status, log[0].ok, log[1].status, log[1].ok],
         [500, false, 200, true]);
-  check("no headers, ever", Object.keys(log[0]).filter((k) => /header|cookie|auth/i.test(k)), []);
+  check("the summary tier carries no request detail at all",
+        ["reqHeaders", "reqBody", "body"].filter((k) => k in log[0]), []);
   check("and no body on the summary tier", "body" in log[0], false);
 }
 
@@ -348,6 +351,134 @@ console.log("\n=== 10. the editor may remove a log, never write one ===");
   await h.sandbox.bridge({ type: "gg_update_step", stepId, patch: { network: [] } });
   check("but it can remove one — the escape hatch for a body nobody read",
         "network" in h.store["fs_step_" + stepId], false);
+}
+
+// ---------------------------------------------------------------------------
+// The request side of a failed exchange — the part a cURL is built from, and the
+// part that could carry a credential. Weighted accordingly: what is masked, what
+// is capped, and what a page cannot get stored by posting it.
+console.log("\n=== 11. the exchange: request headers and the sent body ===");
+{
+  const { h, guideId } = await recording(true);
+  request(h, { method: "POST", url: "https://api.uengage.in/orders", status: 500 });
+  await tick(150);
+  await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/orders", status: 500,
+    body: '{"error":"declined"}',
+    req: {
+      method: "POST",
+      headers: [
+        ["content-type", "application/json"],
+        ["authorization", "Bearer real-token-abc"],
+        ["x-api-key", "live_key_9"],
+        ["cookie", "sid=abc"],
+        ["x-request-id", "r-77"],
+      ],
+      body: '{"amount":500,"password":"hunter2"}',
+    },
+  }, { tab: TAB });
+  await tick(200);
+  const e = (h.store["fs_net_" + guideId] || [])[0];
+  check("header names are kept — that a call carried auth is the diagnosis",
+        e.reqHeaders.map((p) => p[0]),
+        ["content-type", "authorization", "x-api-key", "cookie", "x-request-id"]);
+  check("a safe header keeps its value", e.reqHeaders[0][1], "application/json");
+  // netpatch.js masks in the page as well; this is the worker having the last word,
+  // because the page shares the channel and can post an unmasked value.
+  check("a credential value never survives, whoever posted it",
+        /real-token-abc|live_key_9|sid=abc/.test(JSON.stringify(h.store)), false);
+  check("all three are masked",
+        e.reqHeaders.slice(1, 4).map((p) => p[1]),
+        ["…GuideGen-masked…", "…GuideGen-masked…", "…GuideGen-masked…"]);
+  check("the sent body is kept", /"amount":500/.test(e.reqBody), true);
+}
+{
+  const { h, guideId } = await recording(true);
+  request(h, { method: "POST", url: "https://api.uengage.in/orders", status: 500 });
+  await tick(150);
+  const many = [];
+  for (let i = 0; i < 90; i++) many.push(["h-" + i, "v".repeat(900)]);
+  await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/orders", status: 500, body: "",
+    req: { method: "POST", headers: many, body: "y".repeat(30000) },
+  }, { tab: TAB });
+  await tick(200);
+  const e = (h.store["fs_net_" + guideId] || [])[0];
+  check("a page cannot make one entry arbitrarily large — headers cap", e.reqHeaders.length, 30);
+  check("nor with one huge header value", e.reqHeaders[0][1].length, 300);
+  check("the sent body caps too", e.reqBody.length, 4096);
+  check("and says how much was dropped", e.reqBodyTruncated, 30000);
+  check("a failure with no response body still records the request",
+        "body" in e, false);
+}
+{
+  const { h, guideId } = await recording(false);
+  request(h, { method: "POST", url: "https://api.uengage.in/orders", status: 500 });
+  await tick(150);
+  const r = await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/orders", status: 500, body: "",
+    req: { method: "POST", headers: [["content-type", "application/json"]], body: "{}" },
+  }, { tab: TAB });
+  await tick(150);
+  check("with Tier 2 off, the request side is refused like the body is", (r || {}).ok, false);
+  check("nothing was written", "reqHeaders" in (h.store["fs_net_" + guideId] || [])[0], false);
+}
+{
+  // Turning the catch-up switch off has to mean the *exchange* is gone, not half
+  // of it. Leaving reqHeaders behind would make "off" a promise about responses only.
+  const h = await armed();
+  await send(h, { type: "fs_buf_bodies", on: true });
+  request(h, { method: "POST", url: "https://api.uengage.in/orders", status: 500 });
+  await tick(150);
+  await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/orders", status: 500, body: "boom",
+    req: { method: "POST", headers: [["content-type", "application/json"]], body: '{"a":1}' },
+  }, { tab: TAB });
+  await tick(200);
+  check("armed and switched on, the exchange is held",
+        !!(h.store.fs_bufnet || [])[0].reqHeaders, true);
+  await send(h, { type: "fs_buf_bodies", on: false });
+  await tick(150);
+  const e = (h.store.fs_bufnet || [])[0];
+  check("switching it off drops the request side as well as the response",
+        ["body", "reqHeaders", "reqBody"].filter((k) => k in e), []);
+  check("the summary survives — that was never the risky part",
+        [e.method, e.status], ["POST", 500]);
+}
+
+// ---------------------------------------------------------------------------
+// curlOf is pure, so it is worth asserting directly rather than through the UI.
+console.log("\n=== 12. curlOf: what it emits, and what it admits ===");
+{
+  const vm = await import("node:vm");
+  const fs = await import("node:fs");
+  const ctx = { window: {}, document: undefined, navigator: {} };
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(new URL("../exporters.js", import.meta.url), "utf8"), ctx);
+  const { curlOf } = ctx.window.FSExport;
+
+  check("a summary-only request yields nothing — a cURL off Tier 1 would be a guess",
+        curlOf({ method: "POST", host: "a.com", path: "/x", status: 500 }), "");
+
+  const curl = curlOf({
+    method: "POST", host: "api.uengage.in", path: "/v2/orders?token=…", status: 500,
+    reqHeaders: [["content-type", "application/json"], ["authorization", "…GuideGen-masked…"]],
+    reqBody: '{"note":"it\'s here"}',
+  });
+  check("the request line", curl.split("\n")[0],
+        "curl -X POST 'https://api.uengage.in/v2/orders?token=…' \\");
+  check("headers become -H", /-H 'authorization: …GuideGen-masked…'/.test(curl), true);
+  // A body with an apostrophe in it is the ordinary case, not an exotic one, and an
+  // unescaped single quote inside single quotes ends the string and breaks the paste.
+  check("a quote in the body survives a shell paste",
+        /--data-raw '\{"note":"it'\\''s here"\}'/.test(curl), true);
+  check("it says what is missing rather than looking runnable",
+        /credential header values are masked/.test(curl) && /query values are masked/.test(curl) &&
+        /cookies are not captured/.test(curl), true);
+  check("https is assumed; a plain-http call says so",
+        curlOf({ method: "GET", scheme: "http", host: "localhost:3000", path: "/api",
+                 reqHeaders: [["accept", "*/*"]] }).split("\n")[0],
+        "curl -X GET 'http://localhost:3000/api' \\");
 }
 
 console.log(failures ? `\n${failures} failed\n` : "\nall passed\n");

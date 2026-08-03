@@ -289,9 +289,10 @@
     <label class="opt" id="bodyOpt">
       <input type="checkbox" id="netBodies" />
       <span>
-        <b>Include failed API responses</b>
-        <small>Adds the response body of any request that errors, trimmed. Off by default —
-        you can't check a response you never saw.</small>
+        <b>Include failed API requests</b>
+        <small>Keeps the whole exchange for a request that errors — headers, what was sent, what
+        came back — copyable as a cURL. Credential values are masked. Off by default: you can't
+        check a body you never saw.</small>
       </span>
     </label>
 
@@ -323,12 +324,13 @@
         <button class="ghost sm" id="bufClear">Discard</button>
       </div>
       <!-- The same Tier 2 opt-in for catch-up, separate because the exposure is
-           different: this one would hold failed response bodies for seven days,
-           unattended, on every armed site. Its own switch, its own decision. -->
+           different: this one would hold failed request and response bodies for
+           seven days, unattended, on every armed site. Its own switch, its own
+           decision. -->
       <label class="opt tight" id="bufBodyOpt" hidden>
         <input type="checkbox" id="bufBodies" />
         <span>
-          <b>Include failed API responses</b>
+          <b>Include failed API requests</b>
           <small>Held for 7 days on armed sites, like the rest of the capture.</small>
         </span>
       </label>

@@ -787,32 +787,97 @@
     return row;
   }
 
-  /* A response body. Clamped to a readable height with an explicit expander rather
-   * than left to scroll inside the card: a nested scroll region inside a scrolling
-   * page is the single most annoying pattern on the web, and a 200-line stack trace
-   * would otherwise own the viewport. */
-  function netBody(r) {
+  /* One block of monospace text under a request — the cURL, or the response body.
+   *
+   * Clamped to a readable height with an explicit expander rather than left to
+   * scroll inside the card: a nested scroll region inside a scrolling page is the
+   * single most annoying pattern on the web, and a 200-line stack trace would
+   * otherwise own the viewport.
+   *
+   * `label` is what makes two blocks under one row readable at a glance; without it
+   * a cURL followed by a JSON envelope is one wall of monospace with no seam. */
+  function netBlock(label, text, opts) {
+    opts = opts || {};
     var wrap = mk("div", "netbodywrap");
-    var pre = mk("pre", "netbody");
-    pre.textContent = r.body;
+    var head = mk("div", "netblockhead");
+    var tag = mk("span", "netblocklabel");
+    tag.textContent = label;
+    head.appendChild(tag);
+    head.appendChild(mk("div", "spacer"));
+    if (opts.copy) {
+      var cp = mk("button", "btn sm");
+      cp.textContent = opts.copy;
+      cp.addEventListener("click", function () {
+        copyText(text, cp, opts.copy);
+      });
+      head.appendChild(cp);
+    }
+    wrap.appendChild(head);
+
+    // A cURL is bounded by how many headers a request had — a dozen lines, and it
+    // is the thing someone came here to read. A response body is unbounded. So the
+    // request gets the taller clamp, and in practice never trips it.
+    var pre = mk("pre", "netbody" + (opts.tall ? " tall" : ""));
+    pre.textContent = text;
     wrap.appendChild(pre);
-    if (r.bodyTruncated) {
+    if (opts.truncated) {
       var cut = mk("div", "netcut");
-      cut.textContent = "Truncated from " + r.bodyTruncated.toLocaleString() + " characters";
+      cut.textContent = "Truncated from " + opts.truncated.toLocaleString() + " characters";
       wrap.appendChild(cut);
     }
-    // Only offer the expander when there is something to expand.
-    setTimeout(function () {
-      if (pre.scrollHeight <= pre.clientHeight + 4) return;
+    /* Whether to clamp is decided from the *text*, not by measuring the element.
+     * Two reasons, both learned the hard way:
+     *
+     * - The max-height lives on `.clamped` alone, so an unclamped <pre> always
+     *   reports scrollHeight === clientHeight however long it is. The original
+     *   "measure, then clamp if it overflows" therefore never clamped anything, and
+     *   a 200-line stack trace rendered in full — the exact clutter this block
+     *   exists to prevent.
+     * - Clamping first and then measuring does work, but only after layout has
+     *   settled: measured at setTimeout(0) the same content came back taller than
+     *   it ends up, so the expander appeared under text that was fully visible.
+     *
+     * Counting newlines plus a rough wrap allowance is deterministic, needs no
+     * layout, and is wrong only at the margin — where the cost is an expander over
+     * content that nearly fits. */
+    var lines = text.split("\n").length + Math.floor(text.length / 90);
+    if (lines > (opts.tall ? 16 : 8)) {
       pre.classList.add("clamped");
       var more = mk("button", "btn sm netmore");
-      more.textContent = "Show full response";
+      var openLabel = "Show full " + label.toLowerCase();
+      more.textContent = openLabel;
       more.addEventListener("click", function () {
         var open = pre.classList.toggle("open");
-        more.textContent = open ? "Collapse" : "Show full response";
+        more.textContent = open ? "Collapse" : openLabel;
       });
       wrap.appendChild(more);
-    }, 0);
+    }
+    return wrap;
+  }
+
+  function copyText(text, btn, label) {
+    var was = label || btn.textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(function () {
+        btn.textContent = "Copied";
+        setTimeout(function () { btn.textContent = was; }, 1400);
+      })
+      .catch(function () { window.prompt("Copy:", text); });
+  }
+
+  /* Everything known about one request beyond its status line: the cURL of what was
+   * sent, then what came back. In that order, because that is the order they
+   * happened in and because the request is what someone reproducing the bug needs
+   * first.
+   *
+   * Both are absent for a request that only Tier 1 saw, which is most of them — so
+   * this returns an empty node and the row stands alone. That is the common case and
+   * it is what keeps a 30-request step from becoming a wall. */
+  function netDetail(r) {
+    var wrap = mk("div", "netdetail");
+    var curl = X && X.curlOf ? X.curlOf(r) : "";
+    if (curl) wrap.appendChild(netBlock("Request", curl, { copy: "Copy cURL", tall: true }));
+    if (r.body) wrap.appendChild(netBlock("Response", r.body, { truncated: r.bodyTruncated }));
     return wrap;
   }
 
@@ -843,7 +908,7 @@
     var list = mk("div", "netrows");
     c.bad.forEach(function (r) {
       list.appendChild(netRow(r));
-      if (r.body) list.appendChild(netBody(r));
+      list.appendChild(netDetail(r));
     });
     box.appendChild(list);
 
@@ -939,7 +1004,7 @@
         grp.appendChild(gh);
         show.forEach(function (r) {
           grp.appendChild(netRow(r));
-          if (r.body) grp.appendChild(netBody(r));
+          grp.appendChild(netDetail(r));
         });
         if (s.networkMore && !only) {
           var more = mk("div", "netmoreline");
@@ -963,13 +1028,7 @@
     m.querySelector("#nl-bad").addEventListener("change", paint);
     m.querySelector("#nl-copy").addEventListener("click", function () {
       var btn = m.querySelector("#nl-copy");
-      var text = X.apiLogText(cur.guide, cur.steps);
-      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
-        .then(function () {
-          btn.textContent = "Copied";
-          setTimeout(function () { btn.textContent = "Copy log"; }, 1400);
-        })
-        .catch(function () { window.prompt("Copy the API log:", text); });
+      copyText(X.apiLogText(cur.guide, cur.steps), btn, "Copy log");
     });
     m.querySelector("#nl-close").addEventListener("click", closeModal);
     openModal();
@@ -1589,7 +1648,16 @@
         "<p>Anyone with this link can open the guide." +
         (canPush ? " Update re-uploads the current version to the <b>same link</b>, so nothing you've already shared goes stale." : "") +
         "</p>" +
-        '<div class="field"><input id="sh-url" readonly value="' + escapeHtml(url) + '" /></div>';
+        '<div class="field"><input id="sh-url" readonly value="' + escapeHtml(url) + '" /></div>' +
+        // Said out loud because it is a surprise otherwise: pasting the link into a
+        // chat shows the *title* to that channel, whether or not they open it. The
+        // picture is a GuideGen banner and never a step from the guide — worth
+        // stating in the same breath, since "a preview image" reasonably sounds like
+        // it might be one of your screenshots.
+        '<p class="hint">Pasted into a chat, the preview shows this guide\'s title — ' +
+        "<b>" + escapeHtml((cur.guide.title || "Untitled guide").slice(0, 80)) + "</b> — " +
+        "with a GuideGen banner. Never a screenshot from the guide. Rename it above if that " +
+        "title isn't for other eyes.</p>";
     }
 
     // Exports are only meaningful once there is a public page to export from.

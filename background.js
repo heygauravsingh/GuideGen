@@ -871,18 +871,28 @@ async function promoteBuffer(opts) {
  * never could. So the summary is free of the one thing that makes this feature
  * dangerous, and it is on for every recording.
  *
- * Tier 2 — bodies of *failed* requests — needs the page's own `fetch`/`XHR`, so
- * `netpatch.js` runs in the MAIN world and posts what it sees back. It is
- * **opt-in and off by default on both surfaces**, capped, truncated, and limited
- * to `status >= 400`. Three reasons for every one of those limits:
+ * Tier 2 — the whole *failed* exchange, as a cURL — needs the page's own
+ * `fetch`/`XHR`, so `netpatch.js` runs in the MAIN world and posts what it sees
+ * back: request method, request headers, the body that was sent, and the body that
+ * came back. It is **opt-in and off by default on both surfaces**, capped,
+ * truncated, and limited to `status >= 400`. Four reasons for those limits:
  *
  * 1. **You cannot redact what you never saw.** Redaction in this product is
  *    visual — you look at a screenshot and drag a box over it. Nobody reads a
  *    2KB JSON blob before sharing it, so the only safe body is one narrow enough
  *    to reason about in the abstract: a failure envelope, not a customer record.
- * 2. **Headers are never captured, on either tier.** `Authorization: Bearer …`
- *    and `Cookie` live there. There is no toggle for this and there should not be.
- * 3. **Query strings are stripped from the path.** Tokens and ids ride in them.
+ * 2. **Header names are captured; credential values never are.** That a request
+ *    carried an `authorization` header is the diagnosis; the token is not. The
+ *    value is replaced with a mask in the page (netpatch.js) *and* again here
+ *    (`netScrubHeaders`) — one of the two has to be the last word, and the page
+ *    side means a secret never crosses the boundary at all. There is no toggle to
+ *    keep a real token and there should not be one: the destination for this data
+ *    is a chat window.
+ * 3. **Query values are masked, names kept.** `?token=…&page=…` identifies the
+ *    endpoint and its shape without carrying the id or the session key.
+ * 4. **`Cookie` is out of reach anyway.** The browser attaches it below the page's
+ *    fetch, and an HttpOnly cookie is invisible to page script. So a captured cURL
+ *    is the shape of a call, never a replayable session.
  *
  * `webRequest` here is observational only — no blocking, no `declarativeNetRequest`,
  * nothing that alters a request. It is a new permission, though, which the store
@@ -907,6 +917,17 @@ const NET = {
   // 40 bodies at this size is ~320KB per guide, which is nothing next to one
   // screenshot.
   bodyChars: 8192,
+  // A sent body is usually smaller than the response, and a huge one is a file
+  // upload rather than an API call worth reading.
+  reqBodyChars: 4096,
+  maxHeaders: 30,
+  headerChars: 300,
+  // Substring match, lower-cased. Same list as netpatch.js's MASKED_HEADER, kept
+  // in both places on purpose — the page-side mask means a credential never
+  // crosses the boundary, this one means a page that posts an unmasked value
+  // still cannot get it stored.
+  maskedHeader: /auth|cookie|token|secret|api[-_]?key|session|credential|signature/i,
+  mask: "…GuideGen-masked…",
   // `xmlhttprequest` covers fetch as well as XHR in Chrome. Everything else is
   // page furniture — images, fonts, stylesheets — or telemetry (`ping` is
   // sendBeacon), and an API log full of font requests is not an API log.
@@ -916,15 +937,46 @@ const NET = {
 function netPath(url) {
   try {
     const u = new URL(url);
-    // Query stripped: ids, tokens and session keys ride in it, and the path is
-    // what identifies the endpoint.
-    return u.pathname + (u.search ? "?…" : "");
+    // Parameter *names* kept, values masked. The names are part of what identifies
+    // the call — `?page=2&token=…` is a different request from `?export=1` — while
+    // the values are where ids, tokens and session keys ride. Stripping the query
+    // wholesale (which this used to do) made two different failures look identical
+    // in the log, and made the cURL a guess.
+    let q = "";
+    if (u.search) {
+      const parts = [];
+      u.searchParams.forEach((v, k) => { parts.push(k + "=" + (v ? "…" : "")); });
+      q = "?" + (parts.length ? parts.join("&") : "…");
+    }
+    return u.pathname + q;
   } catch (e) {
     return "";
   }
 }
 function netHost(url) {
   try { return new URL(url).host; } catch (e) { return ""; }
+}
+function netScheme(url) {
+  try { return new URL(url).protocol.replace(":", ""); } catch (e) { return "https"; }
+}
+
+/* The last word on request headers. netpatch.js already masked these in the page,
+ * which is the mask that matters — a value that never crosses the boundary cannot
+ * be stored. This one exists because the channel is `postMessage` and the page can
+ * write to it too: a hostile page could post `authorization: <real token>` and,
+ * without this, have the extension store it for them. Also where the caps live, so
+ * a page cannot make one entry arbitrarily large. */
+function netScrubHeaders(pairs) {
+  if (!Array.isArray(pairs)) return [];
+  const out = [];
+  for (const p of pairs) {
+    if (out.length >= NET.maxHeaders) break;
+    const k = String((p && p[0]) || "").slice(0, 80).trim();
+    if (!k) continue;
+    const raw = String((p && p[1]) || "");
+    out.push([k, NET.maskedHeader.test(k) ? NET.mask : raw.slice(0, NET.headerChars)]);
+  }
+  return out;
 }
 
 // requestId -> when it started, so a duration can be reported without keeping the
@@ -986,6 +1038,10 @@ function netRecord(details, status, error) {
       ms: started ? Math.max(0, Date.now() - started) : null,
       ok: !error && status >= 200 && status < 400,
     };
+    // Only when it isn't https, so the common case costs nothing. The cURL builder
+    // assumes https without it.
+    const scheme = netScheme(details.url);
+    if (scheme !== "https") entry.scheme = scheme;
     if (error) entry.error = String(error).replace(/^net::/, "");
     netAppend(target.key, entry, target.kind === "buf");
     // A failed request is the only kind whose body we might be handed. Remember it
@@ -1035,18 +1091,27 @@ async function netBody(msg, sender) {
 
   const raw = String(msg.body || "");
   const body = raw.slice(0, NET.bodyChars);
+  const req = msg.req && typeof msg.req === "object" ? msg.req : null;
+  const reqHeaders = req ? netScrubHeaders(req.headers) : [];
+  const rawReqBody = req ? String(req.body || "") : "";
+  const reqBody = rawReqBody.slice(0, NET.reqBodyChars);
   netChain = netChain
     .then(async () => {
       const list = await get(target.key, []);
-      // Cap how many bodies one log can hold. The summary is bounded by entry
-      // count; bodies are bounded separately because they are ~20x the size.
-      if (list.filter((e) => e.body).length >= NET.maxBodies) return;
+      // Cap how many exchanges one log can hold. The summary is bounded by entry
+      // count; the exchange is bounded separately because it is ~20x the size. An
+      // entry that carried only request detail counts too — otherwise a run of
+      // bodiless failures would let the cap be exceeded on the request side.
+      if (list.filter((e) => e.body || e.reqHeaders || e.reqBody).length >= NET.maxBodies) return;
       const e = list.filter(
         (x) => x.ts === hit.entry.ts && x.path === hit.entry.path && x.status === status
       )[0];
       if (!e) return;
-      e.body = body;
+      if (body) e.body = body;
       if (raw.length > body.length) e.bodyTruncated = raw.length;
+      if (reqHeaders.length) e.reqHeaders = reqHeaders;
+      if (reqBody) e.reqBody = reqBody;
+      if (rawReqBody.length > reqBody.length) e.reqBodyTruncated = rawReqBody.length;
       await set({ [target.key]: list });
     })
     .catch(() => {});
@@ -1084,9 +1149,14 @@ function attachNetwork(steps, entries) {
     s.network = keep.map((e) => {
       const out = { method: e.method, path: e.path, status: e.status, ms: e.ms, ok: e.ok };
       if (e.host) out.host = e.host;
+      if (e.scheme) out.scheme = e.scheme;
       if (e.error) out.error = e.error;
       if (e.body) out.body = e.body;
       if (e.bodyTruncated) out.bodyTruncated = e.bodyTruncated;
+      // The request side of a failed exchange — what makes a cURL possible.
+      if (e.reqHeaders) out.reqHeaders = e.reqHeaders;
+      if (e.reqBody) out.reqBody = e.reqBody;
+      if (e.reqBodyTruncated) out.reqBodyTruncated = e.reqBodyTruncated;
       return out;
     });
     // Say when the log is partial rather than silently showing the first twelve.
@@ -1614,6 +1684,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               const out = { ...e };
               delete out.body;
               delete out.bodyTruncated;
+              // The whole exchange goes, not only the response: the request headers
+              // and the sent body are Tier 2 too, and leaving them behind would make
+              // "off" mean half off.
+              delete out.reqHeaders;
+              delete out.reqBody;
+              delete out.reqBodyTruncated;
               return out;
             });
             await set({ [K.bufNet]: list });

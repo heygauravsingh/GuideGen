@@ -97,6 +97,13 @@
 
   <p>Unpublished guides are never uploaded. Publishing one guide does not upload the others.</p>
 
+  <p><b>One consequence of sharing a link.</b> When a published link is pasted into a chat app or
+  a social network, that platform fetches the page to build a preview, and the preview shows
+  <strong>the guide's title</strong> — to everyone in that conversation, whether or not they open
+  it. The image beside it is a fixed GuideGen banner; <strong>a screenshot from your guide is never
+  used as a preview image</strong>, so nothing from inside the guide is copied into a third party's
+  preview cache. Shared guide pages are also marked not to be indexed by search engines.</p>
+
   <div class="callout">
     <p><strong>Screenshots can contain other people's information.</strong> A screenshot captures
     whatever was on screen, which may include customer names, addresses, order details or anything
@@ -236,8 +243,8 @@
   of the element you click, plus the request summary described in section&nbsp;9b.</p>
 
   <p>It also asks for <code>webRequest</code>, which lets it see the network requests a page makes
-  while it is capturing. This is observational only: it cannot block, redirect or modify a request,
-  and it cannot read request headers. Section&nbsp;9b covers what is recorded.</p>
+  while it is capturing. This is observational only: it cannot block, redirect or modify a request.
+  Section&nbsp;9b covers what is recorded, and what is masked before it is stored.</p>
 
   <h2>9a. Catch-up capture</h2>
 
@@ -276,32 +283,43 @@
 
   <p><b>What it is.</b> While a recording is running — or on a site you have armed for catch-up
   capture — GuideGen notes the network requests the page makes, and attaches them to the step that
-  triggered them. For each request that means the method, the address without its query string, the
-  status code and how long it took. This is what turns "I clicked Save and it didn't work" into
+  triggered them. For each request that means the method, the address with its query
+  <em>values</em> masked, the status code and how long it took. This is what turns "I clicked Save and it didn't work" into
   "clicking Save sent POST /api/orders and got a 500", which is the difference between a report
   someone can act on and one they cannot.</p>
 
-  <p><b>What it never records.</b> Request headers, in any circumstance. Authentication tokens and
-  cookies live in headers, and there is no setting that turns this on. Query strings are also
-  stripped from the address, because identifiers and access tokens are often carried in them.</p>
+  <p><b>What it never records.</b> The value of any header that looks like a credential, in any
+  circumstance and on either setting below. Where a request carried an <code>authorization</code>,
+  <code>cookie</code>, <code>x-api-key</code> or similarly named header, the name is kept and the
+  value is replaced with a marker before it is stored — so a captured request shows that it was
+  authenticated without carrying the token that authenticated it. There is no setting that turns
+  that off. The same applies to values inside the query string and to obvious secrets in a sent
+  body: a parameter called <code>token</code> keeps its name and loses its value, and a
+  <code>password</code> field in a submitted form is replaced the same way. Your browser cookies
+  are not readable by this mechanism at all.</p>
 
-  <p><b>Response contents are a separate opt-in, and it is off.</b> By default no response content
-  is recorded at all. You can switch on "Include failed API responses" — once per recording, or
-  per armed site for catch-up capture — and then GuideGen also keeps the body of a request that
-  <em>failed</em>: an error status, or no response. Successful responses are never captured, on
-  either setting. What is kept is trimmed to roughly two thousand characters, and a limited number
-  are held per guide.</p>
+  <p><b>The full exchange is a separate opt-in, and it is off.</b> By default only the summary
+  above is recorded. You can switch on "Include failed API requests" — once per recording, or per
+  armed site for catch-up capture — and then, for a request that <em>failed</em> (an error status,
+  or no response at all), GuideGen also keeps the request headers, the body that was sent and the
+  body that came back, and can show them to you as a <code>curl</code> command. Successful requests
+  never have their contents captured, on either setting. What is kept is trimmed — roughly eight
+  thousand characters of response, four thousand of request — and a limited number are held per
+  guide.</p>
+
+  <p>That command is a record of a call, not a way to repeat it: with the credential values masked
+  and cookies absent, pasting it into a terminal will not sign in as you.</p>
 
   <p>We are explicit about why that one is off by default. Everything else GuideGen records, you
   can see: a screenshot is a picture of what was on your screen, and you can black out parts of it
-  before sharing. A response body is data you never looked at, so you cannot check it the same way.
-  Failed responses are the narrow case where the content is usually a short error message rather
-  than someone's personal data — which is why it is the only content we will keep, and only when
-  you ask.</p>
+  before sharing. A request and response body are data you never looked at, so you cannot check
+  them the same way. Failed requests are the narrow case where the content is usually a short error
+  message rather than someone's personal data — which is why it is the only content we will keep,
+  and only when you ask.</p>
 
   <p><b>You can remove it.</b> Each step's API log can be deleted from the editor, on its own,
-  without affecting the rest of the guide. Turning the catch-up setting off also discards any
-  response contents already held, not merely future ones.</p>
+  without affecting the rest of the guide. Turning the catch-up setting off also discards anything
+  already held — the requests as well as the responses — not merely future ones.</p>
 
   <p><b>Where it goes.</b> Nowhere, unless you send it. The log lives with the guide on your
   device. Of the ways to get a guide out of GuideGen, only the <b>AI handoff</b> — the text you

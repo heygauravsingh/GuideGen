@@ -144,7 +144,7 @@ First check the two things that are generated and go stale silently — the webs
 copies of the shared renderer, and the icons:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check && node tools/set-extension-key.mjs --check
+cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check && node tools/make-og.mjs --check && node tools/set-extension-key.mjs --check
 ```
 
 A stale renderer mirror keeps the site working while rendering last week's annotations.
@@ -252,7 +252,8 @@ older builds to anyone holding the link, which is the failure mode this section 
 
 | Version | Drive file id | State |
 |---|---|---|
-| v1.2.0 — catch-up capture + API log | `108KwuZFEPP2YwOyZfLRjMEUqM6R7tYxl` | **current**, `/install` points here |
+| v1.2.1 — the API log as a cURL | *(pending upload)* | **use Manage versions on `108KwuZ…`** so the id and `/install` stay put |
+| v1.2.0 — catch-up capture + API log | `108KwuZFEPP2YwOyZfLRjMEUqM6R7tYxl` | `/install` points here; upload v1.2.1 into it as a new *version* |
 | v1.1.x — catch-up capture + safeSend | `19D5aj2-8cfXkVSZLL_6jpplPTqJIq4d-` | superseded — delete |
 | v1.1.0 | `1v9__uhc7ha8-pPF_H_4hn2yqK5HwDSHJ` | superseded — delete |
 
@@ -434,7 +435,7 @@ has already assigned.
 
 Verify before submitting:
 ```
-node tools/set-extension-key.mjs --check && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check
+node tools/set-extension-key.mjs --check && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check && node tools/make-og.mjs --check
 ```
 
 ---

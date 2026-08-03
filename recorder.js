@@ -106,11 +106,32 @@
   function onNetMessage(e) {
     if (e.source !== window || !e.data || e.data.source !== "gg_net_body") return;
     if (!mode()) return;
+    // Re-shaped rather than forwarded: whatever posted this can put anything in
+    // `req`, and the worker should not have to defend against an object of
+    // arbitrary depth. Headers come across as pairs of strings, capped, and the
+    // worker masks the values again on the way in.
+    const d = e.data;
+    let req = null;
+    try {
+      if (d.req && typeof d.req === "object") {
+        req = {
+          method: String(d.req.method || "").toUpperCase().slice(0, 12),
+          headers: (Array.isArray(d.req.headers) ? d.req.headers : [])
+            .slice(0, 40)
+            .map((p) => [String((p && p[0]) || "").slice(0, 80), String((p && p[1]) || "").slice(0, 400)])
+            .filter((p) => p[0]),
+          body: String(d.req.body || ""),
+        };
+      }
+    } catch (err) {
+      req = null;
+    }
     safeSend({
       type: "fs_net_body",
-      url: String(e.data.url || ""),
-      status: Number(e.data.status) || 0,
-      body: String(e.data.body || ""),
+      url: String(d.url || ""),
+      status: Number(d.status) || 0,
+      body: String(d.body || ""),
+      req,
     });
   }
 

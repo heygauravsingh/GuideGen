@@ -680,6 +680,7 @@ footer.site .spacer { flex: 1; }
   -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent);
   mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent);
 }
+.netbody.tall.clamped { max-height: calc(16 * 1.55em + 20px); }
 .netbody.clamped.open {
   max-height: none;
   -webkit-mask-image: none;
@@ -687,6 +688,21 @@ footer.site .spacer { flex: 1; }
 }
 .netmore { margin-top: 6px; }
 .netcut { margin-top: 5px; color: var(--faint); font-size: 11.5px; }
+
+/* Two blocks can sit under one request — the cURL of what was sent, then what came
+   back — so each needs a label. Without one they read as a single wall of monospace
+   with no seam, which is exactly the "filled with logs" failure this feature has to
+   avoid. The label is small and quiet: it is a seam, not a heading. */
+.netdetail:empty { display: none; }
+.netdetail .netbodywrap + .netbodywrap { margin-top: -4px; }
+.netblockhead {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 4px;
+}
+.netblocklabel {
+  font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--faint);
+}
+.netblockhead .btn { padding: 2px 8px; font-size: 11.5px; }
 
 .netfoot {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

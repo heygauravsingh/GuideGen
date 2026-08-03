@@ -119,7 +119,12 @@ function harness(opts) {
   sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
   vm.runInContext(readFileSync(ROOT + "/recorder.js", "utf8"), ctx, { filename: "recorder.js" });
-  return { sandbox, chrome, runtime, sent, pending, handlers, body, document, winHandlers };
+  // `window` inside the vm is the context's global *proxy*, not the object handed to
+  // createContext — so `sandbox !== window` in there, and a message posted with
+  // `source: sandbox` fails recorder.js's `e.source !== window` guard. Reach in for
+  // the proxy so a test can pretend to be the page.
+  const win = vm.runInContext("window", ctx);
+  return { sandbox, win, chrome, runtime, sent, pending, handlers, body, document, winHandlers };
 }
 
 // A left click on a button-ish element, through the capture-phase listener.
@@ -248,6 +253,53 @@ console.log("\n=== 7. idle: armed nowhere, not recording ===");
   h.sent.length = 0;
   click(h);
   check("a click sends nothing", h.sent.length, 0);
+}
+
+// ---------------------------------------------------------------------------
+// The relay out of the MAIN world. Whatever posts this — netpatch.js or the page
+// itself — the shape that reaches the worker has to be flat, capped and boring.
+console.log("\n=== 8. the netpatch relay reshapes rather than forwards ===");
+{
+  const h = harness({ state: { recording: true, guideId: "g1", stepCount: 0 } });
+  await settle();
+  h.sent.length = 0;
+  const post = (data) =>
+    (h.winHandlers.message || []).forEach((fn) => fn({ source: h.win, data }));
+
+  post({
+    source: "gg_net_body", url: "https://api.x/orders", status: 500, body: "boom",
+    req: {
+      method: "post",
+      headers: [["content-type", "application/json"], ["x-nope"], null],
+      body: '{"a":1}',
+      extra: { deep: { deeper: 1 } },
+    },
+  });
+  const m = h.sent.filter((x) => x.type === "fs_net_body")[0];
+  check("the exchange goes to the worker", !!m, true);
+  check("the method is normalised", m.req.method, "POST");
+  check("a header with no value is kept as a name; a null pair is dropped",
+        m.req.headers, [["content-type", "application/json"], ["x-nope", ""]]);
+  check("nothing else on req survives the reshape",
+        Object.keys(m.req).sort(), ["body", "headers", "method"]);
+
+  h.sent.length = 0;
+  const heads = [];
+  for (let i = 0; i < 80; i++) heads.push(["h" + i, "v".repeat(2000)]);
+  post({ source: "gg_net_body", url: "https://api.x/orders", status: 500, body: "b",
+         req: { method: "POST", headers: heads, body: "" } });
+  const big = h.sent.filter((x) => x.type === "fs_net_body")[0];
+  check("headers are capped before they leave the page", big.req.headers.length, 40);
+  check("and each value with them", big.req.headers[0][1].length, 400);
+
+  h.sent.length = 0;
+  post({ source: "gg_net_body", url: "https://api.x/orders", status: 500, body: "b", req: "nonsense" });
+  check("a junk req becomes null rather than throwing",
+        h.sent.filter((x) => x.type === "fs_net_body")[0].req, null);
+
+  h.sent.length = 0;
+  post({ source: "something-else", url: "https://api.x/orders", status: 500, body: "b" });
+  check("another page's postMessage is ignored", h.sent.length, 0);
 }
 
 console.log(failures ? `\n${failures} failed\n` : "\nall passed\n");
