@@ -1017,6 +1017,35 @@ not two. If you touch it:
 That is how the editor knows to offer Update and Unpublish instead of minting a second
 document — and a second link — on every press.
 
+## The house page (web/house.html + web/assets/house.js)
+`backpocket.website` — the apex, and the house the products sit in. Served by the **same
+Vercel project** as GuideGen: `web/vercel.json` rewrites `/` to `/house` when the host is the
+apex, so there is one deploy and no second repo to keep in step. `guidegen.backpocket.website`
+falls through to `index.html` as before.
+
+- **The demo is the page.** A visitor clicks a pretend admin panel and a guide writes itself
+  beside it, ending on "Copy it for an AI" — the flagship export, demonstrated rather than
+  claimed, with something they want to paste. Two rules it inherits from `recorder.js`
+  because breaking either makes it read as a keylogger rather than a guide: typing is
+  **one step per burst** (650ms settle), and a pending burst is **flushed before a click** or
+  the typing step lands after its own consequences. A checkbox is recorded on `change`, never
+  on click — a `<label>` click toggles the inner input, which fires a second bubbling click,
+  and that produced every checkbox step twice.
+- **The step pictures are DOM clones, not captures**, scaled with `zoom` (a `transform`
+  keeps the original box and leaves a hole under it). Honest by construction: it is our own
+  markup, a real capture would need permissions no landing page should ask for, and the copy
+  under the demo says outright that nothing is recorded.
+- **Votes reuse the `waitlist` collection.** The Firestore rules allow create-only with
+  exactly `email`, `note` and `createdAt` and forbid reading it back, so a vote is a `note` of
+  `vote:<slug>` — no rules change, and nothing on the page can enumerate anyone's submission.
+- **No invented numbers, ever.** No user counts, no testimonials, no logos. The whole product
+  is sold on trust; a fabricated metric is the cheapest possible way to lose it. Unbuilt tools
+  are labelled *Idea* or *Next up*, and only GuideGen says *Live*.
+- **Share links are hand-built URLs**, no third-party widgets — the site loads nothing from an
+  external host, and a tracker on a privacy page would be its own punchline.
+- `tools/make-og.mjs` has a third design, `house`, for `og-house.png`. The wordmark and footer
+  URL are kind-aware, so the house banner says Backpocket and the product one says GuideGen.
+
 ## The landing page (web/index.html)
 Two orderings are in play and they are not the same, so don't "fix" one into the other:
 

@@ -35,6 +35,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = [
   { file: "og.png", kind: "product" },
   { file: "og-guide.png", kind: "guide" },
+  // The house banner. Sells the *house*, not one tool: the promise every tool shares.
+  { file: "og-house.png", kind: "house" },
 ];
 
 if (process.argv.includes("--check")) {
@@ -75,13 +77,20 @@ if (!CHROME) {
  */
 function html(kind) {
   const guide = kind === "guide";
-  const eyebrow = guide ? "Someone shared a guide with you" : "Do it once. Hand it over.";
-  const head = guide
-    ? "A step-by-step guide,<br />recorded in one pass."
-    : "Turn any workflow into<br />steps an AI can act on.";
-  const sub = guide
-    ? "Screenshots, written steps, and the exact requests the page made — captured while someone just did the work."
-    : "Record a browser workflow once. Get a handoff for an assistant, or a document for a person.";
+  const house = kind === "house";
+  const eyebrow = house
+    ? "One tool at a time"
+    : guide ? "Someone shared a guide with you" : "Do it once. Hand it over.";
+  const head = house
+    ? "Small tools for<br />the daily mess."
+    : guide
+      ? "A step-by-step guide,<br />recorded in one pass."
+      : "Turn any workflow into<br />steps an AI can act on.";
+  const sub = house
+    ? "They run on your own machine. Nothing uploaded, nothing to sign up for, no dashboard to check."
+    : guide
+      ? "Screenshots, written steps, and the exact requests the page made — captured while someone just did the work."
+      : "Record a browser workflow once. Get a handoff for an assistant, or a document for a person.";
   return `<!doctype html><meta charset="utf-8" />
 <style>
   @font-face { font-family: x; src: local("Inter"); }
@@ -159,12 +168,12 @@ function html(kind) {
   <div class="brand">
     <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
       stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg></span>
-    <b>GuideGen</b>
+    <b>${house ? "Backpocket" : "GuideGen"}</b>
   </div>
   <div class="eyebrow">${eyebrow}</div>
   <h1>${head}</h1>
   <p class="sub">${sub}</p>
-  <div class="foot"><span class="pill">Free early access</span><span>guide-gen.vercel.app</span></div>
+  <div class="foot"><span class="pill">${house ? "Built in the open" : "Free early access"}</span><span>${house ? "backpocket.website" : "guidegen.backpocket.website"}</span></div>
 </div>
 <div class="r">
   <div class="card">
