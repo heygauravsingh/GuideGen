@@ -1,6 +1,36 @@
 # Launch runbook — submit GuideGen to the Chrome Web Store today
 
-## STATUS — 31 Jul 2026, audited. Read this first; the numbered steps are reference.
+## STATUS — 3 Aug 2026: v1.2.4 built, both ZIPs current, website deployed
+
+**Website:** live. `main` is pushed and Vercel has served it — the landing page's new
+`#video` / `#share` sections, the rebuilt `/g/{id}` page and the current `site.css` all
+verified against `https://guide-gen.vercel.app`.
+
+**Extension: v1.2.4, both archives rebuilt 3 Aug and verified.**
+
+| | State |
+|---|---|
+| `../GuideGen-Prod.zip` | v1.2.4, flat, key derives `dijeonandicniffeffbcolhfldommhnp` |
+| `../GuideGen-Beta.zip` | v1.2.4, wrapped in `guidegen/`, same key |
+| Both | 9 permissions, no `.DS_Store`, no source maps; contents confirmed to include this release's fixes |
+| `--check`s | extension key, web-asset mirrors and icons all pass |
+| Tests | `recorder`, `buffer`, `net`, `og`, `context` — zero failures |
+
+In v1.2.4, both worth a line to testers because both change what a recorded guide *says*:
+
+- **Typing is one step again.** Every character of a burst is a `keydown`, and `onKeyDown`
+  flushed the pending typing before it knew whether that key was a step — so "Demo" recorded
+  as four steps, `Type "D"` … `Type "Demo"`.
+- **A page load that only restates the click before it is dropped.** Thirteen steps became
+  nine on the guide that prompted it.
+
+**Neither is in the store yet, and neither is on Drive yet.** Both are hand steps only you can
+do: upload `GuideGen-Prod.zip` to the store draft, and `GuideGen-Beta.zip` into Drive with
+**Manage versions** on `108KwuZ…` (never as a new file — see Step 2b). Check the review state
+of the pending submission before touching the store draft: uploading a package restarts the
+queue.
+
+## Earlier status — 31 Jul 2026, audited. Read this too; the numbered steps are reference.
 
 The console work is **finished**. Do not redo any of it — the steps below still describe it
 because they are the reference for doing it again from scratch, not a to-do list.
@@ -252,7 +282,8 @@ older builds to anyone holding the link, which is the failure mode this section 
 
 | Version | Drive file id | State |
 |---|---|---|
-| v1.2.1 — the API log as a cURL | *(pending upload)* | **use Manage versions on `108KwuZ…`** so the id and `/install` stay put |
+| v1.2.4 — typing is one step, caused page loads dropped | *(built 3 Aug, pending upload)* | **use Manage versions on `108KwuZ…`** so the id and `/install` stay put |
+| v1.2.1–1.2.3 — the API log as a cURL, then the whole exchange | *(never uploaded separately)* | superseded by v1.2.4 before it reached Drive |
 | v1.2.0 — catch-up capture + API log | `108KwuZFEPP2YwOyZfLRjMEUqM6R7tYxl` | `/install` points here; upload v1.2.1 into it as a new *version* |
 | v1.1.x — catch-up capture + safeSend | `19D5aj2-8cfXkVSZLL_6jpplPTqJIq4d-` | superseded — delete |
 | v1.1.0 | `1v9__uhc7ha8-pPF_H_4hn2yqK5HwDSHJ` | superseded — delete |

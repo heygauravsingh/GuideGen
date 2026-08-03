@@ -40,8 +40,16 @@ WHAT YOU GET
 • Automatic step text — written from the actual control you clicked, not a generic label
 • An annotated screenshot per step, highlighted, numbered and cropped to what matters
 • Tab switches and page loads recorded as their own steps, so a workflow that opens a new
-  tab still reads in order instead of jumping
+  tab still reads in order instead of jumping — and a page load that only restates the click
+  before it is left out
+• Typing captured as one step per field, with the screenshot taken once you've stopped
 • An auto-generated title, so guides aren't called "Untitled"
+• Capture the last 2 minutes — switch it on for a site you document and you can make a guide
+  out of work you already did, without having pressed start. Off everywhere until you turn it
+  on for a specific site, held on your device only, and deleted after 7 days
+• What the page did, not just what you clicked — the requests each step fired and the status
+  that came back, and optionally the full exchange as a cURL. Credential values are masked
+  before anything is stored. It travels with the AI handoff and with no other export
 • Redaction — drag a box over anything sensitive and it's pixelated in every export
 • Notes — add context steps that aren't clicks
 • Reorder, rewrite or delete any step
@@ -55,10 +63,14 @@ EXPORT TO
 
 SHARE A LINK, OR DON'T
 • Publish a guide and you get a link anyone can open — only that guide is uploaded
+• The page carries your name, the recording's length and the app it happened in; every
+  screenshot zooms, and any single step can be linked to on its own
+• Pasted into a chat, the preview shows the guide's own title — never a step, never a
+  screenshot. Shared guides are marked no-index
 • Update it in place; the link you already shared keeps working
 • Unpublish and the link stops working and the images are deleted
 • Optionally let readers export it themselves — their browser builds the file, and you
-  see who exported what
+  see who exported what. It governs whether a button appears, not who can read the page
 
 YOUR SCREENSHOTS STAY PUT UNTIL YOU SAY OTHERWISE
 Guides are saved in your own browser. Nothing is uploaded in the background, for

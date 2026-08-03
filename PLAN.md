@@ -376,7 +376,10 @@ the Google display name; and the viewer resumes the export it was interrupted fo
 password account and a Google account with the same address link or fork. Fork means two
 libraries under one email and no merge path. Set it before anyone signs up twice.
 
-### Small gap: the viewer has no broken-image handling
+### Small gap: the viewer has no broken-image handling — STILL OPEN as of 3 Aug 2026
+Re-checked while rebuilding that page, and deliberately left alone: it was not on the list
+the owner picked from the audit. It is now slightly worse than described below, because a
+broken image also gets a Zoom button and opens an empty lightbox.
 
 `web/g.html` renders each step's `imageUrl` as a plain `<img>` with no `onerror`. If an image
 404s — a CDN purge racing a page load, or a guide whose assets were deleted out of band —
@@ -387,11 +390,35 @@ product being broken.
 
 ### Also worth taking from Scribe's editor (observed 30 Jul 2026)
 - **"Merge similar steps"** — a user-triggered fix for repeated clicks on same-labelled
-  elements producing identical step text. We hit exactly this.
-- **"Navigate to &lt;URL&gt;"** recorded as a step. We don't capture navigation at all.
-- **ALT text per image**, for accessibility.
-- A short guide description under the title, plus toggles for author / step count /
-  creation time / timestamps.
+  elements producing identical step text. We hit exactly this. **Still open.** What shipped
+  instead is automatic and narrower: `mergeRedundant()` folds a field click into the typing
+  that follows it, and `dropCausedNavs()` drops a page load the previous click explains.
+  Neither is user-triggered, and neither merges two clicks on the same label.
+- ~~**"Navigate to &lt;URL&gt;"** recorded as a step.~~ **DONE** — `nav` and `switch` steps,
+  30 Jul. Since 3 Aug the ones a click already explains are dropped again, and a published
+  guide leads with a `Start here` link built from `startUrl`.
+- **ALT text per image**, for accessibility. **Still open.** The viewer emits `alt="Step n"`,
+  which is a label rather than a description — there is no per-image alt anyone can edit.
+- ~~A short guide description under the title, plus author / step count / creation time.~~
+  **DONE 3 Aug** — an editable `description` in the editor, and the published page carries
+  owner name, step count, recording length, the app and the date. No per-field toggles: they
+  are all derived except the description, and a toggle per line is a settings screen for a
+  page with five facts on it.
+
+### Re-audited against Scribe's *published guide page*, 3 Aug 2026 — mostly built
+Compared `/g/M3BNbgfE7yYrtv6uf5Ay` with the same workflow captured in Scribe. Built that day:
+the wider column, click-to-zoom on every screenshot, Copy link, per-step anchors, the sticky
+title and read progress, a table of contents, the scroll CTA, and the header facts above.
+
+Deliberately **not** taken, with reasons:
+- **Per-step comments.** Needs reader accounts and a moderation surface. Out of proportion.
+- **"Save for later" / bookmarking.** Same reason.
+- **Dark by default.** Every artefact this product makes is light — HTML export, PDF, video
+  slides, the published page — so the editor matching what you're building wins.
+- **LLM-written titles and summaries.** `guessTitle()` plus a description box the author
+  writes gets most of the value with no model and no upload.
+- **`Copy for AI` unauthenticated on the public page.** Considered and declined by the owner
+  (3 Aug): the handoff export stays behind the owner's export switch like every other format.
 
 Keep `render.js`/`exporters.js` single-source: one canonical copy in the repo root, copied
 into `web/assets/` by a small script before commit. Two hand-maintained copies is exactly

@@ -21,7 +21,13 @@ Capture, editing, rendering and every export run on your device. Two things leav
 3. Do your workflow normally. Each click and each form entry becomes a step with a screenshot, the clicked element highlighted, and an auto-written description ("Click the ... button", "Type ... into ...").
 4. A red **Recording** pill sits in the bottom-right and counts steps. Click **Stop & edit** when finished — the editor opens automatically.
 
-When you stop, GuideGen tidies the guide up: it names it after what you did (e.g. *How to view Journey Tracking in uEngage* — editable, and only when you haven't titled it yourself), and folds "click the field" + "type into that field" into a single step.
+When you stop, GuideGen tidies the guide up:
+
+- It names it after what you did (e.g. *How to view Journey Tracking in uEngage*) — editable, and only when you haven't titled it yourself.
+- It folds "click the field" + "type into that field" into a single step.
+- It drops a "Go to …" step that only restates where the click before it already went. A page load still gets its own step when nothing else explains it: it opened in another tab, you typed the address yourself, or it's where the guide ends.
+
+Typing is one step per burst, not per keystroke — "Type "Demo"" settles after you stop typing and the screenshot is taken then, with the value and its results on screen.
 
 ## Edit
 
@@ -53,6 +59,27 @@ The video is rendered on a canvas and captured to `.webm`. With narration on, Gu
 Video is 1080p. Like the other exports, each slide zooms toward the thing you clicked rather than showing the whole browser window — a full desktop viewport is mostly empty margin, and fitting all of it on screen shrinks the actual UI until the text can't be read.
 
 The first narrated export takes a little longer while the voice model loads. The video is rendered by the extension in an offscreen document, so you can leave the dashboard tab — you no longer have to keep it focused. If the voice files are missing from `lib/`, GuideGen falls back to a **silent captioned** video (every step still shows its text on screen).
+
+## Publish and share a link
+
+For a reader who'd rather not be sent a file: press **Share → Publish** and you get a link at `/g/{id}`. Only that guide is uploaded, on that press.
+
+What the recipient opens:
+
+- The title, your name, how long the recording was and the app it happened in, then the numbered steps.
+- Any screenshot opens full-screen and zooms — a dashboard shrunk into a column is a picture nobody can read.
+- A link to any single step, so "look at step 7" is a link.
+- Page loads link to the page they loaded.
+- A table of contents once there are more than three steps, and a print stylesheet.
+- Pasted into Slack or WhatsApp, the preview shows the guide's own title — never a step and never a screenshot. Shared guides are `noindex`.
+
+Owner-side:
+
+- **Update** re-publishes in place: the link you already sent is never stale, and the superseded images are deleted.
+- **Unpublish** kills the link and deletes the images.
+- Annotations and redactions are baked into the images before upload — no unredacted original ever leaves your machine.
+- **Let readers export** is optional, and it is not an access control: it decides whether a button appears. Anyone who can open the page can already print or screenshot it.
+- A description you write in the editor appears above the steps. It is the only part of the page not derived from the recording.
 
 ## Capture the last 2 minutes
 
