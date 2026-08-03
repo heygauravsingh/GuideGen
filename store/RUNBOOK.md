@@ -263,9 +263,17 @@ kept on the machine; `voicecache.js` holds the rules and the checksums. Everythi
 
 Two consequences for releasing:
 
-1. **The GitHub release has to exist before a build is handed to anyone.** Tag `voice-v1`
-   on `heygauravsingh/GuideGen`, with both files attached under their exact names. Change
-   either file and its SHA-256 in `voicecache.js` changes with it.
+1. **The GitHub release has to exist before a build is handed to anyone.** ✅ Done 3 Aug
+   2026 — tag `voice-v1` on `heygauravsingh/GuideGen`, both files attached under their exact
+   names, both verified by download: exact byte counts and matching SHA-256. Change either
+   file and its hash in `voicecache.js` changes with it.
+   **The repo had to be made public for this**, and was, after a history scan found no
+   secrets — the only keys in the code (Firebase web API key, OAuth client id, Cloudinary
+   cloud name and unsigned preset) are all public-by-design and already shipped inside the
+   extension. GitHub's asset host sends no `access-control-allow-origin`, which is fine: the
+   fetch happens in the offscreen document, an extension page, and `<all_urls>` in
+   `host_permissions` is what lets an extension page read a cross-origin response. A content
+   script could not do this.
 2. **Testing this path needs the ZIP, not the repo folder.** A developer checkout still has
    both files in `lib/`, and `FSVoice.get()` prefers a bundled copy — so loading the repo
    folder unpacked never exercises the download at all. Unzip `GuideGen-Beta.zip` and load
