@@ -74,6 +74,21 @@
       <p class="cta-note">Chrome, Edge, Brave and Arc · Free account · Guides stay on your device</p>
       <p class="cta-note">Two-minute manual install while the Chrome Web Store review runs.
         <a href="#get">Rather wait for the store?</a></p>
+
+      <!-- Everything the product does, in one glance, each one a way into the section
+           that explains it. The page used to bury the narrated video seventh in a
+           feature grid and never mention sharing at all — a reader who skims the hero
+           and leaves should still know what they'd be installing. -->
+      <div class="caps">
+        <a href="#video">Narrated video</a>
+        <a href="#catchup">Capture the last 2 minutes</a>
+        <a href="#share">Publish &amp; share a link</a>
+        <a href="#handoff">AI handoff</a>
+        <a href="#api">API requests &amp; responses</a>
+        <a href="#formats">PDF, Markdown, slides</a>
+        <a href="#readable">Made to be read</a>
+        <a href="#privacy">Nothing leaves until you publish</a>
+      </div>
     </div>
   </section>
 
@@ -168,6 +183,86 @@
     </div>
   </section>
 
+  <!-- Ranked first by the person whose product this is, and it used to be the seventh
+       card in a feature grid. It is also the one export a competitor's shared page
+       cannot produce at all, and the only one that needs no cloud to do it. Two claims
+       here are load-bearing and must stay exact: the voice runs on the device, and the
+       first render pays a one-time model download. Softening the second one turns a
+       known cost into a bad surprise. -->
+  <section id="video" class="tint">
+    <div class="wrap">
+      <h2 class="sec">A narrated walkthrough, rendered on your own laptop</h2>
+      <p class="sec-lede">
+        The same recording becomes a video that talks. One slide per step at 1080p, the screenshot
+        on a card with the click ringed and numbered, a step counter and a progress bar — and a
+        voice reading each step aloud.
+      </p>
+      <div class="steps">
+        <div>
+          <h3>It speaks without a cloud</h3>
+          <p>The voice is a neural text-to-speech model that runs on your machine. The words of your
+          internal processes are never sent to a speech service — there is no speech service. The
+          first video downloads the voice once; after that it is offline for good.</p>
+        </div>
+        <div>
+          <h3>Paced by what the step says</h3>
+          <p>A slide stays up as long as its own sentence needs, not a fixed few seconds. Slow,
+          Normal and Fast change the speaking rate and the slide length together, so the narration
+          never walks off the picture it belongs to.</p>
+        </div>
+        <div>
+          <h3>Made to be watched, not endured</h3>
+          <p>Slides crossfade and push gently toward the part of the screen you clicked. Small UI
+          text stays legible, which is the whole reason it renders at 1080p rather than 720.</p>
+        </div>
+      </div>
+      <p style="color:var(--muted);margin-top:30px">
+        Comes out as a <code>.webm</code> on your disk. Nothing about it touches a server — the
+        pictures, the voice and the muxing all happen in your browser.
+      </p>
+    </div>
+  </section>
+
+  <!-- Publishing was on this page only as a privacy caveat ("unless you deliberately
+       publish one"), which described the safeguard and never the feature. The link is
+       also the product's only viral surface, so what the recipient sees is worth
+       spelling out. Rule that must survive any rewrite: the export switch is NOT an
+       access control, and this section may never imply it is. -->
+  <section id="share">
+    <div class="wrap narrow">
+      <h2 class="sec">Send a link that explains itself</h2>
+      <p class="sec-lede">
+        When the reader is a person who'd rather not be sent a file, publish the guide and share a
+        link. One guide, on purpose, one press — never a background sync of everything you have
+        ever recorded.
+      </p>
+      <p style="color:var(--muted)">
+        The page they open carries your name, how long the recording took and the app it happened
+        in, then the numbered steps with the screenshots. Any screenshot opens full-screen and
+        zooms, because a dashboard shrunk to fit a column is a picture nobody can read. Each step
+        can be linked to on its own, so "look at step 7" is a link rather than an instruction.
+      </p>
+      <p style="color:var(--muted)">
+        Paste that link into Slack or WhatsApp and the preview shows the guide's <em>own</em> title
+        instead of a generic card — and nothing else: never a step, never a screenshot. Shared
+        guides are marked no-index, so an internal process doesn't turn up in a search engine.
+      </p>
+      <p style="color:var(--muted)">
+        Change your mind later and the link keeps up. Re-publishing updates the page in place, so
+        the link you already sent is never stale, and the superseded images are deleted. Unpublish
+        and the link stops working and the images go with it. Annotations and redactions are baked
+        into the pictures before they are uploaded — the unedited original never leaves your
+        machine.
+      </p>
+      <p style="color:var(--muted)">
+        You can also let readers build their own copy — a PDF, Markdown, slides, even the narrated
+        video — from the page itself, and see who did. That switch decides whether a button appears;
+        it is not a lock. Anyone who can open the page can already screenshot or print it, and we
+        say so rather than implying otherwise.
+      </p>
+    </div>
+  </section>
+
   <section id="how" class="tint">
     <div class="wrap">
       <h2 class="sec">Three steps, and the writing is done for you</h2>
@@ -197,9 +292,34 @@
 
   <section>
     <div class="wrap">
-      <h2 class="sec">What you get</h2>
-      <p class="sec-lede">Not a screen recorder. Editable text, annotated pictures, and six ways out.</p>
+      <h2 class="sec">Everything one recording gives you</h2>
+      <p class="sec-lede">Not a screen recorder. Editable text, annotated pictures, and eight things
+        to do with them — in the order they're worth having.</p>
       <div class="grid">
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
+          <h3>A narrated video</h3>
+          <p>1080p, one slide per step, spoken aloud in a natural voice that is synthesized on your
+          own computer — no speech service, nothing uploaded. <a href="#video">How the video
+          works</a>.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2"/><path d="M20.5 12a8.5 8.5 0 1 1-3-6.5"/><path d="M21 4v4h-4"/></svg></span>
+          <h3>The last two minutes you already worked</h3>
+          <p>Nobody knows in advance that they're about to want a guide. On a site you've switched it
+          on for, you can make one out of what you just did. <a href="#catchup">Why that's
+          possible</a>.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></span>
+          <h3>A link that explains itself</h3>
+          <p>Publish one guide and share it: your name on it, zoomable screenshots, a per-step link,
+          and a proper preview when it's pasted into a channel. Re-publish and the link never goes
+          stale. <a href="#share">What the reader sees</a>.</p>
+        </div>
 
         <div class="card">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M3 12h3M18 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span>
@@ -209,7 +329,7 @@
           drop that context; a model needs it, or it guesses.</p>
         </div>
 
-        <div class="card">
+        <div class="card" id="api">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0-3 3m3-3 3 3"/></svg></span>
           <h3>What the page actually did</h3>
           <p>Each step also records the requests it fired and what came back — <em>POST /api/orders
@@ -221,30 +341,7 @@
           and it goes in the AI handoff only.</p>
         </div>
 
-        <div class="card">
-          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h11M4 17h7"/></svg></span>
-          <h3>Instructions, written for you</h3>
-          <p>Step text comes from the control you actually clicked — its label and its role — not a
-          generic "click here". Fields, dropdowns, checkboxes and keystrokes each read the way a
-          person would write them.</p>
-        </div>
-
-        <div class="card">
-          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M3 16l4-3 3 2 4-4 7 5"/></svg></span>
-          <h3>Screenshots that make sense</h3>
-          <p>Each step is captured at the moment you clicked, with the target lifted out and
-          numbered. Guides crop to the part of the page that matters instead of shrinking the whole
-          window until nobody can read it.</p>
-        </div>
-
-        <div class="card">
-          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 12h8"/></svg></span>
-          <h3>Redaction that actually redacts</h3>
-          <p>Drag a box over anything sensitive and it is pixelated in every export, permanently.
-          Password fields are masked the moment they are captured.</p>
-        </div>
-
-        <div class="card">
+        <div class="card" id="formats">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg></span>
           <h3>Six ways out of one recording</h3>
           <p>Copy it for an assistant, send it as a web page, drop it in your wiki as Markdown, hand
@@ -255,12 +352,15 @@
           </div>
         </div>
 
-        <div class="card">
-          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M19 6a8 8 0 0 1 0 12"/></svg></span>
-          <h3>Narration without a cloud</h3>
-          <p>The video export can speak each step aloud in a natural voice. The speech is synthesized
-          on your own computer, so the text of your internal processes is never sent to a
-          text-to-speech service.</p>
+        <div class="card" id="readable">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h11M4 17h7"/></svg></span>
+          <h3>Made to be read</h3>
+          <p>Step text comes from the control you actually clicked — its label and its role — not a
+          generic "click here"; fields, dropdowns, checkboxes and keystrokes each read the way a
+          person writes them. Screenshots crop to the part of the page that matters rather than
+          shrinking the whole window until nobody can read it, and on a shared guide any of them
+          zooms. Light, dark or follow-your-system, everywhere — the editor, the popup and the
+          guides you send.</p>
         </div>
 
         <div class="card">
@@ -269,6 +369,13 @@
           <p>Guides are saved in your own browser and are never uploaded — not in the background,
           not for processing, not at all — unless you deliberately publish one to get a shareable
           link. Publishing sends that guide and no other.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 12h8"/></svg></span>
+          <h3>Redaction that actually redacts</h3>
+          <p>Drag a box over anything sensitive and it is pixelated in every export, permanently.
+          Password fields are masked the moment they are captured.</p>
         </div>
 
       </div>

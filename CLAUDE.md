@@ -934,6 +934,24 @@ not two. If you touch it:
 That is how the editor knows to offer Update and Unpublish instead of minting a second
 document — and a second link — on every press.
 
+## The landing page (web/index.html)
+Two orderings are in play and they are not the same, so don't "fix" one into the other:
+
+- **The page still leads with the AI handoff**, because that is the positioning (see the
+  top of this file) — it is what makes this not another SOP tool.
+- **The feature list is ordered by what the owner ranks highest**: narrated video,
+  catch-up capture, publish/share, AI handoff, the API log, the document formats,
+  readability, local-until-published. Video and sharing each have their own section
+  because the grid had video seventh and never mentioned sharing at all.
+- **`.caps` under the hero is the contents list**, and every chip must resolve to an id
+  on this page. It exists because the header already carries five items and cannot take
+  eight — don't move these into the nav.
+- **"Readability" means three things**, confirmed with the owner: the light/dark/auto
+  theme, screenshots that stay legible (the crop, 1080p video, click-to-zoom on a
+  shared guide), and step text written the way a person writes instructions.
+- `:target { scroll-margin-top: 78px }` is what stops a jump link landing under the
+  sticky header.
+
 ## The published guide page (viewer.js + g.html)
 The only surface a stranger meets, so it is a growth surface as much as a document.
 Everything here came out of reading a competitor's shared guide beside ours.

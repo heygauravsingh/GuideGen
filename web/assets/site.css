@@ -217,6 +217,21 @@ h1.big {
 .cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .cta-note { margin-top: 14px; font-size: 13px; color: var(--faint); }
 
+/* What the product does, in one glance, under the hero. Chips rather than a second
+   nav: the header already carries five items and cannot take eight, and these are
+   jump links into the sections that make each claim. Quiet by default — this is a
+   contents list, not eight buttons competing with the install CTA above it. */
+.caps { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 34px auto 0; max-width: 74ch; }
+.caps a {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 12px; line-height: 1.3;
+  transition: background var(--fast), color var(--fast), border-color var(--fast);
+}
+.caps a:hover { background: var(--panel-2); color: var(--ink); border-color: var(--faint); text-decoration: none; }
+/* A jump link landing under a sticky header is the oldest anchor bug there is. */
+:target { scroll-margin-top: 78px; }
+
 /* ---------- sections ---------- */
 section { padding: 62px 0; }
 section.tint { background: var(--bg-2); border-block: 1px solid var(--line); }
