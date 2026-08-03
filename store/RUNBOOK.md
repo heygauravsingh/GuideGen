@@ -10,8 +10,8 @@ verified against `https://guide-gen.vercel.app`.
 
 | | State |
 |---|---|
-| `../GuideGen-Prod.zip` | v1.2.5, flat, key derives `dijeonandicniffeffbcolhfldommhnp` |
-| `../GuideGen-Beta.zip` | v1.2.5, wrapped in `guidegen/`, same key |
+| `../GuideGen-Prod.zip` | v1.2.5, flat, key derives `dijeonandicniffeffbcolhfldommhnp`, **3.3MB** |
+| `../GuideGen-Beta.zip` | v1.2.5, wrapped in `guidegen/`, same key, **3.3MB** |
 | Both | 9 permissions, no `.DS_Store`, no source maps; contents confirmed to include this release's fixes |
 | `--check`s | extension key, web-asset mirrors and icons all pass |
 | Tests | `recorder`, `buffer`, `net`, `og`, `context`, `note` — zero failures |
@@ -196,7 +196,7 @@ differ only in layout:
 | `../GuideGen-Beta.zip` | wrapped — everything inside `guidegen/` | Google Drive, for `/install` |
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && FILES=(manifest.json background.js recorder.js recorder.css netpatch.js popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
+cd "/Users/apple/Desktop/FlowScribe 2" && FILES=(manifest.json background.js recorder.js recorder.css netpatch.js popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js voicecache.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" -x "lib/voices/*.onnx" -x "lib/piper/*.data" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && rm -f /tmp/gg-stage/guidegen/lib/voices/*.onnx /tmp/gg-stage/guidegen/lib/piper/*.data && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
 ```
 
 `FILES` is a **zsh array**, and the `"${FILES[@]}"` expansions matter: zsh does not
@@ -254,6 +254,22 @@ gets submitted. **It is hosted on Google Drive, not on Vercel, and that is delib
 `.vercelignore` exists to stop `lib/` being served, and a 68MB archive of exactly that would
 reintroduce the problem it was written to prevent — plus 68MB committed to git forever, in
 every clone, since the site has no build step and the file would have to be checked in.
+
+**The two big data files are deliberately excluded from both archives** — that is what
+took the download from 68MB to 3.3MB. `lib/voices/*.onnx` (the voice, 60MB) and
+`lib/piper/*.data` (espeak's dictionary, 18MB) are fetched on first narrated export and
+kept on the machine; `voicecache.js` holds the rules and the checksums. Everything
+*executable* stays in the package, because Chrome's remote-code policy is about code.
+
+Two consequences for releasing:
+
+1. **The GitHub release has to exist before a build is handed to anyone.** Tag `voice-v1`
+   on `heygauravsingh/GuideGen`, with both files attached under their exact names. Change
+   either file and its SHA-256 in `voicecache.js` changes with it.
+2. **Testing this path needs the ZIP, not the repo folder.** A developer checkout still has
+   both files in `lib/`, and `FSVoice.get()` prefers a bundled copy — so loading the repo
+   folder unpacked never exercises the download at all. Unzip `GuideGen-Beta.zip` and load
+   *that* folder.
 
 **Drive gets `GuideGen-Beta.zip`, the store gets `GuideGen-Prod.zip`** — same contents, and
 the wrapped layout is the whole reason there are two. A tester unzipping a flat archive gets

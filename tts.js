@@ -2,7 +2,13 @@
 //
 // Piper (VITS) running entirely in-page: espeak-ng compiled to wasm turns text
 // into phoneme ids, onnxruntime-web runs the voice model over them, and we get
-// raw PCM back. No network, no accounts — everything below loads from lib/.
+// raw PCM back. No accounts, and the synthesis itself never touches the network.
+//
+// The engine — onnxruntime's wasm, piper's wasm, both loader scripts — is bundled. The
+// two *data* files it needs (the 60MB voice model and espeak-ng's 18MB pronunciation
+// dictionary) are fetched once on first use and kept on the machine; see voicecache.js
+// for why, and for the rules that keeps this the right side of Chrome's remote-code
+// policy. A developer checkout with `lib/` intact fetches nothing.
 //
 // Why not speechSynthesis: the Web Speech API gives you no audio stream, and on
 // macOS its voices are rendered by the OS outside the tab's audio graph, so the
@@ -41,6 +47,9 @@
   }
 
   let readyPromise = null;
+  // A blob: URL for the pronunciation dictionary, handed to Emscripten's locateFile.
+  // Lives as long as this document does, which for the offscreen renderer is one export.
+  let dataUrl = null;
   let ort = null;
   let session = null;
   let cfg = null;
@@ -64,14 +73,30 @@
       ort.env.wasm.wasmPaths = url(PATHS.ort);
       ort.env.logLevel = "error";
 
-      prog("Loading voice…");
+      // Tiny and always bundled: it names the espeak voice and the sample rate, and
+      // there is no sense fetching 5KB.
       const cfgRes = await fetch(url(PATHS.voiceConfig));
       if (!cfgRes.ok) throw new Error("Missing voice config");
       cfg = await cfgRes.json();
 
-      const modelRes = await fetch(url(PATHS.voice));
-      if (!modelRes.ok) throw new Error("Missing voice model");
-      const model = await modelRes.arrayBuffer();
+      if (!window.FSVoice) throw new Error("voicecache.js did not load");
+
+      /* Both data files, with a real progress number. `FSVoice.get` returns instantly
+         when they are already on the machine or bundled in the package, so the wording
+         below only ever appears on someone's first narrated export. */
+      const say = (label) => (frac, got, total) => {
+        if (!total) return prog("Fetching the " + label + "…");
+        const mb = (n) => (n / 1048576).toFixed(0);
+        prog("Downloading the " + label + " — " + mb(got) + " of " + mb(total) +
+             " MB (one time only)");
+      };
+
+      prog("Loading voice…");
+      const model = await window.FSVoice.get("voice", say("voice"));
+      // Fetched here rather than lazily inside phonemize(): Emscripten's locateFile has
+      // to answer synchronously, so the bytes must already be in hand by then.
+      const dict = await window.FSVoice.get("piperData", say("pronunciation dictionary"));
+      dataUrl = URL.createObjectURL(new Blob([dict], { type: "application/octet-stream" }));
 
       prog("Warming up voice…");
       session = await ort.InferenceSession.create(model, {
@@ -103,8 +128,10 @@
           },
           printErr: (m) => { if (!failed) failed = new Error("phonemizer: " + m); },
           locateFile: (p) => {
+            // The wasm is bundled — it is code, and code is never fetched. The .data is
+            // the dictionary, already downloaded and verified by voicecache.js.
             if (p.endsWith(".wasm")) return url(PATHS.piperWasm);
-            if (p.endsWith(".data")) return url(PATHS.piperData);
+            if (p.endsWith(".data")) return dataUrl || url(PATHS.piperData);
             return p;
           },
         })

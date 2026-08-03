@@ -15,6 +15,9 @@
 -->
 <body>
   <script src="render.js"></script>
+  <!-- Must precede tts.js: it is where the voice model and the pronunciation
+       dictionary come from, and tts.js asks for them during init(). -->
+  <script src="voicecache.js"></script>
   <script src="tts.js"></script>
   <script src="exporters.js"></script>
   <script src="offscreen.js"></script>

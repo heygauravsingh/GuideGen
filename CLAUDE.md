@@ -66,7 +66,7 @@ Local guide data lives in `chrome.storage.local`.
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config, v1.2.5. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names the two site origins (`guidegen.backpocket.website`, `guide-gen.vercel.app`) and nothing else — never a subdomain wildcard. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `manifest.json` | MV3 config, v1.2.6. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names the two site origins (`guidegen.backpocket.website`, `guide-gen.vercel.app`) and nothing else — never a subdomain wildcard. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
 | `netpatch.js` | The only code that runs in the page's **MAIN world**. Patches `fetch`/`XHR` to report a *failed* exchange — request headers, sent body, response body — back through `postMessage`, because `chrome.webRequest` can read none of them. Masks credential header values and obvious body secrets *before* posting, so a secret never crosses the boundary. Opt-in, off by default; injected per tab by the worker via `executeScript({world:"MAIN"})`. Nothing it says is trusted — see The API log. |
@@ -76,6 +76,7 @@ Local guide data lives in `chrome.storage.local`.
 | `offscreen.html/js` | Never-visible page that renders the narrated video. A service worker has no canvas, AudioContext or MediaRecorder; an offscreen document has all three. Only `chrome.runtime` is available to it, so the guide arrives by message and the finished blob leaves as a `blob:` URL for the worker to download. |
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
 | `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration), plus `aiText`/`ai` — the AI handoff (see The AI handoff) — `apiLogText`, the API log on its own, and `curlOf`, one logged request as a cURL (shared by both text exports and the editor). Those three are the **only** ones that emit `step.network`; leave a new exporter out of it too. Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
+| `voicecache.js` | `window.FSVoice`. The two **data** files narration needs — the 60MB voice model and espeak's 18MB pronunciation dictionary — fetched once from a GitHub release, checked against a known SHA-256, and kept in IndexedDB. Took the package from 68MB to 3.3MB. Only ever fetches *data*: every wasm and every script stays bundled, because Chrome's remote-code rule is grounds for removal. A bundled copy always wins, so a developer checkout fetches nothing — which is also why testing this path needs the built ZIP and not the repo folder. |
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
@@ -101,8 +102,8 @@ Local guide data lives in `chrome.storage.local`.
 | `lib/jspdf.umd.min.js` | jsPDF 2.5.1. Global: `window.jspdf.jsPDF`. |
 | `lib/pptxgen.bundle.js` | PptxGenJS 3.12.0. Global: `window.PptxGenJS`. |
 | `lib/ort/` | onnxruntime-web 1.18.0, wasm backend only (`ort.wasm.min.js` + `ort-wasm-simd.wasm`). Global: `window.ort`. |
-| `lib/piper/` | piper_phonemize wasm build (espeak-ng). Global: `window.createPiperPhonemize`. The 17MB `.data` is the espeak-ng dictionary. |
-| `lib/voices/` | Piper voice `en_US-hfc_female-medium` (60MB `.onnx` + its `.json` config, 22.05kHz). |
+| `lib/piper/` | piper_phonemize wasm build (espeak-ng). Global: `window.createPiperPhonemize`. The 17MB `.data` is the espeak-ng dictionary, and it is **excluded from both ZIPs** and fetched at runtime like the voice. The `.wasm` is code and stays bundled. |
+| `lib/voices/` | Piper voice `en_US-hfc_female-medium` (60MB `.onnx` + its `.json` config, 22.05kHz). **The `.onnx` is excluded from both ZIPs** and fetched at runtime (see `voicecache.js`); the 5KB `.json` stays bundled. |
 | `icons/` | Generated PNG icons — output of `tools/make-icons.mjs`, not hand-edited. The site's favicons come out of the same script into `web/`. |
 
 ## Data model (chrome.storage.local)
@@ -539,8 +540,26 @@ on disk is one step further from it. Five things are load-bearing:
    screenshots over the bridge one at a time would be forty round trips for nothing.
 
 ## Narration (video export)
-Narration works and is fully offline, and since v1.1 it runs in an **offscreen document**
-driven from the dashboard over the bridge. It has to: the voice is 88MB of model in `lib/`,
+Narration works and runs entirely on the user's machine, and since v1.1 it does so in an
+**offscreen document** driven from the dashboard over the bridge.
+
+**Since v1.2.6 the voice is fetched on first use rather than shipped.** The package was
+89MB, 77MB of which was two files nobody had asked for yet: the voice model and espeak's
+pronunciation dictionary. Now the ZIP is **3.3MB**, and the first narrated export downloads
+those two once, verifies them against a known SHA-256, and keeps them in IndexedDB forever
+(`voicecache.js`). Four things about that are not negotiable:
+
+- **Only data is fetched, never code.** Every wasm and every loader script stays in the
+  package. Chrome's remote-code rule is grounds for removal, not a style note — and a
+  tensor file and a pronunciation dictionary are data in the way a font is.
+- **A bundled copy always wins.** `FSVoice.get()` checks IndexedDB, then `lib/`, then the
+  network. So a developer checkout fetches nothing — which is exactly why **testing this
+  path requires the built ZIP, not the repo folder**. Loading the repo folder unpacked can
+  never exercise the download.
+- **The privacy claim is unchanged, and the wording matters.** Synthesis is still local: we
+  download a voice *to* the machine and never upload anyone's text off it. Say it that way.
+- **Failure degrades.** A failed fetch falls through to the silent captioned video the
+  export already produces when the voice files are absent. It has to: the voice is 88MB of model in `lib/`,
 which the website may not serve, and a service worker has no canvas, AudioContext or
 MediaRecorder. Three things that document needs and a visible page didn't:
 
