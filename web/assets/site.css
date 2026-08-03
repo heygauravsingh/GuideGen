@@ -398,7 +398,16 @@ footer.site .spacer { flex: 1; }
   border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
 }
 .badge.live { background: var(--live-bg); color: var(--live-fg); border-color: transparent; }
+/* A catch-up capture. Ochre because it is provisional and will delete itself —
+   which is meaning, not decoration: it is the one row on this page with a clock
+   running on it. */
+/* --brand-2 on --brand-soft, as every other soft-ochre chip on this page uses —
+   --brand itself doesn't clear AA on it in dark mode. */
+.badge.buf { color: var(--brand-2); border-color: transparent; background: var(--brand-soft); }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* Dashed, so a provisional row reads as provisional before the badge is read. */
+.guide-row.pending { border-style: dashed; }
 
 .blank {
   border: 1px dashed var(--line); border-radius: var(--r-lg);

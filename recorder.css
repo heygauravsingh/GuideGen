@@ -66,26 +66,48 @@
 .flowscribe-pill .fs-stop:hover { background: #322b23 !important; }
 .flowscribe-pill .fs-stop:active { transform: translateY(1px) !important; }
 
-/* Buffering variant. Present and legible, but not dressed as recording — the red
-   dot and its pulse mean "this is being written to a guide right now", and while
-   buffering nothing is. Ochre, steady, and the button offers to make something
-   rather than to stop something. */
+/* Catch-up variant: a bare dot, not a pill.
+
+   Sized to disappear until looked at, because it sits on a page the user is
+   trying to work in and it will sit there for as long as the site stays armed —
+   which is the difference from recording, where the pill is up for a minute and
+   the user put it there on purpose. Red-and-pulsing said "being written down",
+   which while buffering is false; ochre-and-steady says "on".
+
+   The label is collapsed to zero width, not `display: none`, so it can grow on
+   hover without a reflow — and it is behind a max-width transition rather than a
+   visibility swap so a host page's `* { transition: none }` degrades it to an
+   instantly-expanding label rather than nothing at all. */
 .flowscribe-pill.fs-buf {
-  background: rgba(23, 20, 16, 0.86) !important;
+  padding: 7px !important;
+  gap: 0 !important;
+  background: rgba(23, 20, 16, 0.82) !important;
+  cursor: default !important;
+  transition: gap 160ms ease, padding 160ms ease !important;
 }
 .flowscribe-pill.fs-buf .fs-dot {
   background: #c2410c !important;
   animation: none !important;
-  opacity: 0.9 !important;
+  opacity: 0.92 !important;
+  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.18) !important;
 }
 .flowscribe-pill.fs-buf.fs-flash .fs-dot {
   background: #2f7d55 !important;
+  box-shadow: 0 0 0 3px rgba(47, 125, 85, 0.22) !important;
 }
-.flowscribe-pill.fs-buf .fs-stop {
-  background: rgba(255, 255, 255, 0.13) !important;
+.flowscribe-pill.fs-buf .fs-count {
+  max-width: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  transition: max-width 200ms ease, opacity 140ms ease !important;
 }
-.flowscribe-pill.fs-buf .fs-stop:hover {
-  background: rgba(255, 255, 255, 0.22) !important;
+.flowscribe-pill.fs-buf:hover {
+  gap: 9px !important;
+  padding: 7px 13px 7px 10px !important;
+}
+.flowscribe-pill.fs-buf:hover .fs-count {
+  max-width: 240px !important;
+  opacity: 1 !important;
 }
 
 @keyframes fs-pulse {
@@ -100,4 +122,8 @@
 @media (prefers-reduced-motion: reduce) {
   .flowscribe-pill,
   .flowscribe-pill .fs-dot { animation: none !important; }
+  /* The hover label still appears — it just appears at once. Reduced motion is a
+     request about movement, not about hiding what the dot means. */
+  .flowscribe-pill.fs-buf,
+  .flowscribe-pill.fs-buf .fs-count { transition: none !important; }
 }

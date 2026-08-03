@@ -183,6 +183,22 @@ window.GGBridge = (function () {
     return send({ type: "gg_delete_guide", guideId: guideId });
   }
 
+  /* Catch-up captures. Metadata only — a session is not a guide yet, so there is
+   * nothing to render and no screenshots come over. `bufPromote` turns one into a
+   * real local guide and resolves with its id; `minutes` measures back from that
+   * session's own end, so an older card offers its own last two minutes rather
+   * than an empty slice. */
+  function bufSessions() {
+    return send({ type: "gg_buf_sessions" }).then(function (r) { return r.sessions || []; });
+  }
+  function bufPromote(sessionId, minutes) {
+    return send({ type: "gg_buf_promote", sessionId: sessionId, minutes: minutes || 0 })
+      .then(function (r) { return r.guideId; });
+  }
+  function bufDiscard(sessionId) {
+    return send({ type: "gg_buf_discard", sessionId: sessionId });
+  }
+
   /* Narrated video is the one export that can't run here: it needs the 88MB
    * offline voice stack, which ships inside the extension and can't be served
    * from this site. So the extension renders it in an offscreen document and
@@ -242,6 +258,7 @@ window.GGBridge = (function () {
     guides: guides, guide: guide, stepImage: stepImage,
     updateGuide: updateGuide, updateStep: updateStep, reorder: reorder,
     deleteStep: deleteStep, addNote: addNote, deleteGuide: deleteGuide,
+    bufSessions: bufSessions, bufPromote: bufPromote, bufDiscard: bufDiscard,
     renderVideo: renderVideo,
     STORE_ID: STORE_ID,
   };

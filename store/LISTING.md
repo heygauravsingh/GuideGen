@@ -225,16 +225,27 @@ policy at `/privacy` has been revised to match and now opens with what changed i
   were true of v1.0 and are not true now. Check the description above, the landing page
   and the FAQ together — they have to agree.
 - **Catch-up capture changes the permission *story* without changing the permission
-  *list*.** The buffer keeps the last 40 actions on origins the user explicitly arms, so it
-  captures without a recording having been started — which makes the host-permission
-  justification's "It is inert unless the user has explicitly started a recording" and the
-  landing page's old "The recorder does nothing until you press start" both false. Nothing
-  new is requested: `<all_urls>` and the declared content script were already there and the
-  recorder has always run on every page. Rewrite that clause to something like "It is inert
-  unless the user starts a recording, or has explicitly armed this specific site for
-  catch-up capture," and say in the description that the buffer is off by default, per site,
-  capped, never uploaded, and shown on screen while it runs. Data declarations do **not**
-  change — buffered steps never leave the device.
+  *list*.** The buffer keeps the last 240 actions, for up to 7 days, on origins the user
+  explicitly arms, so it captures without a recording having been started — which makes the
+  host-permission justification's "It is inert unless the user has explicitly started a
+  recording" and the landing page's old "The recorder does nothing until you press start"
+  both false. Nothing new is requested: `<all_urls>` and the declared content script were
+  already there and the recorder has always run on every page. Rewrite that clause to
+  something like "It is inert unless the user starts a recording, or has explicitly armed
+  this specific site for catch-up capture," and say in the description that the buffer is off
+  by default, per site, capped, never uploaded, and shown on screen while it runs.
+  Data declarations do **not** change — buffered steps never leave the device.
+
+  Two numbers to state accurately when that rewrite happens, because they are the ones a
+  reviewer will weigh: **7 days** of retention (not minutes), and **on screen the whole
+  time it is armed** as a small dot rather than a pill. The user-facing name is **"Capture
+  last 2 minutes"** — lead with that rather than with "buffer", which describes the
+  mechanism and not the promise.
+
+- **The user-facing feature name is "Capture last 2 minutes", and the landing page does not
+  mention it yet — deliberately.** The version in review has no catch-up capture at all, so
+  a site promising it would over-promise to anyone installing from the store today. Ship the
+  site copy and the listing rewrite together, after approval, not before.
 - **The website now leads with the AI handoff; this listing does not, deliberately.** The
   site's headline is "Do it once, hand it to a person or an AI" and its first section is the
   handoff; the listing above still leads with step-by-step capture. That is a *deferred*

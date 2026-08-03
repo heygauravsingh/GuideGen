@@ -5,7 +5,10 @@
 // an incognito tab, a recording already in progress, a password field on screen.
 // Those are the four ways this feature could quietly become something nobody
 // agreed to, so each is mutation-checked below.
-import { harness, send, tick } from "./bg-harness.mjs";
+import { harness, send, tick, evalIn } from "./bg-harness.mjs";
+
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 
 let failures = 0;
 function check(name, got, want) {
@@ -118,29 +121,167 @@ console.log("\n=== 5. a password on screen loses the picture, keeps the words ==
 }
 
 // ---------------------------------------------------------------------------
-console.log("\n=== 6. it expires — by count ===");
+console.log("\n=== 6. it expires — by count, dropping whole sessions ===");
 {
   const h = await armed();
-  for (let i = 1; i <= 45; i++) {
-    await send(h, { type: "fs_buffer_step", step: step("Click " + i) }, { tab: TAB });
+  // 5 instead of 240, so this costs five writes rather than 245. Same code path.
+  evalIn(h, "BUF.maxSteps = 5");
+  const t0 = Date.now() - 3 * HOUR;
+  // Two sessions of three, an hour apart. Over cap by one, so the *older session*
+  // goes in its entirety — a card claiming "6 days left" over a session that has
+  // quietly lost its first half is the failure this shape exists to avoid.
+  for (const [i, t] of [t0, t0 + 1000, t0 + 2000, t0 + HOUR, t0 + HOUR + 1000, t0 + HOUR + 2000].entries()) {
+    await send(h, { type: "fs_buffer_step", step: step("Click " + (i + 1), { timestamp: t }) }, { tab: TAB });
     await tick(90);
   }
-  const kept = buf(h);
-  check("capped at 40", kept.length, 40);
-  check("and it is the LAST 40, not the first", [kept[0].text, kept[39].text], ["Click 6", "Click 45"]);
+  check("the older session goes whole, not step by step",
+        buf(h).map((s) => s.text), ["Click 4", "Click 5", "Click 6"]);
   const orphans = Object.keys(h.store).filter((k) => k.startsWith("fs_bufstep_")).length;
-  check("evicted steps are deleted, not orphaned in storage", orphans, 40);
+  check("evicted steps are deleted, not orphaned in storage", orphans, 3);
+}
+{
+  const h = await armed();
+  evalIn(h, "BUF.maxSteps = 3");
+  // One session over cap on its own: nothing to drop wholesale, so it trims from
+  // the front rather than deleting the only thing the user has.
+  const t0 = Date.now() - 60000;
+  for (let i = 1; i <= 5; i++) {
+    await send(h, { type: "fs_buffer_step", step: step("Click " + i, { timestamp: t0 + i * 1000 }) }, { tab: TAB });
+    await tick(90);
+  }
+  check("a single over-cap session trims from the front instead",
+        buf(h).map((s) => s.text), ["Click 3", "Click 4", "Click 5"]);
 }
 
 // ---------------------------------------------------------------------------
-console.log("\n=== 7. it expires — by age ===");
+console.log("\n=== 7. it expires — by age, seven days ===");
 {
   const h = await armed();
-  await send(h, { type: "fs_buffer_step", step: step("ancient", { timestamp: Date.now() - 25 * 60 * 1000 }) }, { tab: TAB });
+  await send(h, { type: "fs_buffer_step", step: step("ancient", { timestamp: Date.now() - 8 * DAY }) }, { tab: TAB });
   await tick();
   await send(h, { type: "fs_buffer_step", step: step("recent") }, { tab: TAB });
   await tick();
-  check("anything past 20 minutes is dropped", buf(h).map((s) => s.text), ["recent"]);
+  check("a session older than 7 days is gone", buf(h).map((s) => s.text), ["recent"]);
+
+  const h2 = await armed();
+  await send(h2, { type: "fs_buffer_step", step: step("yesterday", { timestamp: Date.now() - 26 * HOUR }) }, { tab: TAB });
+  await tick();
+  await send(h2, { type: "fs_buffer_step", step: step("now") }, { tab: TAB });
+  await tick();
+  // The old 20-minute cap dropped this, which is what made a 7-day promise
+  // decoration: nothing survived a night.
+  check("yesterday's session survives the night", buf(h2).map((s) => s.text), ["yesterday", "now"]);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n=== 6b. sessions ===");
+{
+  const h = await armed();
+  await send(h, { type: "fs_buf_arm", origin: "https://mail.google.com", on: true });
+  await tick(50);
+  const other = { id: 7, windowId: 9, url: "https://mail.google.com/u/0", title: "Inbox", incognito: false };
+  h.harnessTabs[7] = other;
+
+  const t0 = Date.now() - 4 * HOUR;
+  const writes = [
+    ["morning A", t0, TAB],
+    ["morning B", t0 + 5000, TAB],
+    // 90 minutes later: past the 30-minute gap, so a different session.
+    ["afternoon", t0 + 90 * 60 * 1000, TAB],
+    // Same minute, different origin: also a different session.
+    ["gmail", t0 + 90 * 60 * 1000 + 3000, other],
+  ];
+  for (const [text, ts, tab] of writes) {
+    await send(h, { type: "fs_buffer_step", step: step(text, { timestamp: ts, url: tab.url }) }, { tab });
+    await tick(90);
+  }
+
+  const r = await send(h, { type: "fs_buf_sessions" });
+  const s = r.sessions;
+  check("three sessions, newest first", s.map((x) => x.stepCount), [1, 1, 2]);
+  check("a 30-minute gap splits one", s[1].host, "dash.uengage.in");
+  check("so does a change of origin", s[0].host, "mail.google.com");
+  check("each expires 7 days after its own last step",
+        Math.round((s[2].expiresAt - (t0 + 5000)) / DAY), 7);
+  check("none of them is redeemed yet", s.every((x) => !x.redeemedAt), true);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n=== 6c. "capture last 2 minutes" ===');
+{
+  const h = await armed();
+  const end = Date.now() - 3 * HOUR;      // an old session, deliberately
+  const times = [end - 10 * 60000, end - 5 * 60000, end - 90 * 1000, end - 20 * 1000, end];
+  for (const [i, t] of times.entries()) {
+    await send(h, { type: "fs_buffer_step", step: step("Click " + (i + 1), { timestamp: t }) }, { tab: TAB });
+    await tick(90);
+  }
+
+  const st = await send(h, { type: "fs_buf_status" }, { tab: TAB });
+  check("the slice is counted from the session's own end, not from now",
+        st.session.sliceCount, 3);
+  check("and the whole session is still there", st.session.stepCount, 5);
+
+  const r = await send(h, { type: "fs_buf_promote", sessionId: st.session.id, minutes: 2 });
+  await tick();
+  const steps = (h.store["fs_steporder_" + r.guideId] || []).map((id) => h.store["fs_step_" + id]);
+  check("promoting 2 minutes of a 3-hour-old session still yields its last 2 minutes",
+        steps.map((s) => s.text), ["Click 3", "Click 4", "Click 5"]);
+
+  // No window can slice to nothing: the last step sits at endedAt, so it is
+  // inside any positive window. This is what makes an empty-guide guard dead
+  // code — one was written, this assertion killed it.
+  const r2 = await send(h, { type: "fs_buf_promote", sessionId: st.session.id, minutes: 0.0001 });
+  await tick();
+  check("even an absurdly small window still yields the last step",
+        (h.store["fs_steporder_" + r2.guideId] || []).length, 1);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n=== 6d. redeemed, and discarded ===");
+{
+  const h = await armed();
+  for (const t of ["one", "two"]) {
+    await send(h, { type: "fs_buffer_step", step: step(t) }, { tab: TAB });
+    await tick(90);
+  }
+  const before = (await send(h, { type: "fs_buf_sessions" })).sessions[0];
+  await send(h, { type: "fs_buf_promote", sessionId: before.id });
+  await tick();
+
+  const after = (await send(h, { type: "fs_buf_sessions" })).sessions[0];
+  check("promoting marks the session rather than consuming it", !!after.redeemedAt, true);
+  check("its steps are still held, so another slice is still possible", after.stepCount, 2);
+  const st = await send(h, { type: "fs_buf_status" }, { tab: TAB });
+  check("and it stops counting as pending", st.pending, 0);
+
+  await send(h, { type: "fs_buf_discard", sessionId: after.id });
+  await tick(50);
+  check("discarding deletes its steps", buf(h).length, 0);
+  const gone = await send(h, { type: "fs_buf_discard", sessionId: after.id });
+  check("discarding it twice fails rather than throwing", gone.ok, false);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n=== 6e. tab switches and navigations reach the buffer ===");
+// They did not at first: contextStep returned early unless a recording was
+// running, so a promoted guide jumped between tabs with nothing explaining the
+// move while a recorded one said "Switch to the … tab".
+{
+  const h = await armed();
+  const t2 = { id: 8, windowId: 9, url: "https://dash.uengage.in/riders", title: "Riders", active: true, incognito: false };
+  h.harnessTabs[8] = t2;
+  h.listeners.updated.forEach((fn) => fn(8, { status: "complete" }, t2));
+  await tick(300);
+  check("a navigation on an armed origin is buffered",
+        buf(h).map((s) => [s.type, s.text]), [["nav", "Go to dash.uengage.in/riders"]]);
+
+  // An origin nobody armed must stay out, exactly as a click there does.
+  const t3 = { id: 9, windowId: 9, url: "https://mail.google.com/u/0", title: "Inbox", active: true, incognito: false };
+  h.harnessTabs[9] = t3;
+  h.listeners.updated.forEach((fn) => fn(9, { status: "complete" }, t3));
+  await tick(300);
+  check("an unarmed origin still is not", buf(h).length, 1);
 }
 
 // ---------------------------------------------------------------------------

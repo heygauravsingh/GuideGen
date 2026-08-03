@@ -18,6 +18,8 @@ const K = {
   bufIndex: "fs_bufindex",
   bufStep: (id) => `fs_bufstep_${id}`,
   bufOrigins: "fs_buf_origins",
+  // session id -> when it was turned into a guide. Promoting marks, never deletes.
+  bufDone: "fs_bufdone",
 };
 
 function get(key, def) {
@@ -413,7 +415,14 @@ function shortUrl(u) {
 async function contextStep(tab, kind) {
   if (!tab || tab.id == null || !RECORDABLE.test(tab.url || "")) return;
   const state = await get(K.state, {});
-  if (!state.recording) return;
+  /* Buffered sessions get these too. They did not at first, and the result was a
+   * promoted guide that jumped between tabs with nothing explaining the move
+   * while a recorded one said "Switch to the … tab" — the same flow reading worse
+   * for having been captured after the fact, which is not a trade anybody chose.
+   * Recording still wins if both apply, exactly as it does for a click. */
+  const buffering =
+    !state.recording && !tab.incognito && (await bufArmed(tab.url || ""));
+  if (!state.recording && !buffering) return;
 
   const sameTab = seen.tabId === tab.id;
   if (sameTab && bareUrl(seen.url) === bareUrl(tab.url)) return;
@@ -437,6 +446,10 @@ async function contextStep(tab, kind) {
   };
 
   const shot = await enqueueCapture(tab.windowId);
+  if (buffering) {
+    bufWrite(step, normalizeShot(shot, BUF.shot));
+    return;
+  }
   const shotPromise = normalizeShot(shot);
   stepChain = stepChain.then(() => persistStep(step, state, shotPromise)).catch(() => {});
   acked = Math.max(acked, state.stepCount || 0) + 1;
@@ -456,8 +469,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 /* ---------------------------------------------------------------- the buffer
  *
- * "Make a guide from what I just did." The pain always arrives after the fact —
- * you finish something, then someone asks how — and by then Start is useless.
+ * **"Capture last 2 minutes."** That is the feature; everything here serves it.
+ * The pain always arrives after the fact — you finish something, then someone
+ * asks how — and by then Start is useless.
  *
  * You cannot screenshot the past, so the only way to answer that is to have been
  * capturing all along and throwing it away. Which is why this is **armed per
@@ -466,15 +480,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
  * reasonable default. Armed on the two or three admin panels someone actually
  * documents, the surface is small enough to explain in one sentence.
  *
- * Three properties this must keep:
+ * The cost of that choice, stated plainly because it shapes the onboarding: the
+ * first time someone wants this on a new site, it is empty. Arming is a
+ * before-decision in a feature whose whole premise is deciding after. It is
+ * mitigated by *offering* to arm at the moment the intent is proven — after a
+ * deliberate recording on that site — never by arming silently.
+ *
+ * Four properties this must keep:
  *
  * 1. **Nothing here is ever uploaded.** The buffer is not a guide. Promoting it
  *    creates a real guide, and publishing that is the same deliberate act it
  *    always was. `publish.js` never sees a `fs_bufstep_` key.
- * 2. **It expires.** Capped by count and by age, evicted on write, so an armed
- *    origin left open for a week holds minutes, not a week.
- * 3. **It is visible while it runs.** recorder.js shows a buffering pill. An
- *    invisible always-on capture is the thing people are right to be afraid of.
+ * 2. **It expires, as whole sessions.** See `groupSessions` — the countdown the
+ *    dashboard shows has to be true, and a session that rots from the front
+ *    while its card claims six days left is not.
+ * 3. **It is visible while it runs.** recorder.js shows a bare dot. An invisible
+ *    always-on capture is the thing people are right to be afraid of — but the
+ *    full pill said "something is being written down", which while buffering is
+ *    a lie in the other direction. Disclosure, not a status.
+ * 4. **Redeeming happens in the popup, not on the page.** The dot is not a
+ *    button. One deliberate place to turn minutes into a guide.
  *
  * `<all_urls>` and the declared content script were already here — buffering
  * needs no new permission. That makes it a *behaviour* change, not a capability
@@ -482,8 +507,21 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
  * the permission list does not move.
  */
 const BUF = {
-  maxSteps: 40,
-  maxAgeMs: 20 * 60 * 1000,
+  // 240 rather than 40, because the count cap and the age cap have to agree
+  // about what this feature promises. At 40, a 7-day retention was decoration:
+  // ~40 clicks of ordinary work evicted yesterday's session before lunch, so
+  // nothing survived a night no matter what the card said. ~240 steps of
+  // 1280px WebP is roughly 20MB per armed origin, which is what
+  // `unlimitedStorage` is for.
+  maxSteps: 240,
+  maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+  // A gap this long ends a session. Long enough that a coffee break doesn't
+  // split one piece of work in two, short enough that this morning and this
+  // afternoon are separate things in the library.
+  sessionGapMs: 30 * 60 * 1000,
+  // What "last 2 minutes" means, measured back from the *session's* end rather
+  // than from now — so yesterday's card offers yesterday's last two minutes.
+  sliceMs: 2 * 60 * 1000,
   // Cheaper than a real recording's capture: this runs on clicks the user never
   // asked to record, so it must not cost what a deliberate recording costs. A
   // promoted guide is a little softer than a recorded one, which beats not
@@ -528,17 +566,67 @@ async function bufList() {
   return ids.map((id) => map[K.bufStep(id)]).filter(Boolean);
 }
 
-// Drops anything past the count cap or the age cap. Returns the surviving ids.
+/* Splits the flat step list into sessions: a run of buffered steps on one origin
+ * with no gap longer than `sessionGapMs`.
+ *
+ * Sessions are **derived, never stored**. The buffer stays one ordered id list,
+ * which means there is no second index to keep consistent and no migration for
+ * anything already buffered. It also means the grouping rule can change without
+ * touching stored data.
+ *
+ * The session's id is its first step's id. That is stable for a session's whole
+ * life *except* when a single session is big enough to be trimmed from the front
+ * by the count cap, which re-ids it — so a dashboard card can shift identity in
+ * that one case. Cheap to live with; not worth a stored id and its consistency
+ * problem.
+ */
+function groupSessions(steps) {
+  const out = [];
+  let cur = null;
+  steps.forEach((s) => {
+    const origin = originOf(s.url);
+    const t = s.timestamp || 0;
+    if (!cur || cur.origin !== origin || t - cur.endedAt > BUF.sessionGapMs) {
+      cur = { id: s.id, origin, startedAt: t, endedAt: t, steps: [s] };
+      out.push(cur);
+    } else {
+      cur.endedAt = t;
+      cur.steps.push(s);
+    }
+  });
+  return out;
+}
+
+/* Drops what is past the age cap or the count cap. Returns the surviving ids.
+ *
+ * **Both caps are applied per session, not per step**, and that is the whole
+ * point: the dashboard shows each pending capture with "expires in N days", so a
+ * session has to either be there or be gone. Expiring the oldest *steps* of a
+ * session left a card promising six days over a guide that had quietly lost its
+ * first half. Age drops whole sessions; the count cap drops whole sessions
+ * oldest-first, and only trims mid-session when one session alone is over cap.
+ */
 async function evictBuffer(ids) {
   const cutoff = Date.now() - BUF.maxAgeMs;
   const map = await new Promise((res) =>
     chrome.storage.local.get(ids.map(K.bufStep), res)
   );
-  let keep = ids.filter((id) => {
-    const s = map[K.bufStep(id)];
-    return s && (s.timestamp || 0) >= cutoff;
-  });
-  if (keep.length > BUF.maxSteps) keep = keep.slice(keep.length - BUF.maxSteps);
+  const steps = ids.map((id) => map[K.bufStep(id)]).filter(Boolean);
+  let sessions = groupSessions(steps).filter((s) => s.endedAt >= cutoff);
+
+  let total = sessions.reduce((n, s) => n + s.steps.length, 0);
+  while (total > BUF.maxSteps && sessions.length > 1) {
+    total -= sessions[0].steps.length;
+    sessions = sessions.slice(1);
+  }
+  if (total > BUF.maxSteps && sessions.length) {
+    const s = sessions[0];
+    s.steps = s.steps.slice(s.steps.length - BUF.maxSteps);
+    s.id = s.steps[0].id;
+  }
+
+  const keep = [];
+  sessions.forEach((s) => s.steps.forEach((x) => keep.push(x.id)));
   const drop = ids.filter((id) => keep.indexOf(id) < 0);
   if (drop.length) {
     await new Promise((res) => chrome.storage.local.remove(drop.map(K.bufStep), res));
@@ -546,16 +634,93 @@ async function evictBuffer(ids) {
   return keep;
 }
 
+/* Sessions as the popup and the dashboard see them — no steps, no screenshots,
+ * newest first. `redeemed` is what makes "captures you haven't turned into a
+ * guide yet" answerable: promoting marks the session rather than deleting it,
+ * because the common case after promoting is wanting a *different* slice of the
+ * same few minutes. */
+async function bufSessions() {
+  const steps = await bufList();
+  const done = await get(K.bufDone, {});
+  const out = groupSessions(steps).map((s) => {
+    const from = s.endedAt - BUF.sliceMs;
+    return {
+      id: s.id,
+      origin: s.origin,
+      host: s.origin.replace(/^https?:\/\//, ""),
+      startedAt: s.startedAt,
+      endedAt: s.endedAt,
+      stepCount: s.steps.length,
+      // How many of those steps "last 2 minutes" would actually take. The popup
+      // needs it to label its own button honestly.
+      sliceCount: s.steps.filter((x) => (x.timestamp || 0) >= from).length,
+      sliceMinutes: Math.round(BUF.sliceMs / 60000),
+      expiresAt: s.endedAt + BUF.maxAgeMs,
+      redeemedAt: done[s.id] || null,
+    };
+  });
+  return out.reverse();
+}
+
+// Prunes redemption marks whose session no longer exists, so this map cannot
+// grow forever behind a buffer that keeps expiring.
+async function markRedeemed(sessionId) {
+  const live = groupSessions(await bufList()).map((s) => s.id);
+  const done = await get(K.bufDone, {});
+  const next = {};
+  live.forEach((id) => { if (done[id]) next[id] = done[id]; });
+  if (sessionId) next[sessionId] = Date.now();
+  await set({ [K.bufDone]: next });
+}
+
+async function discardSession(sessionId) {
+  const sessions = groupSessions(await bufList());
+  const sess = sessions.filter((s) => s.id === sessionId)[0];
+  if (!sess) return { ok: false, error: "That capture has already gone." };
+  const gone = sess.steps.map((s) => s.id);
+  const ids = (await get(K.bufIndex, [])).filter((id) => gone.indexOf(id) < 0);
+  await new Promise((res) =>
+    chrome.storage.local.remove(gone.map(K.bufStep), res)
+  );
+  await set({ [K.bufIndex]: ids });
+  broadcast({ type: "fs_buf_changed", count: ids.length });
+  return { ok: true };
+}
+
 async function clearBuffer() {
   const ids = await get(K.bufIndex, []);
   await new Promise((res) =>
-    chrome.storage.local.remove(ids.map(K.bufStep).concat([K.bufIndex]), res)
+    chrome.storage.local.remove(ids.map(K.bufStep).concat([K.bufIndex, K.bufDone]), res)
   );
   broadcast({ type: "fs_buf_changed" });
   return { ok: true };
 }
 
 let bufChain = Promise.resolve();
+
+/* The one place a buffered step is written. Serialized on `bufChain` for the same
+ * reason recording steps are serialized on `stepChain`: the encode runs off-chain
+ * so it overlaps the next capture, which means completion order is not click
+ * order. Shared by clicks (`bufferStep`) and by tab switches and navigations
+ * (`contextStep`) so those cannot drift apart in how they land. */
+function bufWrite(step, shotPromise) {
+  bufChain = bufChain
+    .then(async () => {
+      const s = await shotPromise;
+      step.id = uid();
+      step.screenshot = s.dataUrl;
+      if (s.scale !== 1) step.dpr = (step.dpr || 1) * s.scale;
+      if (!step.blurs) step.blurs = [];
+      delete step.noShot;
+
+      const ids = (await get(K.bufIndex, [])).concat([step.id]);
+      await set({ [K.bufStep(step.id)]: step });
+      const keep = await evictBuffer(ids);
+      await set({ [K.bufIndex]: keep });
+      broadcast({ type: "fs_buf_changed", count: keep.length });
+    })
+    .catch(() => {});
+}
 
 async function bufferStep(step, sender) {
   const tab = sender && sender.tab;
@@ -574,37 +739,49 @@ async function bufferStep(step, sender) {
     ? Promise.resolve({ dataUrl: null, scale: 1 })
     : normalizeShot(shot, BUF.shot);
 
-  bufChain = bufChain.then(async () => {
-    const s = await shotPromise;
-    step.id = uid();
-    step.screenshot = s.dataUrl;
-    if (s.scale !== 1) step.dpr = (step.dpr || 1) * s.scale;
-    if (!step.blurs) step.blurs = [];
-    delete step.noShot;
-
-    const ids = (await get(K.bufIndex, [])).concat([step.id]);
-    await set({ [K.bufStep(step.id)]: step });
-    const keep = await evictBuffer(ids);
-    await set({ [K.bufIndex]: keep });
-    broadcast({ type: "fs_buf_changed", count: keep.length });
-  }).catch(() => {});
+  bufWrite(step, shotPromise);
 
   const n = (await get(K.bufIndex, [])).length + 1;
   return { ok: true, count: Math.min(n, BUF.maxSteps) };
 }
 
-/* Buffer -> real guide. Takes the last `n` steps, copies them into the normal
- * guide keyspace and runs the same finalizeGuide() a recording gets, so a
- * promoted guide is indistinguishable from a recorded one downstream — the
- * dashboard, the exporters and publish.js need to know nothing about buffering.
+/* Buffer -> real guide. Copies a slice of one session into the normal guide
+ * keyspace and runs the same finalizeGuide() a recording gets, so a promoted
+ * guide is indistinguishable from a recorded one downstream — the dashboard, the
+ * exporters and publish.js need to know nothing about buffering.
  *
- * The buffer is left intact. Promoting is not consuming: the common case is
- * realising you want a *different* slice of the same few minutes. */
-async function promoteBuffer(n) {
+ * `opts.minutes` is the "last 2 minutes" case and is measured back from the
+ * *session's* own end, not from now, so an older card offers its own last two
+ * minutes rather than an empty slice. `opts.n` is a step count, kept because the
+ * page-side callers had it. Neither is required: no options promotes the whole
+ * most recent session.
+ *
+ * The steps are left in the buffer. Promoting is not consuming: the common case
+ * is realising you want a *different* slice of the same few minutes. The session
+ * is marked redeemed instead, which is what takes its card out of the pending
+ * list without taking the minutes away. */
+async function promoteBuffer(opts) {
   await bufChain;
+  const o = typeof opts === "number" ? { n: opts } : opts || {};
   const steps = await bufList();
-  if (!steps.length) return { ok: false, error: "Nothing buffered yet." };
-  const take = steps.slice(Math.max(0, steps.length - (n || steps.length)));
+  if (!steps.length) return { ok: false, error: "Nothing captured yet." };
+
+  const sessions = groupSessions(steps);
+  const sess = o.sessionId
+    ? sessions.filter((s) => s.id === o.sessionId)[0]
+    : sessions[sessions.length - 1];
+  if (!sess) return { ok: false, error: "That capture has expired." };
+
+  let take = sess.steps;
+  if (o.minutes) {
+    // Measured back from the session's end, which is also why this can never
+    // slice to nothing: the last step sits *at* `endedAt`, so it satisfies any
+    // positive window. No empty-guide guard needed, and one was written and then
+    // deleted for being unreachable — don't add it back.
+    const from = sess.endedAt - o.minutes * 60000;
+    take = take.filter((s) => (s.timestamp || 0) >= from);
+  }
+  if (o.n) take = take.slice(Math.max(0, take.length - o.n));
 
   const guideId = uid();
   const first = take[0] || {};
@@ -628,7 +805,9 @@ async function promoteBuffer(n) {
   writes[K.index] = index;
   writes[K.order(guideId)] = order;
   await set(writes);
+  await markRedeemed(sess.id);
   await finalizeGuide(guideId);
+  broadcast({ type: "fs_buf_changed" });
   return { ok: true, guideId, count: take.length };
 }
 
@@ -742,6 +921,25 @@ async function bridge(msg) {
 
     case "gg_guides":
       return { ok: true, guides: await get(K.index, []) };
+
+    /* Pending catch-up captures, so the library can show them beside real guides
+     * with their expiry. Metadata only — no steps and no screenshots, because a
+     * session is not a guide yet and there is nothing here to render. Anything
+     * the user wants to *see* has to be promoted first, which is the same
+     * deliberate act it has always been. */
+    case "gg_buf_sessions":
+      return { ok: true, sessions: await bufSessions() };
+
+    case "gg_buf_promote":
+      return await promoteBuffer({
+        sessionId: String(msg.sessionId || ""),
+        // Clamped: a web page is on the other end, and an absurd window would
+        // otherwise be handed straight to a filter comparison.
+        minutes: Math.max(0, Math.min(Number(msg.minutes) || 0, 24 * 60)),
+      });
+
+    case "gg_buf_discard":
+      return await discardSession(String(msg.sessionId || ""));
 
     case "gg_guide": {
       const gi = (await get(K.index, [])).find((g) => g.id === guideId);
@@ -1059,13 +1257,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           // from the sender's own tab for a content script, so a page cannot ask
           // whether some *other* origin is armed.
           const url = (sender.tab && sender.tab.url) || msg.url || "";
+          const origin = originOf(url);
+          const sessions = await bufSessions();
+          // The session the popup would act on: the most recent one on *this*
+          // origin. Not simply the newest, or a click in another tab would leave
+          // the popup offering to capture a site you are not looking at.
+          const here = sessions.filter((s) => s.origin === origin)[0] || null;
           sendResponse({
             armed: await bufArmed(url),
-            origin: originOf(url),
+            origin,
+            session: here,
+            pending: sessions.filter((s) => !s.redeemedAt).length,
             count: (await get(K.bufIndex, [])).length,
             max: BUF.maxSteps,
-            minutes: Math.round(BUF.maxAgeMs / 60000),
+            sliceMinutes: Math.round(BUF.sliceMs / 60000),
+            days: Math.round(BUF.maxAgeMs / 86400000),
           });
+          break;
+        }
+        case "fs_buf_sessions": {
+          sendResponse({ ok: true, sessions: await bufSessions() });
+          break;
+        }
+        case "fs_buf_discard": {
+          sendResponse(await discardSession(msg.sessionId));
           break;
         }
         case "fs_buf_arm": {
@@ -1075,7 +1290,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
         }
         case "fs_buf_promote": {
-          sendResponse(await promoteBuffer(msg.n));
+          sendResponse(await promoteBuffer(msg));
           break;
         }
         case "fs_buf_clear": {

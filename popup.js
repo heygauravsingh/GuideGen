@@ -87,28 +87,74 @@ library.addEventListener("click", () => {
 // ---------- catch-up capture ----------
 //
 // Armed per origin, off by default. The worker owns the origin list and the
-// buffer; this is a switch and two buttons over it. Arming needs the tab's own
-// url, so a page with no origin — chrome://, the Web Store, a PDF — hides the
+// buffer; this is a switch and the redeem buttons over it. Arming needs the tab's
+// own url, so a page with no origin — chrome://, the Web Store, a PDF — hides the
 // card entirely rather than offering a switch that cannot do anything.
+//
+// **This is the only place minutes become a guide.** The on-page dot is bare
+// disclosure with no button, so the primary action here has to be the one people
+// actually want — the last two minutes — with the whole session as the fallback
+// for when two minutes wasn't enough.
 
 let bufOrigin = "";
 let bufTabId = null;
+let bufSession = null;
+// BUF.sliceMs in background.js is the source of truth for what "last 2 minutes"
+// means; this mirrors whatever it says rather than hard-coding a 2 that would
+// drift out of the button label the moment that constant changed.
+let bufSliceMins = 2;
+
+function plural(n, word) {
+  return n + " " + word + (n === 1 ? "" : "s");
+}
+
+// "3:42 PM", so "everything since" reads as a time rather than a duration.
+function clockTime(ts) {
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch (e) {
+    return "";
+  }
+}
 
 function bufRender(r) {
   const card = el("bufCard");
   if (!r || !r.origin) { card.hidden = true; return; }
   card.hidden = false;
   bufOrigin = r.origin;
-  el("bufArm").checked = !!r.armed;
-  el("bufActs").hidden = !r.armed;
+  bufSession = r.session || null;
   const host = r.origin.replace(/^https?:\/\//, "");
-  el("bufSub").textContent = r.armed
-    ? r.count
-      ? r.count + (r.count === 1 ? " step" : " steps") + " held for " + host +
-        " — the last " + r.max + ", or " + r.minutes + " minutes, whichever comes first."
-      : "Watching " + host + ". Do something, then come back and make a guide out of it."
-    : "Keeps the last " + r.max + " actions on " + host + " so you can turn them into a " +
-      "guide afterwards. Nothing is uploaded, and it never leaves this device.";
+  const mins = r.sliceMinutes || 2;
+  bufSliceMins = mins;
+  const held = bufSession ? bufSession.stepCount : 0;
+  const slice = bufSession ? bufSession.sliceCount : 0;
+
+  el("bufArm").checked = !!r.armed;
+  // Both action rows go together: an armed site with nothing held yet has nothing
+  // to capture, and a button that can only fail is worse than no button.
+  el("bufActs").hidden = !(r.armed && held);
+  el("bufActs2").hidden = !(r.armed && held);
+
+  if (r.armed && held) {
+    el("bufSlice").textContent =
+      slice ? "Capture last " + mins + " minutes (" + plural(slice, "step") + ")"
+            : "Capture last " + mins + " minutes";
+    el("bufSlice").disabled = !slice;
+    el("bufAll").textContent = "Capture all " + held;
+    el("bufSub").textContent =
+      plural(held, "step") + " held for " + host + " since " +
+      clockTime(bufSession.startedAt) + ". Kept for " + (r.days || 7) +
+      " days unless you capture it.";
+  } else if (r.armed) {
+    el("bufSub").textContent =
+      "Watching " + host + ". Do something, then come back and capture the last " +
+      mins + " minutes of it.";
+  } else {
+    el("bufSub").textContent =
+      "Keeps what you do on " + host + " for " + (r.days || 7) + " days so you can " +
+      "turn the last " + mins + " minutes into a guide afterwards. Never uploaded, " +
+      "never leaves this device.";
+  }
 }
 
 function bufRefresh() {
@@ -133,23 +179,43 @@ el("bufArm").addEventListener("change", (e) => {
   );
 });
 
-el("bufMake").addEventListener("click", () => {
-  el("bufMake").disabled = true;
-  chrome.runtime.sendMessage({ type: "fs_buf_promote" }, (r) => {
-    el("bufMake").disabled = false;
-    if (chrome.runtime.lastError) return;
-    if (r && r.ok) {
-      chrome.runtime.sendMessage({ type: "fs_open_editor", guideId: r.guideId }, () =>
-        window.close()
-      );
-    } else {
-      el("bufSub").textContent = (r && r.error) || "Nothing buffered yet.";
+// Both redeem buttons take the same path: promote a slice of *this origin's*
+// session, then open the editor on the new guide. Passing the session id rather
+// than letting the worker pick the newest is what stops a click in another tab
+// redirecting this button onto a site the user isn't looking at.
+function bufPromote(btn, minutes) {
+  const b = el(btn);
+  b.disabled = true;
+  chrome.runtime.sendMessage(
+    {
+      type: "fs_buf_promote",
+      sessionId: bufSession ? bufSession.id : "",
+      minutes: minutes || 0,
+    },
+    (r) => {
+      b.disabled = false;
+      if (chrome.runtime.lastError) return;
+      if (r && r.ok) {
+        chrome.runtime.sendMessage({ type: "fs_open_editor", guideId: r.guideId }, () =>
+          window.close()
+        );
+      } else {
+        el("bufSub").textContent = (r && r.error) || "Nothing captured yet.";
+      }
     }
-  });
-});
+  );
+}
+
+el("bufSlice").addEventListener("click", () => bufPromote("bufSlice", bufSliceMins));
+el("bufAll").addEventListener("click", () => bufPromote("bufAll", 0));
 
 el("bufClear").addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "fs_buf_clear" }, () => bufRefresh());
+  // Discards this site's session, not the whole buffer. Another armed site's
+  // minutes are not this button's business.
+  chrome.runtime.sendMessage(
+    { type: "fs_buf_discard", sessionId: bufSession ? bufSession.id : "" },
+    () => bufRefresh()
+  );
 });
 
 // ---------- auth view ----------

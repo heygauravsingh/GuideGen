@@ -79,10 +79,10 @@ Local guide data lives in `chrome.storage.local`.
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
 | `tools/set-extension-key.mjs` | Writes the store item's public key into `manifest.json` as `key`, which pins the extension id so an **unpacked build loads under the store id on every machine**. Without it Chrome derives the id from the folder's absolute path, so every tester gets a different id and anything registered against one — the OAuth redirect URI especially — works only for whoever registered it. Verifies the key against the known store id and refuses a mismatch, because the wrong key would mint a *third* id and break OAuth and the bridge at once. `--check` is in the build step. |
-| `tools/bg-harness.mjs` | The real `background.js` in a `vm` with a stubbed `chrome`, shared by the worker tests. Add missing chrome APIs here — a missing stub throws inside the worker and surfaces as an unrelated failure two tests later. Its `storage.remove` handles arrays as well as single keys, which buffer eviction needs. |
+| `tools/bg-harness.mjs` | The real `background.js` in a `vm` with a stubbed `chrome`, shared by the worker tests. Add missing chrome APIs here — a missing stub throws inside the worker and surfaces as an unrelated failure two tests later. Its `storage.remove` handles arrays as well as single keys, which buffer eviction needs. `evalIn(h, code)` runs an expression in the worker's own scope: `background.js`'s top-level `const`s live in the vm's global *lexical* environment, so `h.sandbox.BUF` is undefined while `evalIn(h, "BUF")` works — that is the only handle on them. |
 | `tools/context-test.mjs` | Asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
 | `tools/recorder-test.mjs` | Drives the real `recorder.js` in a stubbed DOM. Weighted towards the orphan cases — including the two that a `try` beside `sendMessage` cannot catch, which both shipped. Cases 5 and 6 fail against the pre-`safeSend` file. `node tools/recorder-test.mjs`. |
-| `tools/buffer-test.mjs` | Asserts the catch-up buffer, weighted towards when it does **not** capture. All six guards — armed origin, recording, incognito, password field, age cap, count cap — are mutation-checked; removing any one fails at least one assertion. `node tools/buffer-test.mjs`. |
+| `tools/buffer-test.mjs` | Asserts the catch-up buffer, weighted towards when it does **not** capture. All the guards — armed origin, recording, incognito, password field, age cap, count cap, session-granular eviction, unarmed context steps — are mutation-checked; removing any one fails at least one assertion. It shrinks `BUF.maxSteps` via `evalIn` rather than writing 245 steps to prove the cap. `node tools/buffer-test.mjs`. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
@@ -101,8 +101,10 @@ Local guide data lives in `chrome.storage.local`.
 ## Data model (chrome.storage.local)
 - `fs_state` → `{ recording, guideId, stepCount }`
 - `fs_buf_origins` → `{ "<origin>": true }`, or `{ "*": true }` for everywhere (see Catch-up capture)
-- `fs_bufindex` → array of buffered step ids, oldest first
+- `fs_bufindex` → array of buffered step ids, oldest first. **Sessions are derived from this by
+  `groupSessions()`, not stored** — there is no session key to keep consistent with it.
 - `fs_bufstep_<id>` → one buffered step, same shape as a real one
+- `fs_bufdone` → `{ "<sessionId>": <timestamp> }`, sessions already turned into a guide
 - `fs_index` → array of `{ id, title, createdAt, startUrl, stepCount, remoteId?, publishedAt? }` (newest first)
 - `gg_auth` → the account session `{ uid, email, idToken, refreshToken, expiresAt }`
 - `fs_steporder_<guideId>` → array of step ids (defines order)
@@ -200,6 +202,9 @@ what stops one action producing two steps:
 
 Three things to keep:
 
+Both also fire for an **armed catch-up origin** while no recording is running (see Catch-up
+capture) — same dedupe, same step shape, `BUF.shot` instead of `SHOT`, written through `bufWrite`.
+
 1. **`seen = {tabId, url}` is the noise filter.** A tab+url already recorded produces no
    second step, which is what absorbs a site firing `complete` twice, a hash-only change, and
    a bounce back to a previous tab. It is in-memory on purpose: a worker restart mid-recording
@@ -217,9 +222,13 @@ capture rate limit are unchanged. Tests: `tools/context-test.mjs` drives the rea
 `background.js` with a stubbed `chrome`, and the negative cases are mutation-checked — dropping
 the `!tab.active` guard or the `seen` comparison fails them.
 
-## Catch-up capture — the buffer (background.js + recorder.js + popup)
-"Make a guide from what I just did." The pain always arrives *after* the fact — you finish
-something, then someone asks how — and by then Start is useless.
+## Catch-up capture — "Capture last 2 minutes" (background.js + recorder.js + popup + app.js)
+**The feature is "capture the last 2 minutes", and the name is not decoration — it is the spec.**
+The pain always arrives *after* the fact: you finish something, then someone asks how, and by
+then Start is useless. Anything that makes this a decision taken *beforehand* is working against
+the feature. The first version got this wrong in a way worth recording: the on-page pill offered
+"Make a guide" of the whole buffer, and the popup said "Catch-up capture" — engineer-speak for a
+mechanism, with no button anywhere that said the thing people actually want.
 
 **You cannot screenshot the past.** The only way to answer that is to have been capturing all
 along and throwing it away, and that is the entire reason for every constraint below.
@@ -229,31 +238,65 @@ along and throwing it away, and that is the entire reason for every constraint b
   reasonable default. Armed on the two or three admin panels someone actually documents, the
   surface is small enough to explain in a sentence. `"*"` arms everywhere and is deliberately
   expressible — some people will want it — but the popup never sets it.
+  **Know the cost of this choice**: arming is a before-decision inside a feature about deciding
+  after, so the first time someone wants this on a new site it is empty. Mitigate by *offering*
+  to arm when the intent is proven — after a deliberate recording on that site — never by arming
+  silently. See the backlog.
 - **No new permissions.** `<all_urls>` and the declared `recorder.js` content script were
   already there; the recorder has always run on every page and done nothing. So this is a
   *behaviour* change, not a capability one — which is exactly why the store listing has to be
   re-worded (it currently says "The recorder does nothing until you press start") even though
   the permission list does not move.
-- **It expires.** `BUF.maxSteps` 40 and `BUF.maxAgeMs` 20 min, evicted on write, keys deleted
-  rather than orphaned. An armed origin left open for a week holds minutes, not a week.
-- **It is visible while it runs.** recorder.js shows a `fs-buf` pill — ochre and steady, not red
-  and pulsing, because nothing is being written to a guide and there is nothing to stop. Its
-  button makes a guide instead of ending one. An invisible always-on capture is precisely what
-  people are right to be afraid of.
+- **Sessions are derived, never stored.** `groupSessions()` splits the flat `fs_bufindex` on a
+  30-min idle gap (`BUF.sessionGapMs`) or a change of origin. No second index to keep consistent,
+  no migration for anything already buffered, and the grouping rule can change without touching
+  stored data. A session's id is its first step's id.
+- **Both caps are per session, not per step.** `BUF.maxSteps` 240, `BUF.maxAgeMs` 7 days. Age
+  drops whole sessions; the count cap drops whole sessions oldest-first and only trims
+  mid-session when one session alone is over cap. The reason is the dashboard: a card promising
+  "expires in 6 days" over a session that has quietly lost its first half is a lie, and
+  step-granular expiry produced exactly that.
+- **The two caps have to agree about what is promised.** 40 steps was the original count cap and
+  it made a 7-day retention decoration — ~40 clicks of ordinary work evicted yesterday's session
+  before lunch, so nothing survived a night whatever the card said. If you lower `maxSteps`,
+  lower `maxAgeMs` with it. `tools/buffer-test.mjs` asserts a 26-hour-old session survives.
+- **Disclosure on the page, redemption in the popup.** recorder.js shows a bare `fs-buf` **dot**,
+  not a pill, and it is not a button. The full pill said "something is being written down", which
+  while buffering is false in the other direction — nothing is going into any guide and there is
+  nothing to stop. It names itself on hover (a `max-width` transition, so a host page killing
+  transitions degrades to an instant label rather than to nothing) and says nothing the rest of
+  the time. An invisible always-on capture is what people are right to be afraid of; a fake
+  status is the opposite error.
+- **The popup's primary action is the slice, not the session.** "Capture last 2 minutes"
+  (`BUF.sliceMs`), with "Capture all N" as the fallback for when two minutes wasn't enough. The
+  slice is measured back from the **session's own end**, never from now, so an older card offers
+  its own last two minutes rather than an empty one. It cannot slice to nothing — the last step
+  sits at `endedAt` — so there is no empty-guide guard and one was deleted for being unreachable.
 - **A focused password field loses the picture, keeps the words.** `step.noShot` from
   recorder.js; no capture is even attempted. The words were always safe — a typed value is
   never recorded — but the screenshot is the whole viewport, and unlike a recording the user
   never asked for this one.
 - **Recording always wins.** `bufferStep` returns early if `fs_state.recording`, or the click
   would be captured twice and spend two captures against the rate limit for one action.
+- **Tab switches and navigations are buffered too.** `contextStep` used to return early unless a
+  recording was running, so a promoted guide jumped between tabs with nothing explaining the move
+  while a recorded one said "Switch to the … tab" — the same flow reading *worse* for having been
+  captured after the fact. Both paths now write through `bufWrite`, which is the one place a
+  buffered step is persisted, so they cannot drift again.
 - **Nothing here is ever uploaded.** The buffer is not a guide; `publish.js` never sees a
   `fs_bufstep_` key. Promotion creates a real guide and publishing that is the same deliberate
-  act it always was.
-- **`promoteBuffer(n)` leaves the buffer intact.** Promoting is not consuming — the common case
-  is realising you want a *different* slice of the same few minutes. It copies into the normal
-  guide keyspace with fresh ids and runs the same `finalizeGuide()` a recording gets, so a
-  promoted guide is indistinguishable downstream: the dashboard, the exporters and `publish.js`
-  need to know nothing about buffering.
+  act it always was. `gg_buf_sessions` returns metadata only — no steps, no screenshots.
+- **Promoting marks, never consumes.** `promoteBuffer({sessionId, minutes})` copies into the
+  normal guide keyspace with fresh ids and runs the same `finalizeGuide()` a recording gets, so a
+  promoted guide is indistinguishable downstream. The session is then recorded in `fs_bufdone`
+  rather than deleted, because the common case after promoting is wanting a *different* slice of
+  the same few minutes. That mark is what makes "captures you haven't redeemed yet" answerable,
+  and `markRedeemed()` prunes marks whose session has expired so the map can't grow forever.
+- **The dashboard lists pending captures beside guides.** `pendingRow()` in `app.js` — dashed
+  border, ochre `Catch-up` badge, `deletes in 6 days`, and no Open, because there is nothing to
+  open until it is a guide. They are counted separately in the subtitle for the same reason.
+  Loading them is best-effort: an extension too old to answer `gg_buf_sessions` must not take the
+  library down with it.
 - **Buffered captures are cheaper** (`BUF.shot`, 1280px q0.8) than a recording's, because they
   run on clicks nobody asked to record. A promoted guide is slightly softer than a recorded one,
   which beats not existing.
@@ -609,6 +652,11 @@ Four rules:
    Progress has to stream over a render that can take minutes, and an open port is what
    stops Chrome shutting the service worker down halfway through.
 
+`gg_buf_sessions` / `gg_buf_promote` / `gg_buf_discard` are how the library lists and redeems
+catch-up captures. **Metadata only** — a session is not a guide, so no steps and no screenshots
+cross the bridge; anything the user wants to *see* has to be promoted first. `minutes` is clamped
+worker-side, because a web page is on the other end.
+
 `gg_session` hands the popup's session to the dashboard, which adopts it only if it has none
 of its own. Signing in twice for one product is not a feature.
 
@@ -740,6 +788,10 @@ Both are heuristics on generated text. If `recorder.js`'s phrasing changes, re-c
 - **A published guide's images can't be re-annotated from another device.** Redaction is
   additive on a baked image; moving the ring or re-cropping needs a re-publish from the machine
   that holds the original. Which is also why no unredacted original is ever uploaded.
+- **Catch-up capture is empty the first time you want it on a new site**, because arming is
+  manual and per-origin (see Catch-up capture for why that default stands). The intended fix is
+  *offering* to arm after a deliberate recording on that site — the moment the intent is proven —
+  not arming by default and not a settings page. Not built.
 - No team workspaces (out of scope by design).
 
 ## Style

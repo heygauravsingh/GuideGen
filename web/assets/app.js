@@ -26,7 +26,7 @@
   var R = window.FSRender;
   var X = window.FSExport;
 
-  var lib = { local: [], remote: [], extVersion: null, extError: null };
+  var lib = { local: [], remote: [], buf: [], extVersion: null, extError: null };
   var cur = null;   // { kind, id, guide, steps }
   var mode = "signin";
   var saveTimers = {};
@@ -302,9 +302,17 @@
       return [];
     });
 
-    return Promise.all([localP, remoteP]).then(function (r) {
+    // Catch-up captures nobody has turned into a guide yet. Best-effort on
+    // purpose: an extension too old to know this message answers with an error,
+    // and a missing pending list must not take the whole library down with it.
+    var bufP = GGBridge.available()
+      ? GGBridge.bufSessions().catch(function () { return []; })
+      : Promise.resolve([]);
+
+    return Promise.all([localP, remoteP, bufP]).then(function (r) {
       lib.local = r[0] || [];
       lib.remote = r[1] || [];
+      lib.buf = (r[2] || []).filter(function (s) { return !s.redeemedAt; });
       renderLibrary();
     });
   }
@@ -348,14 +356,105 @@
 
     var list = el("list");
     list.innerHTML = "";
-    if (!rows.length) {
+    var pending = lib.buf || [];
+    if (!rows.length && !pending.length) {
       list.innerHTML = blankState();
       el("dash-sub").textContent = "Nothing here yet.";
       return;
     }
+    // Pending captures sit above the guides, and they are the only rows with an
+    // expiry — so the thing that will disappear on its own is the thing you see
+    // first. They are not guides yet and are counted separately for that reason.
+    pending.forEach(function (s) { list.appendChild(pendingRow(s)); });
     rows.forEach(function (r) { list.appendChild(libRow(r)); });
     el("dash-sub").textContent =
-      rows.length === 1 ? "1 guide" : rows.length + " guides";
+      (rows.length === 1 ? "1 guide" : rows.length + " guides") +
+      (pending.length
+        ? " · " + pending.length + " catch-up capture" + (pending.length === 1 ? "" : "s")
+        : "");
+  }
+
+  // "in 6 days" / "in 4 hours" / "in 12 minutes". Rounded down, because a card
+  // saying a day when there are hours left is the one direction that loses work.
+  function untilText(ts) {
+    var ms = ts - Date.now();
+    if (ms <= 0) return "any moment";
+    var mins = Math.floor(ms / 60000);
+    if (mins < 60) return "in " + mins + " minute" + (mins === 1 ? "" : "s");
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return "in " + hrs + " hour" + (hrs === 1 ? "" : "s");
+    var days = Math.floor(hrs / 24);
+    return "in " + days + " day" + (days === 1 ? "" : "s");
+  }
+
+  /* A catch-up capture, listed beside real guides but never mistaken for one:
+   * different badge, an expiry, and no Open — there is nothing to open until it
+   * has been made into a guide. Both capture buttons do that; the difference is
+   * only how much of the session they take. */
+  function pendingRow(s) {
+    var d = mk("div", "guide-row pending");
+    d.innerHTML =
+      '<div class="info"><div class="t"></div><div class="m"></div></div>' +
+      '<span class="badge buf"><span class="dot"></span>Catch-up</span>' +
+      '<div class="acts"></div>';
+    d.querySelector(".t").textContent = s.host || "Catch-up capture";
+    d.querySelector(".m").textContent =
+      (s.stepCount || 0) + (s.stepCount === 1 ? " step · " : " steps · ") +
+      fmtDate(s.endedAt) + " · deletes " + untilText(s.expiresAt);
+
+    var acts = d.querySelector(".acts");
+    var busy = false;
+    function take(btn, minutes) {
+      if (busy) return;
+      busy = true;
+      btn.disabled = true;
+      var was = btn.textContent;
+      btn.textContent = "Working…";
+      GGBridge.bufPromote(s.id, minutes)
+        .then(function (guideId) {
+          if (!guideId) throw new Error("That capture has expired.");
+          location.hash = "#local-" + guideId;
+          return loadLibrary();
+        })
+        .catch(function (e) {
+          busy = false;
+          btn.disabled = false;
+          btn.textContent = was;
+          say("dash-msg", e.message, "err");
+        });
+    }
+
+    var mins = s.sliceMinutes || 2;
+    var slice = textBtn("Capture last " + mins + " min");
+    slice.classList.add("brand-btn");
+    slice.disabled = !s.sliceCount;
+    slice.addEventListener("click", function () { take(slice, mins); });
+    acts.appendChild(slice);
+
+    // Only worth offering when it would give you more than the slice does.
+    if (s.stepCount > (s.sliceCount || 0)) {
+      var all = textBtn("Capture all " + s.stepCount);
+      all.addEventListener("click", function () { take(all, 0); });
+      acts.appendChild(all);
+    }
+
+    var drop = textBtn("Discard");
+    drop.addEventListener("click", function () {
+      confirmModal(
+        "Discard this capture?",
+        // confirmModal sets this with textContent, so no escaping here.
+        "The " + s.stepCount + " steps held for " + (s.host || "this site") +
+          " are deleted now instead of when they expire. This can't be undone.",
+        "Discard"
+      ).then(function (yes) {
+        if (!yes) return;
+        GGBridge.bufDiscard(s.id)
+          .then(loadLibrary)
+          .catch(function (e) { say("dash-msg", e.message, "err"); });
+      });
+    });
+    acts.appendChild(drop);
+    return d;
   }
 
   function blankState() {

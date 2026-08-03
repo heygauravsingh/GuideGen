@@ -409,43 +409,56 @@
   }
 
   // ---- pill UI ----
-  /* Two pills, one element. Buffering has to be visible while it runs — an
-   * invisible always-on capture is precisely the thing people are right to be
-   * afraid of — but it must not look like recording, because it isn't: nothing is
-   * being written to a guide and there is nothing to stop. So it reads
-   * "Buffering", it is muted rather than red, and its button makes a guide out of
-   * what is already there instead of ending anything. */
+  /* Two very different things, one element.
+   *
+   * **Recording** is a full pill: red dot, live step count, "Stop & edit". It is a
+   * status, because there is something running that the user started and can end.
+   *
+   * **Catch-up** is a bare dot, and deliberately not a button. The full pill said
+   * "something is being written down", which while buffering is false in the other
+   * direction — nothing is being written to any guide and there is nothing to
+   * stop. It is disclosure, not a status: it exists so an always-on capture is
+   * never invisible, and it says what it is on hover and nothing the rest of the
+   * time. Redeeming lives in the popup, which is one deliberate place to turn
+   * minutes into a guide rather than a button sitting on every page. */
   function showPill(m) {
     if (pill) return;
     const buf = m === "buf";
     pill = document.createElement("div");
     pill.setAttribute(UI, "1");
     pill.className = "flowscribe-pill" + (buf ? " fs-buf" : "");
-    pill.innerHTML =
-      '<span class="fs-dot"></span>' +
-      '<span class="fs-count">' +
-      (buf ? "Buffering — <b>0</b> steps" : "Recording — <b>0</b> steps") +
-      "</span>" +
-      '<button class="fs-stop" ' + UI + '="1">' +
-      (buf ? "Make a guide" : "Stop &amp; edit") +
-      "</button>";
+    if (buf) {
+      pill.innerHTML =
+        '<span class="fs-dot"></span>' +
+        '<span class="fs-count">Catch-up on — <b>0</b> steps held</span>';
+      // Native tooltip as well as the hover expansion, since a host page can
+      // suppress transitions and this must stay explainable if it does.
+      pill.setAttribute("title", "GuideGen catch-up capture is on for this site. Open GuideGen to capture the last 2 minutes.");
+    } else {
+      pill.innerHTML =
+        '<span class="fs-dot"></span>' +
+        '<span class="fs-count">Recording — <b>0</b> steps</span>' +
+        '<button class="fs-stop" ' + UI + '="1">Stop &amp; edit</button>';
+    }
     (document.body || document.documentElement).appendChild(pill);
-    pill.querySelector(".fs-stop").addEventListener(
-      "click",
-      (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        // Same orphan case as send(): a stale pill's button would throw rather than
-        // do anything, so retire instead and take the pill away with it. The nested
-        // call needs its own guard — it runs in the reply, long after any try block
-        // out here has returned.
-        safeSend(buf ? { type: "fs_buf_promote" } : { type: "fs_stop" }, (resp) => {
-          if (resp && resp.guideId)
-            safeSend({ type: "fs_open_editor", guideId: resp.guideId });
-        });
-      },
-      true
-    );
+    const stop = buf ? null : pill.querySelector(".fs-stop");
+    if (stop)
+      stop.addEventListener(
+        "click",
+        (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          // Same orphan case as send(): a stale pill's button would throw rather than
+          // do anything, so retire instead and take the pill away with it. The nested
+          // call needs its own guard — it runs in the reply, long after any try block
+          // out here has returned.
+          safeSend({ type: "fs_stop" }, (resp) => {
+            if (resp && resp.guideId)
+              safeSend({ type: "fs_open_editor", guideId: resp.guideId });
+          });
+        },
+        true
+      );
     updatePill();
   }
   function hidePill() {

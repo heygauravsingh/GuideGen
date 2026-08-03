@@ -120,3 +120,16 @@ export function send(h, msg, sender) {
 }
 
 export const tick = (ms) => new Promise((r) => setTimeout(r, ms == null ? 400 : ms));
+
+/* Evaluates an expression inside the worker's own scope.
+ *
+ * background.js declares its constants with top-level `const`, which in a vm
+ * context live in the global *lexical* environment rather than as properties of
+ * the sandbox object — so `h.sandbox.BUF` is undefined while `evalIn(h, "BUF")`
+ * works. That is the only way to reach them, and it is what lets a test shrink
+ * BUF.maxSteps to 5 instead of writing 245 steps to prove the cap. Read-only
+ * peeking is free; when a test mutates, it is mutating the real constant the
+ * worker uses, so keep it to fresh harnesses. */
+export function evalIn(h, code) {
+  return vm.runInContext(code, h.ctx);
+}

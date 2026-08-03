@@ -277,9 +277,13 @@
       Tip: if a tab was open before you installed GuideGen, reload it once before recording.
     </p>
 
-    <!-- The buffer. Off by default and armed per site, because the only way to
-         answer "make a guide from what I just did" is to have been capturing all
-         along — see the note in background.js. -->
+    <!-- Catch-up capture. Off by default and armed per site, because the only way
+         to answer "capture the last 2 minutes" is to have been capturing all
+         along — see the note in background.js.
+
+         The primary action is deliberately the *slice*, not everything held: the
+         thing people ask for is "what I just did", and the whole session is the
+         fallback for when two minutes wasn't enough. -->
     <div class="buf" id="bufCard" hidden>
       <div class="buf-top">
         <span class="buf-t">Catch-up capture</span>
@@ -290,8 +294,11 @@
       </div>
       <p class="buf-sub" id="bufSub"></p>
       <div class="buf-acts" id="bufActs" hidden>
-        <button class="ghost sm" id="bufMake">Make a guide</button>
-        <button class="ghost sm" id="bufClear">Clear</button>
+        <button class="primary sm" id="bufSlice">Capture last 2 minutes</button>
+      </div>
+      <div class="buf-acts" id="bufActs2" hidden>
+        <button class="ghost sm" id="bufAll">Capture all</button>
+        <button class="ghost sm" id="bufClear">Discard</button>
       </div>
     </div>
 
