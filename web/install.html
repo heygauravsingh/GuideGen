@@ -70,7 +70,10 @@
        it is — which for a stranger installing an unpacked extension is exactly
        the wrong first impression. The Drive page shows the name, the size and a
        Download button. */
-    var DOWNLOAD_URL = "https://drive.google.com/file/d/19D5aj2-8cfXkVSZLL_6jpplPTqJIq4d-/view?usp=sharing";
+    // v1.2.0 — catch-up capture and the API log. Uploading a new Drive file rather
+    // than a new version of the old one changes this id, so it has to change here in
+    // the same commit; store/RUNBOOK.md keeps the list of ids and which are stale.
+    var DOWNLOAD_URL = "https://drive.google.com/file/d/108KwuZFEPP2YwOyZfLRjMEUqM6R7tYxl/view?usp=sharing";
 
     var btn = document.getElementById("dl-btn");
     if (/^https:\/\//.test(DOWNLOAD_URL)) {

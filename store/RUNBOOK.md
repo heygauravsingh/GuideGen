@@ -247,6 +247,20 @@ First time:
 `install.html` never changes and you never have to remember to update the site. Uploading a
 fresh file mints a new id, and the page then points at the old build with no error to tell you.
 
+**File ids used so far, newest first.** Only the top one should exist; the others still serve
+older builds to anyone holding the link, which is the failure mode this section is about.
+
+| Version | Drive file id | State |
+|---|---|---|
+| v1.2.0 — catch-up capture + API log | `108KwuZFEPP2YwOyZfLRjMEUqM6R7tYxl` | **current**, `/install` points here |
+| v1.1.x — catch-up capture + safeSend | `19D5aj2-8cfXkVSZLL_6jpplPTqJIq4d-` | superseded — delete |
+| v1.1.0 | `1v9__uhc7ha8-pPF_H_4hn2yqK5HwDSHJ` | superseded — delete |
+
+If you upload a new file again rather than a new version, the id above changes and
+`install.html`'s `DOWNLOAD_URL` has to change with it **in the same commit** — otherwise the
+site quietly hands testers the previous build. Verify with the file's own sharing settings that
+it is *Anyone with the link → Viewer*; a private file makes the button look broken.
+
 Two notes on the link itself:
 
 - The plain share link (`/file/d/<id>/view`) opens Drive's preview page with a Download button.
