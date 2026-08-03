@@ -66,15 +66,16 @@ Local guide data lives in `chrome.storage.local`.
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config, v1.1.0. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen; host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `manifest.json` | MV3 config, v1.2.0. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
+| `netpatch.js` | The only code that runs in the page's **MAIN world**. Patches `fetch`/`XHR` to report the body of a *failed* response back through `postMessage`, because `chrome.webRequest` cannot read one. Opt-in, off by default; injected per tab by the worker via `executeScript({world:"MAIN"})`. Nothing it says is trusted — see The API log. |
 | `recorder.css` | Styles for the recording pill only. Every declaration is `!important` and children start from `all: unset` — this is the one surface that renders inside a stranger's page. |
 | `popup.html/js` | Toolbar popup: status card (idle / recording with live step count) + Start/Stop, Guide library, and the catch-up capture switch for the current tab's origin. Self-contained styles, light + dark. |
 | `editor.html` + `redirect.js` | Retired. A redirect to `/app`, carrying `#<guideId>` across as `#local-<guideId>`, so v1.0 bookmarks land somewhere sensible. The editor is `web/assets/app.js`. |
 | `offscreen.html/js` | Never-visible page that renders the narrated video. A service worker has no canvas, AudioContext or MediaRecorder; an offscreen document has all three. Only `chrome.runtime` is available to it, so the guide arrives by message and the finished blob leaves as a `blob:` URL for the worker to download. |
 | `render.js` | `window.FSRender`. Draws annotations onto a canvas: scrim + spotlight, accent ring, numbered badge, and redaction via pixelation (see Annotations). Pure canvas, reused by editor preview AND every exporter. Also `focusRegion()`/`contentBox()` — pick the crop worth showing (see Presentation). |
-| `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration), plus `aiText`/`ai` — the AI handoff (see The AI handoff). Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
+| `exporters.js` | `window.FSExport`: `.html`, `.markdown`, `.pdf` (jsPDF), `.pptx` (PptxGenJS), `.video` (canvas → MediaRecorder webm + optional narration), plus `aiText`/`ai` — the AI handoff (see The AI handoff) — and `apiLogText`, the API log on its own. Those three are the **only** ones that emit `step.network`; leave a new exporter out of it too. Also owns `PACES`/`stepSecs` — the single source of truth for pacing, which the editor's dropdown is built from. |
 | `tts.js` | `window.FSTTS`. Offline neural narration: espeak-ng (wasm) → phoneme ids → Piper VITS via onnxruntime-web → mono PCM. `synth(text, {rate})` → `{pcm, sampleRate, duration}`. Loads `lib/ort` + `lib/piper` + `lib/voices` lazily on first use. |
 | `sync.js` | `window.FSSync`. **Auth only** — email/password plus Google via `chrome.identity.launchWebAuthFlow`; Identity Toolkit REST for email/password, tokens in `chrome.storage.local`. Publishing used to live here and now lives in `web/assets/publish.js`, so there is one implementation of the upload rules rather than two. The popup gates on this session, and the dashboard adopts the same one over the bridge (`gg_session`) so nobody signs in twice. |
 | `tools/sync-web-assets.mjs` | Mirrors `render.js`, `exporters.js` and the two vendored exporter libs into `web/assets/`. `--check` fails if a mirror is stale. |
@@ -83,6 +84,7 @@ Local guide data lives in `chrome.storage.local`.
 | `tools/context-test.mjs` | Asserts which tab events become steps (see Context steps). Negative cases are mutation-checked: dropping the `!tab.active` guard or the `seen` comparison fails them. `node tools/context-test.mjs`. |
 | `tools/recorder-test.mjs` | Drives the real `recorder.js` in a stubbed DOM. Weighted towards the orphan cases — including the two that a `try` beside `sendMessage` cannot catch, which both shipped. Cases 5 and 6 fail against the pre-`safeSend` file. `node tools/recorder-test.mjs`. |
 | `tools/buffer-test.mjs` | Asserts the catch-up buffer, weighted towards when it does **not** capture. All the guards — armed origin, recording, incognito, password field, age cap, count cap, session-granular eviction, unarmed context steps — are mutation-checked; removing any one fails at least one assertion. It shrinks `BUF.maxSteps` via `evalIn` rather than writing 245 steps to prove the cap. `node tools/buffer-test.mjs`. |
+| `tools/net-test.mjs` | Asserts the API log, weighted towards what it refuses to record: nothing while idle, nothing from an unarmed origin or incognito, nothing that isn't an xhr/fetch, no 2xx bodies, no body without a matching request, no page-written log. Mutation-checked. `node tools/net-test.mjs`. |
 | `tools/make-icons.mjs` | Draws every icon from scratch — no dependencies, PNG written by hand over `zlib`, ICO by hand around that. Ochre tile, paper wordmark glyph. Outputs the extension's `icons/icon{16,48,128}.png` **and** the site's `web/favicon.svg`, `web/favicon.ico` (16+32) and `web/apple-touch-icon.png` (180). One generator so the tab icon and the toolbar icon can't diverge. `--check` fails if any of them drift, and it's wired into the RUNBOOK build step — the old icons went stale through a repalette unnoticed, because a PNG never appears in a grep for a hex value. |
 | `web/app.html` + `web/assets/app.js` | **The editor.** Guide library and step editor for both local guides (over the bridge) and published ones (over Firestore). |
 | `web/assets/bridge.js` | `window.GGBridge`. The page side of `externally_connectable`. |
@@ -99,7 +101,12 @@ Local guide data lives in `chrome.storage.local`.
 | `icons/` | Generated PNG icons — output of `tools/make-icons.mjs`, not hand-edited. The site's favicons come out of the same script into `web/`. |
 
 ## Data model (chrome.storage.local)
-- `fs_state` → `{ recording, guideId, stepCount }`
+- `fs_state` → `{ recording, guideId, stepCount, captureBodies }`
+  (`captureBodies` is Tier 2 of the API log, chosen at Start — see The API log)
+- `fs_net_<guideId>` → the API log while recording. **Scratch**: folded onto the steps by
+  `attachNetwork()` at `finalizeGuide()` and then deleted.
+- `fs_bufnet` → the same for catch-up capture, expiring with the sessions it describes
+- `fs_buf_bodies` → `true` if catch-up may keep failed response bodies (off by default)
 - `fs_buf_origins` → `{ "<origin>": true }`, or `{ "*": true }` for everywhere (see Catch-up capture)
 - `fs_bufindex` → array of buffered step ids, oldest first. **Sessions are derived from this by
   `groupSessions()`, not stored** — there is no session key to keep consistent with it.
@@ -115,12 +122,15 @@ Step object:
 {
   id, guideId, seq, type: "click" | "input" | "key" | "note" | "switch" | "nav",
   url, pageTitle, timestamp,
+  tabId,                   // which tab it happened in; only the API log reads it
   dpr,                     // bitmap px per CSS px for this step's screenshot
   point: { x, y },         // click point, CSS px within viewport
   rect:  { x, y, w, h },   // target element bounds, CSS px within viewport
   text,                    // editable description
   screenshot,              // WebP dataURL of visible viewport, or null for notes
-  blurs: [ { x, y, w, h } ] // redaction rects, CSS px
+  blurs: [ { x, y, w, h } ], // redaction rects, CSS px
+  network: [ { method, host, path, status, ms, ok, error?, body?, bodyTruncated? } ],
+  networkMore              // requests beyond NET.maxPerStep, count only
 }
 ```
 Coordinate rule: any CSS-px value maps onto the bitmap by multiplying by `dpr`. `render.js`,
@@ -300,6 +310,77 @@ along and throwing it away, and that is the entire reason for every constraint b
 - **Buffered captures are cheaper** (`BUF.shot`, 1280px q0.8) than a recording's, because they
   run on clicks nobody asked to record. A promoted guide is slightly softer than a recorded one,
   which beats not existing.
+
+## The API log (background.js + netpatch.js + app.js + exporters.js)
+What fired on each step, and what came back. `Click "Save" → POST /api/orders → 500` is a bug
+report someone can act on; "clicked Save, it didn't work" is a guessing game. This is a
+**handoff** feature — `aiText()` and `apiLogText()` are the only exports that carry it.
+
+**Two tiers, and the line between them is the design.**
+
+- **Tier 1, the summary** — `chrome.webRequest`, on for every recording and every armed
+  catch-up origin. Method, path, status, duration. `webRequest` **cannot read a response
+  body**, at any permission level, and never could — so the cheap tier is free of the one
+  thing that makes this feature dangerous.
+- **Tier 2, failed response bodies** — needs the page's own `fetch`/`XHR`, so `netpatch.js`
+  runs in the **MAIN world**. Opt-in, off by default, on both surfaces separately
+  (`fs_state.captureBodies` for a recording, chosen at Start; `fs_buf_bodies` for catch-up).
+
+Rules that are not negotiable:
+
+1. **Headers are never read.** `Authorization` and `Cookie` live there. No setting changes
+   this, and `onBeforeSendHeaders` is not registered anywhere — the bg-harness stub
+   deliberately omits it so adding one is a visible change.
+2. **Query strings are stripped** (`netPath`) — tokens and ids ride in them.
+3. **Failures only, for bodies.** A 2xx body is the bulk of the data and the bulk of the risk
+   for none of the value: if it worked, the status line already said so. `netRecord` only
+   marks a request body-eligible when `!entry.ok`.
+4. **A body annotates a request; it never creates one.** The page shares the `postMessage`
+   channel `netpatch.js` uses, so a body is matched against something `webRequest`
+   independently saw (tab + status + path) and dropped otherwise. `netBody` is a source of
+   hints, not records.
+5. **`gg_update_step` accepts `network: []` and nothing else.** The editor may *remove* a log
+   — the escape hatch for a body nobody read before it was captured — and may not write one.
+6. **Publishing never sends it.** `publish.js` builds an explicit field whitelist; that is why
+   it must not become a spread.
+7. **`chrome.debugger` is not an option**, though it would read every body. It paints a
+   "started debugging this browser" banner, blocks DevTools, and is close to an automatic
+   store rejection.
+
+**Correlation** (`attachNetwork`): each request goes to the last step at or before it, in the
+same tab, within `NET.windowMs` (10s) — which is why steps now carry `tabId`. Done in **one
+pass** at `finalizeGuide()` (or at promotion), not incrementally: a request arrives *after* its
+click, so attaching on the way in would mean patching an already-written step on every
+response. `fs_net_<guideId>` is scratch and is **deleted** once folded onto the steps, so there
+is never a second copy to redact.
+
+**What Tier 2 cannot see, and Tier 1 can.** `netpatch.js` patches the page's `fetch` and `XHR`
+at injection time, so it misses calls made through references taken earlier, plus Workers,
+Service Workers, `sendBeacon`, WebSockets and EventSource. The summary covers all of them —
+`webRequest` watches the network, not the page. Don't "fix" this by patching more surfaces; the
+summary is already the complete picture and the body is a bonus on failures.
+
+### The UX problem, which is the real one
+A single-page app fires requests on nearly every click, so **rendering every step's log inline
+turns a nine-step guide into two hundred monospace rows.** The split is on whether anything
+failed:
+
+- **All fine** → one muted line, `netquiet` / `.netlink`: "5 requests", no expansion. A fact
+  about the step, not something to read.
+- **Something failed** → `.netlog.bad` inline, open, failures only, ochre left edge. The one
+  case where the log *is* the point; hiding it behind a click hides the answer.
+- **Everything, in full** → the drawer (`openNetLog`), reachable from any step and from the
+  toolbar button, whose label carries the failure count. Sticky group headers, "failed only"
+  filter defaulting on when there are failures, and a copy button. Nothing truncated there —
+  which is what lets the inline view stay that small.
+
+Response bodies clamp to 8 lines with a mask fade and an explicit expander, not a scroll box:
+a nested scroll region inside a scrolling page is the worst pattern on the web. The clamp is an
+exact multiple of the line height so it never slices a line in half.
+
+`NET.maxPerStep` is 50, deliberately generous — the *display* is what stays small, and
+conflating a capture limit with a display limit is how you end up unable to answer the question
+the user has.
 
 ## Screenshot normalisation (background.js)
 `captureVisibleTab` hands back a full-retina PNG — ~3024×1700, 1–3 MB per step. Every exporter

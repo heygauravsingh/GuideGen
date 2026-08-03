@@ -57,6 +57,9 @@ function render(state) {
     hint.textContent =
       "Tip: if a tab was open before you installed GuideGen, reload it once before recording.";
   }
+  // Hidden mid-recording: it is a choice about how this recording captures, and by
+  // then the recording has already started making that choice.
+  el("bodyOpt").hidden = !!rec;
 }
 
 function refresh() {
@@ -75,7 +78,10 @@ toggle.addEventListener("click", () => {
         window.close();
       });
     } else {
-      chrome.runtime.sendMessage({ type: "fs_start" }, () => window.close());
+      chrome.runtime.sendMessage(
+        { type: "fs_start", bodies: el("netBodies").checked },
+        () => window.close()
+      );
     }
   });
 });
@@ -134,6 +140,10 @@ function bufRender(r) {
   // to capture, and a button that can only fail is worse than no button.
   el("bufActs").hidden = !(r.armed && held);
   el("bufActs2").hidden = !(r.armed && held);
+  // Only offered once the site is armed — an opt-in nested inside something that
+  // is off does nothing and reads as if it might.
+  el("bufBodyOpt").hidden = !r.armed;
+  el("bufBodies").checked = !!r.bodies;
 
   if (r.armed && held) {
     el("bufSlice").textContent =
@@ -205,6 +215,13 @@ function bufPromote(btn, minutes) {
     }
   );
 }
+
+el("bufBodies").addEventListener("change", (e) => {
+  chrome.runtime.sendMessage(
+    { type: "fs_buf_bodies", on: e.target.checked },
+    () => { if (!chrome.runtime.lastError) bufRefresh(); }
+  );
+});
 
 el("bufSlice").addEventListener("click", () => bufPromote("bufSlice", bufSliceMins));
 el("bufAll").addEventListener("click", () => bufPromote("bufAll", 0));

@@ -139,7 +139,13 @@
     out += "Browser workflow captured with GuideGen. " + n +
       (n === 1 ? " step" : " steps") + ".\n";
     if (guide.startUrl) out += "Starting point: " + guide.startUrl + "\n";
-    out += "This is the written record only — the screenshots are not included.\n\n";
+    out += "This is the written record only — the screenshots are not included.\n";
+    // Said up front, because a model that meets an indented `POST /x → 500` with no
+    // warning tends to treat it as prose rather than as evidence.
+    if (steps.some((s) => (s.network || []).length))
+      out += "Requests the page made are listed under the step that triggered them, " +
+        "with their status.\n";
+    out += "\n";
 
     let lastUrl = null;
     let redacted = false;
@@ -158,12 +164,75 @@
       const kind = ACTION[s.type] || s.type || "click";
       out += (i + 1) + ". " + (s.text || "").replace(/\s+/g, " ").trim() +
         (s.type === "note" ? "" : "  `" + kind + "`") + "\n";
+
+      /* The API log, and **this is the only export that carries it.** A guide is
+       * for a person following steps; `GET /api/session → 200` is noise to them.
+       * A model debugging the same flow needs exactly that line, and it is cheap:
+       * a few dozen characters where a screenshot would be a megabyte.
+       *
+       * Indented under its step so the numbered list stays a numbered list. */
+      const net = s.network || [];
+      if (net.length) {
+        net.forEach((r) => {
+          const status = r.error ? r.error : r.status || "no response";
+          out += "    - `" + r.method + " " + (r.host ? r.host : "") + r.path +
+            "` → **" + status + "**" + (r.ms != null ? " (" + r.ms + "ms)" : "") + "\n";
+          if (r.body) {
+            // Fenced, because a JSON error body full of braces and quotes wrecks the
+            // surrounding Markdown otherwise — and a model reads a fence as data.
+            out += "      ```\n";
+            r.body.split("\n").slice(0, 24).forEach((line) => {
+              out += "      " + line.slice(0, 300) + "\n";
+            });
+            out += "      ```\n";
+            if (r.bodyTruncated)
+              out += "      *(response truncated from " + r.bodyTruncated + " characters)*\n";
+          }
+        });
+        if (s.networkMore)
+          out += "    - *(" + s.networkMore + " more request" +
+            (s.networkMore === 1 ? "" : "s") + " not shown)*\n";
+      }
     }
     if (redacted) {
       out += "\nSome values were redacted before export, so a few fields " +
         "referenced above are intentionally blank in the screenshots.\n";
     }
     return out;
+  }
+
+  /* Just the API log, for the case where the recipient is a developer who wants the
+   * requests and not the guide around them. Shares its formatting with `aiText`'s
+   * inline version rather than inventing a second one — the destination is the same
+   * kind of window, and two formats for one thing is how they drift.
+   *
+   * Not a download and not in the export menu: it is the clipboard action inside the
+   * log drawer. Documents never carry the log at all. */
+  function apiLogText(guide, steps) {
+    const rows = [];
+    steps.forEach((s, i) => {
+      const net = s.network || [];
+      if (!net.length) return;
+      rows.push("## " + (i + 1) + ". " + (s.text || "").replace(/\s+/g, " ").trim());
+      if (s.url) rows.push("*" + s.url + "*");
+      rows.push("");
+      net.forEach((r) => {
+        const status = r.error ? r.error : r.status || "no response";
+        rows.push("- `" + r.method + " " + (r.host || "") + r.path + "` → **" + status + "**" +
+          (r.ms != null ? " (" + r.ms + "ms)" : ""));
+        if (r.body) {
+          rows.push("  ```");
+          r.body.split("\n").forEach((line) => rows.push("  " + line));
+          rows.push("  ```");
+          if (r.bodyTruncated)
+            rows.push("  *(truncated from " + r.bodyTruncated + " characters)*");
+        }
+      });
+      if (s.networkMore) rows.push("- *(" + s.networkMore + " more not shown)*");
+      rows.push("");
+    });
+    if (!rows.length) return "";
+    return "# API log — " + (guide.title || "Untitled guide") + "\n\n" + rows.join("\n");
   }
 
   // Fallback path. The UI copies `aiText` to the clipboard instead, because the
@@ -750,5 +819,13 @@
     prog(1, "Done");
   }
 
-  window.FSExport = { html, markdown, ai, aiText, pdf, pptx, video, PACES, DEFAULT_PACE, stepSecs };
+  /* The API log travels with `aiText` and `apiLogText` and with nothing else.
+   * html/markdown/pdf/pptx/video never read `step.network` — that is not an
+   * oversight to tidy up later: a guide is for a person following steps, and
+   * `GET /api/session → 200` on every slide of a video is noise at best. If you add
+   * an exporter, leave it out of that one too. */
+  window.FSExport = {
+    html, markdown, ai, aiText, apiLogText, pdf, pptx, video,
+    PACES, DEFAULT_PACE, stepSecs,
+  };
 })();

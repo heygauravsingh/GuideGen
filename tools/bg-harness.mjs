@@ -18,6 +18,8 @@ export function harness() {
   const captures = [];
   const broadcasts = [];
   const harnessTabs = {};
+  const net = { before: [], completed: [], errored: [] };
+  const injected = [];
 
   const chrome = {
     runtime: {
@@ -62,7 +64,20 @@ export function harness() {
       onRemoved: { addListener() {} },
       create() {}, update() {},
     },
-    scripting: { insertCSS: async () => {}, executeScript: async () => {} },
+    // Observational only — no blocking, no onBeforeSendHeaders. If a test ever needs
+    // a header listener here, that is a signal to check why: headers are the one
+    // thing the API log deliberately never reads.
+    webRequest: {
+      onBeforeRequest: { addListener: (fn) => net.before.push(fn) },
+      onCompleted: { addListener: (fn) => net.completed.push(fn) },
+      onErrorOccurred: { addListener: (fn) => net.errored.push(fn) },
+    },
+    scripting: {
+      insertCSS: async () => {},
+      // Records what was injected and into which world, which is how the Tier 2
+      // tests assert that netpatch.js only ever reaches MAIN when it was asked for.
+      executeScript: async (opts) => { injected.push(opts); return []; },
+    },
     downloads: { download() {}, onChanged: { addListener() {}, removeListener() {} } },
     offscreen: { createDocument: async () => {}, closeDocument: async () => {} },
     action: { onClicked: { addListener() {} } },
@@ -106,7 +121,28 @@ export function harness() {
   const realBroadcast = sandbox.broadcast;
   sandbox.broadcast = (m) => { broadcasts.push(m); return realBroadcast(m); };
 
-  return { sandbox, ctx, store, listeners, captures, broadcasts, harnessTabs };
+  return { sandbox, ctx, store, listeners, captures, broadcasts, harnessTabs, net, injected };
+}
+
+/* Drives one request through the worker's webRequest listeners, start to finish.
+ *
+ * `status` 0 with an `error` goes down the onErrorOccurred path instead of
+ * onCompleted, which is how a connection failure reaches the log — it has no
+ * status code at all, and treating it as a 0 response would be a lie. */
+let reqId = 0;
+export function request(h, opts) {
+  const o = opts || {};
+  const d = {
+    requestId: "r" + ++reqId,
+    tabId: o.tabId == null ? 1 : o.tabId,
+    type: o.type || "xmlhttprequest",
+    method: o.method || "GET",
+    url: o.url || "https://api.uengage.in/orders",
+  };
+  h.net.before.forEach((fn) => fn(d));
+  if (o.error) h.net.errored.forEach((fn) => fn({ ...d, error: o.error }));
+  else h.net.completed.forEach((fn) => fn({ ...d, statusCode: o.status == null ? 200 : o.status }));
+  return d;
 }
 
 // Sends through the worker's real onMessage router and resolves with its reply.

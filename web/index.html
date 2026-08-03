@@ -81,6 +81,13 @@
         for the people who need one.
       </p>
       <p style="color:var(--muted)">
+        It also carries what the page <em>did</em>, not just what you clicked: the requests each
+        step fired and the status that came back. A bug report that says <em>clicking Refund sent
+        POST /api/refunds and got a 500</em> is one an engineer or a model can start on. That log
+        travels with the handoff and with nothing else — documents, slides and video never include
+        it.
+      </p>
+      <p style="color:var(--muted)">
         Same chore, different desks: a QA engineer filing a reproduction, a product manager writing
         an enhancement spec or a UX review, product marketing drafting a release note, HR walking a
         new joiner through a system for the first time. One recording covers all of them.
@@ -186,6 +193,15 @@
           <p>Copy for AI puts the workflow on your clipboard as text — every step, the action it was,
           and the URL and page title it happened on, grouped by page. The exports built for people
           drop that context; a model needs it, or it guesses.</p>
+        </div>
+
+        <div class="card">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0-3 3m3-3 3 3"/></svg></span>
+          <h3>What the page actually did</h3>
+          <p>Each step also records the requests it fired and what came back — <em>POST /api/orders
+          → 500</em>. That turns "I clicked Save and it didn't work" into something a developer or a
+          model can act on. Failures are surfaced on the step; the full log is one click away, and
+          it goes in the AI handoff only.</p>
         </div>
 
         <div class="card">
@@ -315,6 +331,33 @@
           export, or send the shareable link.</p>
         </details>
         <details>
+          <summary>Does the API log clutter up the guide?</summary>
+          <p>No, and that was the design problem. A single-page app fires requests on nearly every
+          click, so printing them all under every step would bury the guide. Instead a step where
+          everything succeeded shows one muted line — <em>5 requests</em> — that doesn't expand. A
+          step where something <em>failed</em> shows the failures straight away, because that's the
+          case you opened the guide for. Everything, in full and untrimmed, lives in one API log
+          panel you open from the toolbar, with a "failed only" filter and a copy button.</p>
+        </details>
+        <details>
+          <summary>Which exports include the API log?</summary>
+          <p>Only the AI handoff. HTML, Markdown, PDF, PowerPoint, narrated video and published
+          shareable links all leave it out — a guide someone is following doesn't want
+          <em>GET /api/session → 200</em>, and a video certainly doesn't. If you want just the log
+          and not the guide around it, there's a copy button inside the log panel.</p>
+        </details>
+        <details>
+          <summary>Does it capture API responses and access tokens?</summary>
+          <p>Request headers are never recorded, so authentication tokens and cookies are never
+          captured — there is no setting that changes that. Query strings are stripped from the
+          addresses too. Response contents are a separate opt-in that is off by default, and even
+          switched on it only keeps the body of a request that <em>failed</em>, trimmed. The reason
+          it's off: everything else GuideGen records you can see and black out, but a response body
+          is data you never looked at. Failed responses are the narrow case where the content is
+          usually a short error rather than someone's personal data. Any step's log can also be
+          deleted on its own from the editor.</p>
+        </details>
+        <details>
           <summary>Is GuideGen watching everything I do?</summary>
           <p>No. It records while you have a recording running, and — separately — on any single
           site you have switched catch-up capture on for. Nothing else. Catch-up is off everywhere
@@ -378,7 +421,9 @@
           <p>Because it cannot know in advance which application you'll want to document — it might
           be any internal dashboard. The recorder does nothing until you press start — or, on a site
           you've switched catch-up capture on for, until you work on that site — and it reads only
-          the label and position of the element you click.</p>
+          the label and position of the element you click, plus the request summary described above.
+          It also asks to observe network requests, which is what the API log is; it cannot block,
+          redirect or alter one, and it never reads request headers.</p>
         </details>
         <details>
           <summary>Is it really free?</summary>

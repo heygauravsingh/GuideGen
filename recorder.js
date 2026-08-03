@@ -84,17 +84,50 @@
     }
   });
 
+  /* Tier 2 of the API log. netpatch.js has to run in the page's MAIN world, which
+   * a content script cannot reach, so the worker injects it — and it is asked for
+   * per tab, on attach, so every tab that joins a recording gets it rather than
+   * only the one Start was pressed in. The worker decides whether it is wanted;
+   * asking is cheap and the answer is authoritative there.
+   *
+   * Requested once per page. A second injection would chain a second patch onto
+   * the first and report every failure twice. */
+  let patchAsked = false;
+  function askNetPatch() {
+    if (patchAsked) return;
+    patchAsked = true;
+    safeSend({ type: "fs_net_patch" });
+  }
+
+  /* The way back from the MAIN world, which has no chrome.* of its own. Nothing
+   * here is trusted: the page shares this channel and can post the same shape, so
+   * the worker only ever uses a body to annotate a request chrome.webRequest
+   * independently saw. Dropped outright when no mode is running. */
+  function onNetMessage(e) {
+    if (e.source !== window || !e.data || e.data.source !== "gg_net_body") return;
+    if (!mode()) return;
+    safeSend({
+      type: "fs_net_body",
+      url: String(e.data.url || ""),
+      status: Number(e.data.status) || 0,
+      body: String(e.data.body || ""),
+    });
+  }
+
   // ---- listeners ----
   function start(m) {
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("change", onChange, true);
     document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("message", onNetMessage);
+    askNetPatch();
     showPill(m);
   }
   function stop() {
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("change", onChange, true);
     document.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("message", onNetMessage);
     hidePill();
   }
 

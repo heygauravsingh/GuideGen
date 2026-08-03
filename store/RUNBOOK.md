@@ -161,7 +161,7 @@ differ only in layout:
 | `../GuideGen-Beta.zip` | wrapped — everything inside `guidegen/` | Google Drive, for `/install` |
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && FILES=(manifest.json background.js recorder.js recorder.css popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
+cd "/Users/apple/Desktop/FlowScribe 2" && FILES=(manifest.json background.js recorder.js recorder.css netpatch.js popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
 ```
 
 `FILES` is a **zsh array**, and the `"${FILES[@]}"` expansions matter: zsh does not

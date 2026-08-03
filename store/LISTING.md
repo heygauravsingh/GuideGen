@@ -149,6 +149,26 @@ Used to save the narrated video export. The video is rendered in an offscreen do
 > field, and the previous wording claimed all five export formats used it, which would read
 > as the same violation restated.
 
+`webRequest`
+```
+Used to record the API log: while the user is recording a guide (or on a site they have explicitly armed for catch-up capture), the extension notes each network request the page makes — its method, its address with the query string removed, its status code and how long it took — and attaches that to the step that triggered it. This is what lets a captured bug report say "clicking Save sent POST /api/orders and received a 500" instead of "clicking Save did not work". It is observational only: the extension registers onBeforeRequest, onCompleted and onErrorOccurred as non-blocking listeners and cannot block, redirect or modify any request. Request headers are never read, so authentication tokens and cookies are never captured. Nothing is recorded when no recording is running and the site is not armed, and never in incognito windows.
+```
+
+> **New in v1.2.0, and the one permission on this list a reviewer will read twice** — the
+> API log is exactly what a policy reviewer expects to be misused, so the justification
+> above has to be precisely true and nothing more. Three points it must keep making:
+> observational only (no blocking listener is registered anywhere in `background.js`),
+> headers never read, and nothing recorded while idle.
+>
+> Note also what `webRequest` **cannot** do, because it explains the rest of the design:
+> it cannot read a response body. Response bodies come from `netpatch.js` in the page's
+> MAIN world, are opt-in and off by default, and are limited to failed requests. That is
+> **not** a `webRequest` capability and must not be justified as one.
+>
+> `chrome.debugger` was considered for bodies and rejected: it works, but it displays a
+> "started debugging this browser" banner, blocks DevTools, and is close to an automatic
+> rejection. Do not reach for it later.
+
 **Are you using remote code?** → **No, I am not using remote code.** (No justification field
 appears once No is selected.)
 
@@ -178,7 +198,16 @@ GuideGen documents whatever web application the user chooses, which cannot be kn
 | **Personally identifiable information** | The account has an email address and a full name. Chrome's own definition of this category names both — "name, address, email address, age, or identification number" — so they belong here and not only under *Authentication information*. No phone number is collected. |
 | **Authentication information** | Email/password sign-in means a password is handled, and the session (id token + refresh token) is held in `chrome.storage.local`. v1.0 had no account; v1.1 requires one. |
 | **Website content** | Publishing a guide uploads screenshots of the pages the user recorded, plus the step text generated from those pages. Only for the guide the user presses Publish on. |
-| **Web history** | Each step stores the URL and page title of where it happened, and those are included in a published guide. |
+| **Web history** | Each step stores the URL and page title of where it happened, and those are included in a published guide. The API log adds the address of each request the page made, with its query string removed. |
+
+**v1.2 adds the API log, and it does *not* add a category — check that reasoning rather than
+assuming it.** The request summary is *Website content* and *Web history*, both already
+declared. Failed response bodies are also *Website content*: they are content the recorded
+page produced. They are opt-in, off by default, never uploaded, and excluded from a published
+guide, so nothing here becomes *transmitted* data. Two things would change this answer and
+neither is true today: capturing successful responses (which would routinely contain personal
+data belonging to third parties), or including the log in what publishing uploads. If either
+ever ships, revisit this table before shipping it.
 
 *On the first two together:* declare both rather than picking one. They cover different
 things — *who the account belongs to* versus *the secrets that prove it* — and this build

@@ -233,7 +233,11 @@
   application you will want to document — it may be any internal dashboard or tool. The recorder
   does nothing unless you have explicitly started a recording, or have switched on catch-up
   capture for that specific site (see below), and it reads only the label and on-screen position
-  of the element you click.</p>
+  of the element you click, plus the request summary described in section&nbsp;9b.</p>
+
+  <p>It also asks for <code>webRequest</code>, which lets it see the network requests a page makes
+  while it is capturing. This is observational only: it cannot block, redirect or modify a request,
+  and it cannot read request headers. Section&nbsp;9b covers what is recorded.</p>
 
   <h2>9a. Catch-up capture</h2>
 
@@ -267,6 +271,48 @@
   that needs a page but has no need to be seen: it is used to render the narrated video, because
   that requires a canvas, an audio engine and a video recorder. It has no access to any website you
   visit.</p>
+
+  <h2>9b. The API log</h2>
+
+  <p><b>What it is.</b> While a recording is running — or on a site you have armed for catch-up
+  capture — GuideGen notes the network requests the page makes, and attaches them to the step that
+  triggered them. For each request that means the method, the address without its query string, the
+  status code and how long it took. This is what turns "I clicked Save and it didn't work" into
+  "clicking Save sent POST /api/orders and got a 500", which is the difference between a report
+  someone can act on and one they cannot.</p>
+
+  <p><b>What it never records.</b> Request headers, in any circumstance. Authentication tokens and
+  cookies live in headers, and there is no setting that turns this on. Query strings are also
+  stripped from the address, because identifiers and access tokens are often carried in them.</p>
+
+  <p><b>Response contents are a separate opt-in, and it is off.</b> By default no response content
+  is recorded at all. You can switch on "Include failed API responses" — once per recording, or
+  per armed site for catch-up capture — and then GuideGen also keeps the body of a request that
+  <em>failed</em>: an error status, or no response. Successful responses are never captured, on
+  either setting. What is kept is trimmed to roughly two thousand characters, and a limited number
+  are held per guide.</p>
+
+  <p>We are explicit about why that one is off by default. Everything else GuideGen records, you
+  can see: a screenshot is a picture of what was on your screen, and you can black out parts of it
+  before sharing. A response body is data you never looked at, so you cannot check it the same way.
+  Failed responses are the narrow case where the content is usually a short error message rather
+  than someone's personal data — which is why it is the only content we will keep, and only when
+  you ask.</p>
+
+  <p><b>You can remove it.</b> Each step's API log can be deleted from the editor, on its own,
+  without affecting the rest of the guide. Turning the catch-up setting off also discards any
+  response contents already held, not merely future ones.</p>
+
+  <p><b>Where it goes.</b> Nowhere, unless you send it. The log lives with the guide on your
+  device. Of the ways to get a guide out of GuideGen, only the <b>AI handoff</b> — the text you
+  copy to paste into an assistant — includes it. HTML, Markdown, PDF, PowerPoint, narrated video
+  and published shareable links all leave it out entirely, so publishing a guide never publishes
+  its API log. When you paste a handoff into an assistant, the log goes wherever that conversation
+  goes; that is the point of it, and it is worth reading what you are pasting.</p>
+
+  <p><b>The permission behind it.</b> This is why the extension asks for <code>webRequest</code>.
+  It is observational only — GuideGen watches requests, and cannot block, redirect or alter any of
+  them.</p>
 
   <h2>10. Children</h2>
 

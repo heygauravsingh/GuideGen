@@ -615,6 +615,128 @@ footer.site .spacer { flex: 1; }
 }
 .step .shot canvas { width: 100%; height: auto; display: block; }
 .step .shot.redacting { cursor: crosshair; }
+
+/* ---- the API log -------------------------------------------------------------
+   A guide must not turn into a log file. A single-page app fires requests on
+   nearly every click, so the inline view is sized by whether anything *failed*:
+   a successful step gets one muted line that doesn't expand, a failed one gets
+   the failures shown without asking. Everything, in full, lives in the drawer. */
+
+/* The quiet case. Deliberately not a card, not bordered, not a heading — it reads
+   as a footnote on the step, because that is what it is. */
+.netquiet { margin-top: 8px; }
+.netlink {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 3px 0; cursor: pointer;
+  color: var(--faint); font: inherit; font-size: 12.5px;
+}
+.netlink:hover { color: var(--ink-2); text-decoration: underline; }
+.netlink svg { flex: none; }
+
+/* The failed case. Ochre left edge rather than a full tinted panel: enough to find
+   at a glance while scrolling, not enough to outweigh the screenshot above it. */
+.netlog {
+  margin-top: 10px; border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--panel-2); font-size: 13px; overflow: hidden;
+}
+.netlog.bad { border-left: 3px solid var(--brand); }
+.nethead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; color: var(--ink-2);
+}
+.nethead svg { flex: none; color: var(--brand-2); }
+.netrows { border-top: 1px solid var(--line); padding: 4px 0; }
+
+/* A fixed-width method and status either side of a flexible path: the columns are
+   what make a run of these scannable rather than a wall of text. The path is the
+   only part allowed to shrink, and it truncates rather than wrapping — a wrapped
+   path turns a 30-row log into 60 rows of ragged text. */
+.netrow {
+  display: flex; align-items: baseline; gap: 10px; padding: 5px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
+}
+.netrow .m { flex: 0 0 44px; color: var(--faint); font-weight: 650; }
+.netrow .p { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.netrow .s { flex: 0 0 auto; color: var(--muted); font-weight: 650; }
+.netrow .t { flex: 0 0 52px; text-align: right; color: var(--faint); }
+.netrow.bad .s { color: var(--brand-2); }
+
+/* Response bodies clamp to ~9 lines with an explicit expander rather than scrolling
+   inside the card. A nested scroll region inside a scrolling page is the worst
+   pattern on the web, and a 200-line stack trace would otherwise own the viewport. */
+.netbodywrap { margin: 2px 12px 10px; }
+.netbody {
+  margin: 0; padding: 9px 11px; border-radius: 8px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px; line-height: 1.55; color: var(--ink-2);
+  white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden;
+}
+/* An exact number of lines plus the padding, so the clamp lands between lines
+   instead of slicing one in half. The fade is the honest signal that there is more
+   below — a hard edge on a full line reads as the end of the response. */
+.netbody.clamped {
+  max-height: calc(8 * 1.55em + 20px);
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 22px), transparent);
+}
+.netbody.clamped.open {
+  max-height: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.netmore { margin-top: 6px; }
+.netcut { margin-top: 5px; color: var(--faint); font-size: 11.5px; }
+
+.netfoot {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px; border-top: 1px solid var(--line);
+}
+.netnote { color: var(--faint); font-size: 12px; }
+.btn.has-bad #ed-netlog-label { color: var(--brand-2); font-weight: 650; }
+
+/* ---- the drawer --------------------------------------------------------------
+   Wider than a confirm dialog, because monospace rows in a 540px column truncate
+   to uselessness. The list scrolls inside a bounded region while the dialog itself
+   stays put — the one place a nested scroll is right, since the alternative is a
+   dialog taller than the screen with its Done button below the fold. */
+.modal.wide { max-width: 880px; }
+.netsum { margin: 4px 0 14px; color: var(--muted); font-size: 14px; }
+.netbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.netfilter { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: 13.5px; color: var(--ink-2); }
+.netfilter input { width: 15px; height: 15px; accent-color: var(--pri); }
+.netfilter input:disabled + span { color: var(--faint); }
+.netscroll {
+  max-height: min(58vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2);
+}
+.netgrp { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.netgrp:last-child { border-bottom: 0; }
+/* Sticky group header, so you always know which step the rows under your cursor
+   belong to while scrolling a long log. */
+.netgrph {
+  display: flex; align-items: center; gap: 9px; padding: 9px 12px;
+  position: sticky; top: 0; z-index: 1;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.netgrph .n {
+  flex: none; width: 21px; height: 21px; border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand-2);
+  font-size: 11.5px; font-weight: 700; display: grid; place-items: center;
+}
+.netgrph .tx {
+  flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 650; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.netmoreline { padding: 4px 12px 6px; color: var(--faint); font-size: 12px; }
+
+@media (max-width: 560px) {
+  /* The timing column is the first thing worth losing when there is no room for
+     the path — a truncated endpoint is useless, 180ms is a nicety. */
+  .netrow .t { display: none; }
+  .netrow .m { flex: 0 0 38px; }
+  .netfilter input { width: 17px; height: 17px; }
+}
 .step .shot.redacting canvas { pointer-events: none; }
 .step .shot .sel {
   display: none; position: absolute; z-index: 2;

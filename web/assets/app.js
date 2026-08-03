@@ -79,6 +79,9 @@
     redact: '<rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 12h8"/>',
     check: '<path d="m5 13 4 4L19 7"/>',
     undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>',
+    // Up-and-down arrows: a request went out and something came back.
+    net: '<path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0-3 3m3-3 3 3"/>',
+    warn: '<path d="M12 9v4m0 3h.01"/><path d="M10.3 4.3 2.6 17.5A1.9 1.9 0 0 0 4.3 20.5h15.4a1.9 1.9 0 0 0 1.7-3L13.7 4.3a1.9 1.9 0 0 0-3.4 0Z"/>',
   };
 
   function iconBtn(icon, title, fn, disabled) {
@@ -158,6 +161,10 @@
     o.classList.remove("open");
     o.dataset.busy = "0";
     document.body.classList.remove("modal-open");
+    // Every dialog shares one element, so any per-dialog width has to be dropped
+    // here rather than by whoever set it — Escape and the overlay click never run
+    // the dialog's own close handler.
+    el("modal").classList.remove("wide");
     el("modal").innerHTML = "";
     if (modalReturn && document.contains(modalReturn)) {
       try { modalReturn.focus(); } catch (e) { /* gone from the DOM */ }
@@ -544,6 +551,21 @@
     // shared guide would need a re-publish to appear anywhere.
     el("ed-note").hidden = !isLocal;
 
+    /* The API log button carries the failure count in its own label, because that
+     * is the number someone opening a captured bug report is looking for and it
+     * should not need a click to find. Hidden entirely when there is no log — an
+     * always-present button that usually opens an empty dialog trains people to
+     * ignore it. */
+    var nLog = 0, nBad = 0;
+    cur.steps.forEach(function (s) {
+      var c = netCounts(s);
+      nLog += c.reqs.length;
+      nBad += c.bad.length;
+    });
+    el("ed-netlog").hidden = !nLog;
+    el("ed-netlog").classList.toggle("has-bad", nBad > 0);
+    el("ed-netlog-label").textContent = nBad ? "API log · " + nBad + " failed" : "API log";
+
     var banner = el("ed-banner");
     if (isLocal) {
       banner.hidden = true;
@@ -717,6 +739,8 @@
       }
     }
 
+    if ((step.network || []).length) s.content.appendChild(netInline(step, i));
+
     tools.appendChild(mk("div", "spacer"));
     var del = iconBtn(ICON.trash, "Delete step", function () { removeStep(i); });
     del.classList.add("danger");
@@ -724,6 +748,232 @@
     s.content.appendChild(tools);
 
     return s.card;
+  }
+
+  /* ---------------------------------------------------------------- the API log
+   *
+   * The whole design problem here is that a guide must not turn into a log file.
+   * A single-page app fires a handful of requests on nearly every click, so
+   * rendering each step's requests inline turns a nine-step guide into two hundred
+   * monospace rows and buries the step text the editor exists to edit.
+   *
+   * So there are two surfaces, and the split is on *whether anything went wrong*:
+   *
+   *   - **All fine** → one quiet line. "5 requests", muted, no expansion. It is a
+   *     fact about the step, not a thing to read.
+   *   - **Something failed** → an inline block, open, showing the failures only.
+   *     That is the one case where the log is the point, and hiding it behind a
+   *     click would be hiding the answer.
+   *
+   * Either way, "everything, in full" lives in the drawer — one place, reachable
+   * from any step and from the editor toolbar. Nothing is truncated there. That is
+   * what lets the inline view stay this small without losing anything.
+   */
+  function netCounts(step) {
+    var reqs = step.network || [];
+    return { reqs: reqs, bad: reqs.filter(function (r) { return !r.ok; }) };
+  }
+
+  function netRow(r) {
+    var row = mk("div", "netrow" + (r.ok ? "" : " bad"));
+    var status = r.error ? r.error : r.status || "—";
+    row.innerHTML =
+      '<span class="m"></span><span class="p"></span><span class="s"></span>' +
+      '<span class="t">' + (r.ms != null ? r.ms + "ms" : "") + "</span>";
+    row.querySelector(".m").textContent = r.method;
+    row.querySelector(".p").textContent = (r.host || "") + r.path;
+    row.querySelector(".p").title = (r.host || "") + r.path;
+    row.querySelector(".s").textContent = String(status);
+    return row;
+  }
+
+  /* A response body. Clamped to a readable height with an explicit expander rather
+   * than left to scroll inside the card: a nested scroll region inside a scrolling
+   * page is the single most annoying pattern on the web, and a 200-line stack trace
+   * would otherwise own the viewport. */
+  function netBody(r) {
+    var wrap = mk("div", "netbodywrap");
+    var pre = mk("pre", "netbody");
+    pre.textContent = r.body;
+    wrap.appendChild(pre);
+    if (r.bodyTruncated) {
+      var cut = mk("div", "netcut");
+      cut.textContent = "Truncated from " + r.bodyTruncated.toLocaleString() + " characters";
+      wrap.appendChild(cut);
+    }
+    // Only offer the expander when there is something to expand.
+    setTimeout(function () {
+      if (pre.scrollHeight <= pre.clientHeight + 4) return;
+      pre.classList.add("clamped");
+      var more = mk("button", "btn sm netmore");
+      more.textContent = "Show full response";
+      more.addEventListener("click", function () {
+        var open = pre.classList.toggle("open");
+        more.textContent = open ? "Collapse" : "Show full response";
+      });
+      wrap.appendChild(more);
+    }, 0);
+    return wrap;
+  }
+
+  function netInline(step, i) {
+    var c = netCounts(step);
+    var total = c.reqs.length + (step.networkMore || 0);
+
+    // Nothing failed: one line, and it does not expand.
+    if (!c.bad.length) {
+      var quiet = mk("div", "netquiet");
+      var b = mk("button", "netlink");
+      b.innerHTML = svg(ICON.net, 13) + total + (total === 1 ? " request" : " requests");
+      b.title = "See the API log for this guide";
+      b.addEventListener("click", function () { openNetLog(step.id); });
+      quiet.appendChild(b);
+      return quiet;
+    }
+
+    // Something failed: show the failures, here, without asking.
+    var box = mk("div", "netlog bad");
+    var head = mk("div", "nethead");
+    head.innerHTML =
+      svg(ICON.warn, 15) +
+      '<span><b>' + c.bad.length + (c.bad.length === 1 ? " request failed" : " requests failed") +
+      "</b> of " + total + "</span>";
+    box.appendChild(head);
+
+    var list = mk("div", "netrows");
+    c.bad.forEach(function (r) {
+      list.appendChild(netRow(r));
+      if (r.body) list.appendChild(netBody(r));
+    });
+    box.appendChild(list);
+
+    var foot = mk("div", "netfoot");
+    var all = textBtn("See all " + total, ICON.net);
+    all.classList.add("sm");
+    all.addEventListener("click", function () { openNetLog(step.id); });
+    foot.appendChild(all);
+    foot.appendChild(netRemoveBtn(step, i));
+    foot.appendChild(mk("div", "spacer"));
+    var note = mk("span", "netnote");
+    note.textContent = "AI handoff only";
+    note.title = "Documents, slides and video never include the API log.";
+    foot.appendChild(note);
+    box.appendChild(foot);
+    return box;
+  }
+
+  /* Removing a log is per step, and it exists for the same reason redaction does:
+   * a response body is the one thing in a guide the user did not look at before it
+   * was captured, so there has to be a way to take it out without deleting the
+   * step it belongs to. */
+  function netRemoveBtn(step, i, onDone) {
+    var drop = textBtn("Remove", ICON.trash);
+    drop.classList.add("sm");
+    drop.title = "Remove the API log from this step";
+    drop.addEventListener("click", function () {
+      GGBridge.updateStep(step.id, { network: [] })
+        .then(function () {
+          step.network = [];
+          step.networkMore = 0;
+          if (onDone) onDone();
+          else refreshStep(i);
+          toast("API log removed from this step");
+        })
+        .catch(function (e) { say("ed-msg", e.message, "err"); });
+    });
+    return drop;
+  }
+
+  /* The drawer: every request in the guide, grouped by the step that caused it,
+   * nothing truncated. `focusStepId` scrolls to the step you came from, so opening
+   * this from step 7 does not dump you at step 1.
+   *
+   * "Failed only" defaults on when there are failures — that is what anyone opening
+   * this is looking for — and off when there are none, where it would filter the
+   * view down to nothing and look broken. */
+  function openNetLog(focusStepId) {
+    var steps = (cur.steps || []).filter(function (s) { return (s.network || []).length; });
+    var totalBad = 0, total = 0;
+    steps.forEach(function (s) {
+      var c = netCounts(s);
+      total += c.reqs.length;
+      totalBad += c.bad.length;
+    });
+    if (!total) return infoModal("No API log", "None of these steps recorded any requests.");
+
+    var failedOnly = totalBad > 0;
+    var m = el("modal");
+    m.classList.add("wide");
+    m.innerHTML =
+      "<h3>API log</h3>" +
+      '<p class="netsum"></p>' +
+      '<div class="netbar">' +
+      '<label class="netfilter"><input type="checkbox" id="nl-bad"><span>Failed only</span></label>' +
+      '<div class="spacer"></div>' +
+      '<button class="btn sm" id="nl-copy">Copy log</button>' +
+      "</div>" +
+      '<div class="netscroll" id="nl-body"></div>' +
+      '<div class="row"><span class="spacer"></span><button class="btn brand-btn" id="nl-close">Done</button></div>';
+    m.querySelector(".netsum").textContent =
+      total + (total === 1 ? " request" : " requests") + " across " +
+      steps.length + (steps.length === 1 ? " step" : " steps") +
+      (totalBad ? " · " + totalBad + " failed" : " · none failed");
+    m.querySelector("#nl-bad").checked = failedOnly;
+    if (!totalBad) m.querySelector("#nl-bad").disabled = true;
+
+    function paint() {
+      var only = m.querySelector("#nl-bad").checked;
+      var body = m.querySelector("#nl-body");
+      body.innerHTML = "";
+      steps.forEach(function (s) {
+        var c = netCounts(s);
+        var show = only ? c.bad : c.reqs;
+        if (!show.length) return;
+        var i = cur.steps.indexOf(s);
+        var grp = mk("div", "netgrp");
+        var gh = mk("div", "netgrph");
+        gh.innerHTML = '<span class="n">' + (i + 1) + "</span><span class=\"tx\"></span>";
+        gh.querySelector(".tx").textContent = (s.text || "").replace(/\s+/g, " ").trim();
+        var rm = netRemoveBtn(s, i, function () { paint(); renderEditor(); });
+        gh.appendChild(rm);
+        grp.appendChild(gh);
+        show.forEach(function (r) {
+          grp.appendChild(netRow(r));
+          if (r.body) grp.appendChild(netBody(r));
+        });
+        if (s.networkMore && !only) {
+          var more = mk("div", "netmoreline");
+          more.textContent = s.networkMore + " more not recorded (per-step limit)";
+          grp.appendChild(more);
+        }
+        body.appendChild(grp);
+      });
+      if (!body.children.length) {
+        var none = mk("p", "netnote");
+        none.textContent = "Nothing matches that filter.";
+        body.appendChild(none);
+      }
+      if (focusStepId) {
+        var idx = steps.map(function (s) { return s.id; }).indexOf(focusStepId);
+        var node = idx >= 0 ? body.children[idx] : null;
+        if (node && node.scrollIntoView) node.scrollIntoView({ block: "start" });
+      }
+    }
+
+    m.querySelector("#nl-bad").addEventListener("change", paint);
+    m.querySelector("#nl-copy").addEventListener("click", function () {
+      var btn = m.querySelector("#nl-copy");
+      var text = X.apiLogText(cur.guide, cur.steps);
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+        .then(function () {
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = "Copy log"; }, 1400);
+        })
+        .catch(function () { window.prompt("Copy the API log:", text); });
+    });
+    m.querySelector("#nl-close").addEventListener("click", closeModal);
+    openModal();
+    paint();
   }
 
   // ---- shared step card: words only ----
@@ -1073,6 +1323,8 @@
   });
 
   // ---- add note ----
+
+  el("ed-netlog").addEventListener("click", function () { openNetLog(null); });
 
   el("ed-note").addEventListener("click", function () {
     if (!cur || cur.kind !== "local") return;

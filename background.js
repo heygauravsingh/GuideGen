@@ -20,6 +20,14 @@ const K = {
   bufOrigins: "fs_buf_origins",
   // session id -> when it was turned into a guide. Promoting marks, never deletes.
   bufDone: "fs_bufdone",
+  // The API log. One per recording, plus one shared by the catch-up buffer. Both
+  // are working scratch: entries are folded onto the steps they belong to at
+  // finalize (or at promotion) and the log itself is then thrown away.
+  net: (g) => `fs_net_${g}`,
+  bufNet: "fs_bufnet",
+  // Opt-in for Tier 2 (failed response bodies) while buffering. Recordings carry
+  // their own flag on fs_state, chosen at Start.
+  bufBodies: "fs_buf_bodies",
 };
 
 function get(key, def) {
@@ -59,7 +67,7 @@ function broadcast(msg) {
   });
 }
 
-async function startRecording(tab) {
+async function startRecording(tab, opts) {
   const t = tab || (await activeTab());
   const guideId = uid();
   const title = "Untitled guide — " + new Date().toLocaleString();
@@ -74,7 +82,10 @@ async function startRecording(tab) {
   await set({
     [K.index]: index,
     [K.order(guideId)]: [],
-    [K.state]: { recording: true, guideId, stepCount: 0 },
+    // captureBodies is Tier 2 of the API log: chosen at Start, per recording, and
+    // false unless the popup asked for it. It lives on the state rather than in
+    // settings because it is a decision about *this* recording.
+    [K.state]: { recording: true, guideId, stepCount: 0, captureBodies: !!(opts && opts.bodies) },
   });
   acked = 0;
   seedContext(t);
@@ -198,6 +209,19 @@ async function finalizeGuide(guideId) {
 
   const { keep, dropped } = mergeRedundant(steps);
   const writes = {};
+
+  /* Fold the API log onto the steps, then delete it. It is scratch space, not part
+   * of the data model — once each request sits on the step that caused it there is
+   * nothing left to correlate, and leaving a second copy around would be a second
+   * place to have to redact. Runs before the merge writes below so a merged-away
+   * step doesn't take its requests with it. */
+  const netKey = K.net(guideId);
+  const entries = await get(netKey, []);
+  if (entries.length) {
+    if (attachNetwork(keep, entries)) keep.forEach((s) => { writes[K.step(s.id)] = s; });
+    await new Promise((res) => chrome.storage.local.remove(netKey, res));
+  }
+
   if (dropped.length) {
     keep.forEach((s, i) => { s.seq = i + 1; writes[K.step(s.id)] = s; });
     writes[orderKey] = keep.map((s) => s.id);
@@ -434,6 +458,7 @@ async function contextStep(tab, kind) {
 
   const step = {
     type: kind === "switch" ? "switch" : "nav",
+    tabId: tab.id,
     url: tab.url,
     pageTitle: tab.title || "",
     timestamp: Date.now(),
@@ -682,7 +707,12 @@ async function discardSession(sessionId) {
   await new Promise((res) =>
     chrome.storage.local.remove(gone.map(K.bufStep), res)
   );
-  await set({ [K.bufIndex]: ids });
+  // The API log for that stretch of time goes with it. Discarding a capture has to
+  // take everything the capture held, not just the screenshots.
+  const from = sess.startedAt;
+  const to = sess.endedAt + NET.windowMs;
+  const net = (await get(K.bufNet, [])).filter((e) => e.ts < from || e.ts > to);
+  await set({ [K.bufIndex]: ids, [K.bufNet]: net });
   broadcast({ type: "fs_buf_changed", count: ids.length });
   return { ok: true };
 }
@@ -690,7 +720,10 @@ async function discardSession(sessionId) {
 async function clearBuffer() {
   const ids = await get(K.bufIndex, []);
   await new Promise((res) =>
-    chrome.storage.local.remove(ids.map(K.bufStep).concat([K.bufIndex, K.bufDone]), res)
+    chrome.storage.local.remove(
+      ids.map(K.bufStep).concat([K.bufIndex, K.bufDone, K.bufNet]),
+      res
+    )
   );
   broadcast({ type: "fs_buf_changed" });
   return { ok: true };
@@ -730,6 +763,7 @@ async function bufferStep(step, sender) {
   const state = await get(K.state, {});
   if (state.recording) return { ok: false };
   if (!(await bufArmed(tab.url || step.url))) return { ok: false };
+  step.tabId = tab.id;
 
   // recorder.js sets this when a password field has focus. The step's words are
   // safe — it never records a typed value — but the screenshot is the whole
@@ -793,6 +827,18 @@ async function promoteBuffer(opts) {
     writes[K.step(id)] = { ...s, id, guideId, seq: i + 1 };
   });
 
+  /* The buffered API log is copied, not moved — the buffer is not consumed by
+   * promoting, so a second slice of the same minutes must still get its requests.
+   * Only entries inside the slice are carried over; attachNetwork's window would
+   * reject the rest anyway, but filtering first keeps the pass small. */
+  const netEntries = await get(K.bufNet, []);
+  if (netEntries.length) {
+    const copied = order.map((id) => writes[K.step(id)]);
+    const from = (copied[0] || {}).timestamp || 0;
+    const to = ((copied[copied.length - 1] || {}).timestamp || 0) + NET.windowMs;
+    attachNetwork(copied, netEntries.filter((e) => e.ts >= from && e.ts <= to));
+  }
+
   const index = await get(K.index, []);
   index.unshift({
     id: guideId,
@@ -811,10 +857,252 @@ async function promoteBuffer(opts) {
   return { ok: true, guideId, count: take.length };
 }
 
+/* ------------------------------------------------------- the API log (network)
+ *
+ * What fired, and what came back, for each step. A bug report that says
+ * "Click Save -> POST /api/orders -> 500" is actionable by a person or a model;
+ * "clicked Save, it didn't work" is a guessing game. This is a handoff feature
+ * first, which is why `aiText()` is the only export that emits it.
+ *
+ * **Two tiers, and the line between them is the whole design.**
+ *
+ * Tier 1 — the summary — is `chrome.webRequest`: method, path, status, duration.
+ * `webRequest` **cannot read a response body**, at any permission level, and
+ * never could. So the summary is free of the one thing that makes this feature
+ * dangerous, and it is on for every recording.
+ *
+ * Tier 2 — bodies of *failed* requests — needs the page's own `fetch`/`XHR`, so
+ * `netpatch.js` runs in the MAIN world and posts what it sees back. It is
+ * **opt-in and off by default on both surfaces**, capped, truncated, and limited
+ * to `status >= 400`. Three reasons for every one of those limits:
+ *
+ * 1. **You cannot redact what you never saw.** Redaction in this product is
+ *    visual — you look at a screenshot and drag a box over it. Nobody reads a
+ *    2KB JSON blob before sharing it, so the only safe body is one narrow enough
+ *    to reason about in the abstract: a failure envelope, not a customer record.
+ * 2. **Headers are never captured, on either tier.** `Authorization: Bearer …`
+ *    and `Cookie` live there. There is no toggle for this and there should not be.
+ * 3. **Query strings are stripped from the path.** Tokens and ids ride in them.
+ *
+ * `webRequest` here is observational only — no blocking, no `declarativeNetRequest`,
+ * nothing that alters a request. It is a new permission, though, which the store
+ * listing has to account for.
+ */
+const NET = {
+  // Requests are attributed to the step they follow, so this is how long after a
+  // click a request can land and still be considered its consequence.
+  windowMs: 10000,
+  // Generous, because the editor has a place to read all of them (the API log
+  // drawer) and a step that fired 30 requests is exactly the step someone is
+  // trying to debug. The *inline* view is what stays small — that is a display
+  // decision, not a capture one, and conflating the two is how you end up unable
+  // to answer the question the user actually has.
+  maxPerStep: 50,
+  // Per guide, and per buffer. Entries are ~120 bytes; bodies dominate, which is
+  // what the separate body caps are for.
+  maxEntries: 600,
+  maxBodies: 40,
+  // A failure envelope is usually a few hundred characters; a stack trace can be
+  // several thousand, and cutting one in half wastes the whole point of keeping it.
+  // 40 bodies at this size is ~320KB per guide, which is nothing next to one
+  // screenshot.
+  bodyChars: 8192,
+  // `xmlhttprequest` covers fetch as well as XHR in Chrome. Everything else is
+  // page furniture — images, fonts, stylesheets — or telemetry (`ping` is
+  // sendBeacon), and an API log full of font requests is not an API log.
+  types: { xmlhttprequest: 1 },
+};
+
+function netPath(url) {
+  try {
+    const u = new URL(url);
+    // Query stripped: ids, tokens and session keys ride in it, and the path is
+    // what identifies the endpoint.
+    return u.pathname + (u.search ? "?…" : "");
+  } catch (e) {
+    return "";
+  }
+}
+function netHost(url) {
+  try { return new URL(url).host; } catch (e) { return ""; }
+}
+
+// requestId -> when it started, so a duration can be reported without keeping the
+// whole request. In memory and disposable: a worker restart costs some durations,
+// never a whole entry.
+const netStarted = {};
+
+let netChain = Promise.resolve();
+// requestId -> entry, for the short window between the summary landing and a body
+// arriving from the MAIN world for the same request. Matched on method+url+status
+// rather than requestId, because the page has no idea what a requestId is.
+let netAwaitingBody = [];
+
+async function netTarget(tab) {
+  // Which log this request belongs to, or null for "don't record it". Recording
+  // wins over buffering exactly as it does for a click.
+  if (!tab || tab.id == null || tab.incognito) return null;
+  const state = await get(K.state, {});
+  if (state.recording) return { kind: "rec", key: K.net(state.guideId), bodies: !!state.captureBodies };
+  if (await bufArmed(tab.url || "")) {
+    return { kind: "buf", key: K.bufNet, bodies: !!(await get(K.bufBodies, false)) };
+  }
+  return null;
+}
+
+function netAppend(key, entry, isBuf) {
+  netChain = netChain
+    .then(async () => {
+      let list = await get(key, []);
+      list.push(entry);
+      if (isBuf) {
+        // Buffered entries expire with the sessions they belong to, or the API log
+        // would outlive the steps it describes.
+        const cutoff = Date.now() - BUF.maxAgeMs;
+        list = list.filter((e) => (e.ts || 0) >= cutoff);
+      }
+      if (list.length > NET.maxEntries) list = list.slice(list.length - NET.maxEntries);
+      await set({ [key]: list });
+    })
+    .catch(() => {});
+}
+
+function netRecord(details, status, error) {
+  if (!NET.types[details.type]) return;
+  if (details.tabId == null || details.tabId < 0) return;
+  const started = netStarted[details.requestId];
+  delete netStarted[details.requestId];
+  chrome.tabs.get(details.tabId, async (tab) => {
+    if (chrome.runtime.lastError) return;
+    const target = await netTarget(tab);
+    if (!target) return;
+    const entry = {
+      ts: Date.now(),
+      tabId: details.tabId,
+      method: details.method || "GET",
+      host: netHost(details.url),
+      path: netPath(details.url),
+      status: status || 0,
+      ms: started ? Math.max(0, Date.now() - started) : null,
+      ok: !error && status >= 200 && status < 400,
+    };
+    if (error) entry.error = String(error).replace(/^net::/, "");
+    netAppend(target.key, entry, target.kind === "buf");
+    // A failed request is the only kind whose body we might be handed. Remember it
+    // briefly so the body can be matched to it when it arrives.
+    if (target.bodies && !entry.ok) {
+      netAwaitingBody.push({ entry, key: target.key, isBuf: target.kind === "buf" });
+      netAwaitingBody = netAwaitingBody.filter((x) => Date.now() - x.entry.ts < NET.windowMs);
+    }
+  });
+}
+
+chrome.webRequest.onBeforeRequest.addListener(
+  (d) => { if (NET.types[d.type]) netStarted[d.requestId] = Date.now(); },
+  { urls: ["<all_urls>"] }
+);
+chrome.webRequest.onCompleted.addListener(
+  (d) => netRecord(d, d.statusCode, null),
+  { urls: ["<all_urls>"] }
+);
+chrome.webRequest.onErrorOccurred.addListener(
+  (d) => netRecord(d, 0, d.error || "failed"),
+  { urls: ["<all_urls>"] }
+);
+
+/* A failed response's body, forwarded by netpatch.js through recorder.js.
+ *
+ * Matched to a summary entry that webRequest already recorded, rather than
+ * trusted on its own: a page can post anything it likes into its own window, so
+ * a body with no matching request is dropped rather than logged. That is also
+ * why the body never creates an entry — it only annotates one. */
+async function netBody(msg, sender) {
+  const tab = sender && sender.tab;
+  if (!tab || tab.id == null) return { ok: false };
+  const target = await netTarget(tab);
+  if (!target || !target.bodies) return { ok: false };
+  const status = Number(msg.status) || 0;
+  const path = netPath(msg.url);
+  const hit = netAwaitingBody.filter(
+    (x) =>
+      x.key === target.key &&
+      x.entry.tabId === tab.id &&
+      x.entry.status === status &&
+      x.entry.path === path
+  )[0];
+  if (!hit) return { ok: false };
+  netAwaitingBody = netAwaitingBody.filter((x) => x !== hit);
+
+  const raw = String(msg.body || "");
+  const body = raw.slice(0, NET.bodyChars);
+  netChain = netChain
+    .then(async () => {
+      const list = await get(target.key, []);
+      // Cap how many bodies one log can hold. The summary is bounded by entry
+      // count; bodies are bounded separately because they are ~20x the size.
+      if (list.filter((e) => e.body).length >= NET.maxBodies) return;
+      const e = list.filter(
+        (x) => x.ts === hit.entry.ts && x.path === hit.entry.path && x.status === status
+      )[0];
+      if (!e) return;
+      e.body = body;
+      if (raw.length > body.length) e.bodyTruncated = raw.length;
+      await set({ [target.key]: list });
+    })
+    .catch(() => {});
+  return { ok: true };
+}
+
+/* Assigns logged requests to the steps that caused them: the last step at or
+ * before the request, in the same tab, within NET.windowMs.
+ *
+ * Done in one pass at finalize (or at promotion) rather than incrementally as
+ * requests land, for two reasons. A request arrives *after* the click that caused
+ * it, so attaching on the way in would mean patching an already-written step on
+ * every response; and keeping the correlation rule in one place means it can
+ * change later without a migration. */
+function attachNetwork(steps, entries) {
+  if (!steps.length || !entries.length) return 0;
+  let used = 0;
+  const byStep = {};
+  entries.forEach((e) => {
+    let best = null;
+    for (const s of steps) {
+      const t = s.timestamp || 0;
+      if (t > e.ts) break;
+      if (s.tabId != null && e.tabId != null && s.tabId !== e.tabId) continue;
+      best = s;
+    }
+    if (!best) return;
+    if (e.ts - (best.timestamp || 0) > NET.windowMs) return;
+    (byStep[best.id] = byStep[best.id] || []).push(e);
+  });
+  steps.forEach((s) => {
+    const list = byStep[s.id];
+    if (!list || !list.length) return;
+    const keep = list.slice(0, NET.maxPerStep);
+    s.network = keep.map((e) => {
+      const out = { method: e.method, path: e.path, status: e.status, ms: e.ms, ok: e.ok };
+      if (e.host) out.host = e.host;
+      if (e.error) out.error = e.error;
+      if (e.body) out.body = e.body;
+      if (e.bodyTruncated) out.bodyTruncated = e.bodyTruncated;
+      return out;
+    });
+    // Say when the log is partial rather than silently showing the first twelve.
+    if (list.length > keep.length) s.networkMore = list.length - keep.length;
+    used += keep.length;
+  });
+  return used;
+}
+
 async function captureStep(step, sender) {
   const state = await get(K.state, {});
   if (!state.recording) return { ok: false };
   const winId = sender && sender.tab ? sender.tab.windowId : undefined;
+  // Which tab this happened in. Only the API log reads it — a request and the
+  // click that caused it have to be in the same tab to be related at all.
+  if (sender && sender.tab && sender.tab.id != null) step.tabId = sender.tab.id;
   // Capture stays serialized *and* prompt: the page must not move on before its
   // screenshot is taken. Encoding then overlaps the next capture instead of
   // delaying it, and only the write is serialized — claimed here, in click
@@ -974,6 +1262,14 @@ async function bridge(msg) {
       const p = msg.patch || {};
       if (typeof p.text === "string") s.text = p.text;
       if (Array.isArray(p.blurs)) s.blurs = p.blurs.map(cleanRect).filter(Boolean);
+      /* The API log is removable but not editable. The page may clear it — that is
+       * the per-step escape hatch for a response body nobody read before it was
+       * captured — and may not write one, because a log the extension did not
+       * observe is not a log. Anything non-empty is rejected rather than trusted. */
+      if (Array.isArray(p.network) && p.network.length === 0) {
+        delete s.network;
+        delete s.networkMore;
+      }
       await set({ [K.step(s.id)]: s });
       return { ok: true };
     }
@@ -1027,6 +1323,10 @@ async function bridge(msg) {
       const order = await get(K.order(guideId), []);
       const keys = order.map(K.step);
       keys.push(K.order(guideId));
+      // Normally already gone — finalizeGuide folds the API log onto the steps and
+      // deletes it — but a guide deleted before it was ever finalized would leave it
+      // behind, and an orphaned request log is the last thing to leave lying around.
+      keys.push(K.net(guideId));
       await new Promise((r) => chrome.storage.local.remove(keys, r));
       const index = (await get(K.index, [])).filter((g) => g.id !== guideId);
       await set({ [K.index]: index });
@@ -1234,7 +1534,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
       switch (msg && msg.type) {
         case "fs_start": {
-          const g = await startRecording(sender.tab);
+          const g = await startRecording(sender.tab, { bodies: !!msg.bodies });
           sendResponse({ ok: true, guideId: g });
           break;
         }
@@ -1250,6 +1550,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // ---- the buffer ----
         case "fs_buffer_step": {
           sendResponse(await bufferStep(msg.step, sender));
+          break;
+        }
+        // ---- the API log ----
+        /* recorder.js asks for this per tab, once, when it attaches — so every tab
+         * that joins a recording gets the patch, not only the one Start was pressed
+         * in. Injected from here because a content script cannot reach the MAIN
+         * world by itself. */
+        case "fs_net_patch": {
+          const tabId = sender.tab && sender.tab.id;
+          const target = tabId != null ? await netTarget(sender.tab) : null;
+          if (target && target.bodies) {
+            try {
+              await chrome.scripting.executeScript({
+                target: { tabId, allFrames: false },
+                files: ["netpatch.js"],
+                world: "MAIN",
+              });
+              sendResponse({ ok: true });
+            } catch (e) {
+              sendResponse({ ok: false });
+            }
+          } else {
+            sendResponse({ ok: false });
+          }
+          break;
+        }
+        case "fs_net_body": {
+          sendResponse(await netBody(msg, sender));
           break;
         }
         case "fs_buf_status": {
@@ -1272,7 +1600,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             max: BUF.maxSteps,
             sliceMinutes: Math.round(BUF.sliceMs / 60000),
             days: Math.round(BUF.maxAgeMs / 86400000),
+            bodies: await get(K.bufBodies, false),
           });
+          break;
+        }
+        case "fs_buf_bodies": {
+          await set({ [K.bufBodies]: !!msg.on });
+          // Turning it off drops what is already held, rather than only stopping new
+          // ones. "Off" has to mean the bodies are gone, or the switch is a promise
+          // about the future and nothing about the past.
+          if (!msg.on) {
+            const list = (await get(K.bufNet, [])).map((e) => {
+              const out = { ...e };
+              delete out.body;
+              delete out.bodyTruncated;
+              return out;
+            });
+            await set({ [K.bufNet]: list });
+          }
+          sendResponse({ ok: true });
           break;
         }
         case "fs_buf_sessions": {

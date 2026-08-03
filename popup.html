@@ -186,6 +186,15 @@
   .buf-sw input:checked + .buf-track::after { transform: translateX(14px); }
   .buf-sw input:focus-visible + .buf-track { box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.24); }
 
+  /* An opt-in with its consequence written next to it. A checkbox whose label is
+     three words and whose effect is "share your API responses" is not a choice
+     anyone made, so the small print is part of the control, not a footnote. */
+  .opt { display: flex; gap: 9px; margin: 0 12px 12px; cursor: pointer; align-items: flex-start; }
+  .opt.tight { margin: 10px 0 0; }
+  .opt input { margin: 2px 0 0; flex: none; width: 14px; height: 14px; accent-color: var(--pri); }
+  .opt b { display: block; font-size: 12.5px; font-weight: 650; }
+  .opt small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); line-height: 1.45; }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -273,6 +282,19 @@
       </button>
     </div>
 
+    <!-- Tier 2 of the API log, and a decision about *this* recording — so it is
+         here beside Start, and it disappears once recording begins because by then
+         it is too late to change. Off every time: this is the one thing GuideGen
+         records that the user cannot see before they share it. -->
+    <label class="opt" id="bodyOpt">
+      <input type="checkbox" id="netBodies" />
+      <span>
+        <b>Include failed API responses</b>
+        <small>Adds the response body of any request that errors, trimmed. Off by default —
+        you can't check a response you never saw.</small>
+      </span>
+    </label>
+
     <p class="hint" id="hint">
       Tip: if a tab was open before you installed GuideGen, reload it once before recording.
     </p>
@@ -300,6 +322,16 @@
         <button class="ghost sm" id="bufAll">Capture all</button>
         <button class="ghost sm" id="bufClear">Discard</button>
       </div>
+      <!-- The same Tier 2 opt-in for catch-up, separate because the exposure is
+           different: this one would hold failed response bodies for seven days,
+           unattended, on every armed site. Its own switch, its own decision. -->
+      <label class="opt tight" id="bufBodyOpt" hidden>
+        <input type="checkbox" id="bufBodies" />
+        <span>
+          <b>Include failed API responses</b>
+          <small>Held for 7 days on armed sites, like the rest of the capture.</small>
+        </span>
+      </label>
     </div>
 
     <div class="acct">

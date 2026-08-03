@@ -98,6 +98,11 @@ window.GGPublish = (function () {
            store listing already state that publishing sends "the page URLs and
            titles recorded with each step" — this is the code catching up to what
            was declared, not a new disclosure. */
+        /* A whitelist, not a copy — and that is load-bearing rather than stylistic.
+         * `step.network` (the API log, which can hold failed response bodies) must
+         * never reach a published document, and the only reliable way to guarantee
+         * that is for publishing to name the fields it sends. Spreading the step
+         * here would upload whatever the data model gains next. */
         var entry = {
           seq: i + 1, type: step.type || "click", text: step.text || "",
           url: step.url || "", pageTitle: step.pageTitle || "",

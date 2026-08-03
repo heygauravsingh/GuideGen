@@ -100,17 +100,26 @@ function harness(opts) {
     addEventListener(t, fn) { (handlers[t] = handlers[t] || []).push(fn); },
     removeEventListener(t, fn) { if (handlers[t]) handlers[t] = handlers[t].filter((f) => f !== fn); },
   };
+  // The MAIN-world channel for Tier 2 response bodies. recorder.js listens on
+  // `window` for these, so the sandbox needs real listener plumbing — not a no-op
+  // stub, or the relay would look wired when nothing reaches it.
+  const winHandlers = {};
   const sandbox = {
     chrome, document, console,
     location: { href: "https://dash.uengage.in/orders", origin: "https://dash.uengage.in" },
     innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2,
     setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number, Error, Boolean,
+    addEventListener(t, fn) { (winHandlers[t] = winHandlers[t] || []).push(fn); },
+    removeEventListener(t, fn) {
+      if (winHandlers[t]) winHandlers[t] = winHandlers[t].filter((f) => f !== fn);
+    },
   };
   sandbox.window = sandbox;
+  sandbox.winHandlers = winHandlers;
   sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
   vm.runInContext(readFileSync(ROOT + "/recorder.js", "utf8"), ctx, { filename: "recorder.js" });
-  return { sandbox, chrome, runtime, sent, pending, handlers, body, document };
+  return { sandbox, chrome, runtime, sent, pending, handlers, body, document, winHandlers };
 }
 
 // A left click on a button-ish element, through the capture-phase listener.
