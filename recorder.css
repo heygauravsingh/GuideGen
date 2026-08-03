@@ -103,11 +103,49 @@
 }
 .flowscribe-pill.fs-buf:hover {
   gap: 9px !important;
-  padding: 7px 13px 7px 10px !important;
+  padding: 7px 7px 7px 10px !important;
 }
 .flowscribe-pill.fs-buf:hover .fs-count {
   max-width: 240px !important;
   opacity: 1 !important;
+}
+
+/* The action, revealed with the label.
+
+   It is inside the expansion rather than beside the dot for the same reason the
+   label is: a permanent button on a stranger's page is clutter, and something a
+   host page's own controls have to be laid out around. Collapsed the same way —
+   max-width, not display — so one transition governs the whole reveal and killing
+   transitions still leaves a working button. */
+.flowscribe-pill.fs-buf .fs-cap {
+  all: unset !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  flex: none !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  white-space: nowrap !important;
+  background: #c2410c !important;
+  color: #fffdfa !important;
+  border-radius: 999px !important;
+  font: 650 12.5px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif !important;
+  transition: max-width 200ms ease, opacity 140ms ease, padding 200ms ease,
+              background 120ms ease !important;
+}
+.flowscribe-pill.fs-buf:hover .fs-cap {
+  max-width: 190px !important;
+  padding: 7px 12px !important;
+  opacity: 1 !important;
+}
+.flowscribe-pill.fs-buf .fs-cap:hover { background: #9e340a !important; }
+.flowscribe-pill.fs-buf .fs-cap:active { transform: translateY(1px) !important; }
+/* Mid-capture. Not greyed out — on a dark pill a disabled grey reads as broken,
+   whereas the label already says what is happening. */
+.flowscribe-pill.fs-buf .fs-cap[disabled] {
+  cursor: default !important;
+  opacity: 0.72 !important;
 }
 
 @keyframes fs-pulse {
@@ -122,8 +160,10 @@
 @media (prefers-reduced-motion: reduce) {
   .flowscribe-pill,
   .flowscribe-pill .fs-dot { animation: none !important; }
-  /* The hover label still appears — it just appears at once. Reduced motion is a
-     request about movement, not about hiding what the dot means. */
+  /* The hover label and its button still appear — they just appear at once.
+     Reduced motion is a request about movement, not about hiding what the dot
+     means or removing the only action it offers. */
   .flowscribe-pill.fs-buf,
-  .flowscribe-pill.fs-buf .fs-count { transition: none !important; }
+  .flowscribe-pill.fs-buf .fs-count,
+  .flowscribe-pill.fs-buf .fs-cap { transition: none !important; }
 }

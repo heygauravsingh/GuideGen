@@ -5,14 +5,18 @@
 //
 //   * **What it refuses to record.** Nothing while idle, nothing from an unarmed
 //     origin, nothing from incognito, nothing that isn't an API call.
-//   * **Tier 2 bodies.** Off by default on both surfaces; only failures; only
-//     when the body matches a request webRequest independently saw, because the
-//     page shares the channel the body arrives on and can post anything.
+//   * **Tier 2.** Off by default on both surfaces. The request side is kept for
+//     every call — a guide of a flow that worked needs a cURL too — but a
+//     *response* body only for a failure, and only when it matches a request
+//     webRequest independently saw, because the page shares the channel it arrives
+//     on and can post anything.
+//   * **Credential values**, which are masked in the page and again in the worker,
+//     so neither end alone can leak one.
 //
 // Every one of those is mutation-checked: drop the guard and at least one
-// assertion below fails. Verified by mutation — allowing 2xx bodies, logging every
-// request type, letting the page write a log, and removing the correlation window
-// each break a test here.
+// assertion below fails. Verified by mutation — allowing 2xx *bodies*, dropping the
+// worker-side header mask, logging every request type, letting the page write a
+// log, and removing the correlation window each break a test here.
 //
 // One exception, deliberately kept: the `target.bodies` check inside `netBody` is
 // **not** isolable, because `netRecord` only remembers a request as body-eligible
@@ -214,10 +218,19 @@ console.log("\n=== 7. Tier 2: only failures, and only what was really seen ===")
   const r = await send(h, {
     type: "fs_net_body", url: "https://api.uengage.in/customers", status: 200,
     body: '[{"name":"real person","phone":"98xxxxxx"}]',
+    req: { method: "GET", headers: [["accept", "application/json"]], body: "" },
   }, { tab: TAB });
   await tick(150);
-  check("a 200's body is refused — that is the PII, for none of the value", (r || {}).ok, false);
-  check("nothing was written", "body" in (h.store["fs_net_" + guideId] || [])[0], false);
+  const e200 = (h.store["fs_net_" + guideId] || [])[0];
+  // The request side of a successful call *is* kept — without it a guide of a flow
+  // that worked has no cURL in it at all, which is most guides. What is refused is
+  // the 200's *body*: that is where the customer records are, for none of the
+  // diagnostic value, and netpatch.js does not even read it.
+  check("a 200's request is kept", e200.reqHeaders, [["accept", "application/json"]]);
+  check("a 200's body is refused — that is the PII, for none of the value",
+        "body" in e200, false);
+  check("and it never reaches storage at all",
+        /real person|98xxxxxx/.test(JSON.stringify(h.store)), false);
 }
 {
   const { h, guideId } = await recording(true);

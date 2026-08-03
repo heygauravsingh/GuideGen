@@ -482,12 +482,22 @@
     pill.setAttribute(UI, "1");
     pill.className = "flowscribe-pill" + (buf ? " fs-buf" : "");
     if (buf) {
+      /* The dot expands on hover into the status *and* the action, because the
+       * action is the whole feature: the moment someone wants the last two minutes
+       * is the moment they are still looking at the page, and making them go to the
+       * toolbar first is a detour away from the thing they just did.
+       *
+       * This is not the button that was rejected in v1.2. That one said "Make a
+       * guide" of the entire buffer, on a pill that claimed to be recording — a
+       * wrong action under a false status. The dot still says nothing until hovered,
+       * still admits it is only *holding* steps, and the action is now the slice. */
       pill.innerHTML =
         '<span class="fs-dot"></span>' +
-        '<span class="fs-count">Catch-up on — <b>0</b> steps held</span>';
+        '<span class="fs-count">Catch-up on — <b>0</b> steps held</span>' +
+        '<button class="fs-cap" ' + UI + '="1">Capture last 2 min</button>';
       // Native tooltip as well as the hover expansion, since a host page can
       // suppress transitions and this must stay explainable if it does.
-      pill.setAttribute("title", "GuideGen catch-up capture is on for this site. Open GuideGen to capture the last 2 minutes.");
+      pill.setAttribute("title", "GuideGen catch-up capture is on for this site. Hover to capture the last 2 minutes.");
     } else {
       pill.innerHTML =
         '<span class="fs-dot"></span>' +
@@ -495,6 +505,50 @@
         '<button class="fs-stop" ' + UI + '="1">Stop &amp; edit</button>';
     }
     (document.body || document.documentElement).appendChild(pill);
+
+    const cap = buf ? pill.querySelector(".fs-cap") : null;
+    if (cap)
+      cap.addEventListener(
+        "click",
+        (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          /* A synthetic click is not a request. This button lives in the page's own
+           * DOM, so `document.querySelector(...).click()` from a page script would
+           * otherwise mint a guide out of the buffer without the user doing
+           * anything — quiet, and exactly the thing an always-on buffer must not
+           * allow. Only a real pointer redeems. */
+          if (!e.isTrusted) return;
+          if (cap.disabled) return;
+          cap.disabled = true;
+          const was = cap.textContent;
+          cap.textContent = "Capturing…";
+          // Same nested-orphan shape as Stop: the second call runs inside the
+          // first's reply, long after any try out here has returned.
+          safeSend({ type: "fs_buf_capture" }, (resp) => {
+            if (resp && resp.ok && resp.guideId) {
+              cap.textContent = "Opening…";
+              safeSend({ type: "fs_open_editor", guideId: resp.guideId });
+              setTimeout(() => {
+                if (!cap.isConnected) return;
+                cap.disabled = false;
+                cap.textContent = was;
+              }, 1200);
+              return;
+            }
+            // Nothing held yet is the ordinary failure — say so on the button
+            // rather than in an alert, and let it recover.
+            cap.textContent = (resp && resp.error) ? "Nothing held yet" : "Couldn't capture";
+            setTimeout(() => {
+              if (!cap.isConnected) return;
+              cap.disabled = false;
+              cap.textContent = was;
+            }, 1800);
+          });
+        },
+        true
+      );
+
     const stop = buf ? null : pill.querySelector(".fs-stop");
     if (stop)
       stop.addEventListener(

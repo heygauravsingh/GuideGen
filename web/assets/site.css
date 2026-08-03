@@ -694,6 +694,20 @@ footer.site .spacer { flex: 1; }
    with no seam, which is exactly the "filled with logs" failure this feature has to
    avoid. The label is small and quiet: it is a seam, not a heading. */
 .netdetail:empty { display: none; }
+/* The peek button. Quiet until hovered, and it sits at the end of the status line
+   rather than under it — a row of forty requests has to stay one line each, or the
+   drawer becomes the wall the inline view was designed to avoid. */
+.netpeek {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: 0 0 auto;
+  margin-left: 2px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel);
+  font: 600 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .02em; color: var(--muted);
+  transition: color var(--fast), background var(--fast), border-color var(--fast);
+}
+.netpeek:hover { color: var(--ink); background: var(--panel-2); border-color: var(--faint); }
+.netrow.bad .netpeek { border-color: var(--brand-ring); color: var(--brand-2); }
+.netitem + .netitem { border-top: 1px solid var(--line); }
 .netdetail .netbodywrap + .netbodywrap { margin-top: -4px; }
 .netblockhead {
   display: flex; align-items: center; gap: 8px; margin: 0 0 4px;

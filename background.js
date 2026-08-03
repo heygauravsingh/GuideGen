@@ -912,6 +912,11 @@ const NET = {
   // what the separate body caps are for.
   maxEntries: 600,
   maxBodies: 40,
+  // The request side arrives for every call, not only failures, so it needs its own
+  // and larger ceiling: at ~400 bytes an entry this is well under a megabyte per
+  // guide, and one shared cap would let successful requests eat the room error
+  // bodies need.
+  maxReqs: 400,
   // A failure envelope is usually a few hundred characters; a stack trace can be
   // several thousand, and cutting one in half wastes the whole point of keeping it.
   // 40 bodies at this size is ~320KB per guide, which is nothing next to one
@@ -1044,9 +1049,14 @@ function netRecord(details, status, error) {
     if (scheme !== "https") entry.scheme = scheme;
     if (error) entry.error = String(error).replace(/^net::/, "");
     netAppend(target.key, entry, target.kind === "buf");
-    // A failed request is the only kind whose body we might be handed. Remember it
-    // briefly so the body can be matched to it when it arrives.
-    if (target.bodies && !entry.ok) {
+    /* Remember it briefly so what netpatch.js sends can be matched to it.
+     *
+     * **Every request, not only the failures.** The request side (headers, the body
+     * that was sent) travels for any call, because a guide of a flow that worked
+     * otherwise had no cURL in it at all — which is most guides, and was the first
+     * thing anyone noticed. What stays failures-only is the *response* body, and
+     * `netBody` is where that is enforced. */
+    if (target.bodies) {
       netAwaitingBody.push({ entry, key: target.key, isBuf: target.kind === "buf" });
       netAwaitingBody = netAwaitingBody.filter((x) => Date.now() - x.entry.ts < NET.windowMs);
     }
@@ -1089,7 +1099,13 @@ async function netBody(msg, sender) {
   if (!hit) return { ok: false };
   netAwaitingBody = netAwaitingBody.filter((x) => x !== hit);
 
-  const raw = String(msg.body || "");
+  // **The one rule that cannot move: a response body only for a failure.** The
+  // request side travels for every call; a 2xx body is where the customer records
+  // are. netpatch.js does not even read a successful response, and this is the
+  // second guard on the same rule — the page shares the channel and could send one
+  // anyway.
+  const failed = status >= 400 || status === 0;
+  const raw = failed ? String(msg.body || "") : "";
   const body = raw.slice(0, NET.bodyChars);
   const req = msg.req && typeof msg.req === "object" ? msg.req : null;
   const reqHeaders = req ? netScrubHeaders(req.headers) : [];
@@ -1098,11 +1114,14 @@ async function netBody(msg, sender) {
   netChain = netChain
     .then(async () => {
       const list = await get(target.key, []);
-      // Cap how many exchanges one log can hold. The summary is bounded by entry
-      // count; the exchange is bounded separately because it is ~20x the size. An
-      // entry that carried only request detail counts too — otherwise a run of
-      // bodiless failures would let the cap be exceeded on the request side.
-      if (list.filter((e) => e.body || e.reqHeaders || e.reqBody).length >= NET.maxBodies) return;
+      /* Two caps, because the two halves cost different amounts. A response body is
+       * kilobytes and only a failure has one, so `maxBodies` stays where it was. The
+       * request side is a few hundred bytes and now arrives for *every* call on a
+       * single-page app, so it gets its own, larger ceiling — one shared cap would
+       * mean forty successful requests using up the room forty error bodies needed. */
+      const wantBody = !!body;
+      if (wantBody && list.filter((e) => e.body).length >= NET.maxBodies) return;
+      if (!wantBody && list.filter((e) => e.reqHeaders || e.reqBody).length >= NET.maxReqs) return;
       const e = list.filter(
         (x) => x.ts === hit.entry.ts && x.path === hit.entry.path && x.status === status
       )[0];
@@ -1713,6 +1732,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         case "fs_buf_promote": {
           sendResponse(await promoteBuffer(msg));
+          break;
+        }
+        /* The pill's own "Capture last 2 minutes" — the slice, for the session on
+         * the sender's own origin. No sessionId crosses the boundary: the page's
+         * pill knows nothing about sessions, and resolving it here from
+         * `sender.tab.url` is the same rule `fs_buf_status` uses, so the button can
+         * only ever redeem the site it is sitting on. */
+        case "fs_buf_capture": {
+          const url = (sender.tab && sender.tab.url) || "";
+          const here = (await bufSessions()).filter((s) => s.origin === originOf(url))[0];
+          if (!here) {
+            sendResponse({ ok: false, error: "Nothing is held for this site yet." });
+            break;
+          }
+          sendResponse(
+            await promoteBuffer({ sessionId: here.id, minutes: BUF.sliceMs / 60000 })
+          );
           break;
         }
         case "fs_buf_clear": {

@@ -67,7 +67,7 @@ The pain arrives after the fact: you finish something, then someone asks how. Sw
 
 ## The API log
 
-Each step also records the requests the page made and what came back — `POST /api/orders → 500`. Switch on the opt-in and a *failed* request carries the whole exchange, copyable as a `curl`:
+Each step also records the requests the page made and what came back — `POST /api/orders → 500`. Switch on the opt-in and every request is copyable as a `curl`:
 
 ```bash
 curl -X POST 'https://api.uengage.in/v2/orders?store=…' \
@@ -80,7 +80,7 @@ curl -X POST 'https://api.uengage.in/v2/orders?store=…' \
 That turns "I clicked Save and it didn't work" into a bug report a developer or a model can start on without asking you to reproduce it.
 
 - **Credential header values are never stored.** A header whose name looks like a credential (`authorization`, `cookie`, `x-api-key`, …) keeps its name and loses its value; the same goes for query-string values and obvious secrets in a sent body. So a cURL documents a call — it can't replay it.
-- **The exchange is a separate opt-in, off by default** — request headers, sent body, response body — and even then only for requests that *failed*. A successful call's contents are never kept: that is where the personal data is, for none of the diagnostic value.
+- **Request details are a separate opt-in, off by default** — headers and the body you sent, for *every* request, which is what gives a guide of a working flow a cURL at all. A **response** body is kept only for a failure, and a successful response is never even read: that is where the personal data is, for none of the diagnostic value.
 - A step where everything succeeded shows one muted line. A step where something failed shows the failures. **Everything, in full, is in the API log panel** in the editor toolbar — with a failed-only filter and a copy button.
 - Only the AI handoff carries it. HTML, Markdown, PDF, PowerPoint, video and published links all leave it out, and any step's log can be deleted on its own.
 

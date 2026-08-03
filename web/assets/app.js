@@ -881,6 +881,36 @@
     return wrap;
   }
 
+  /* One request: its status line, and its detail underneath — open or behind a
+   * peek button.
+   *
+   * The cURL now exists for *every* request rather than only failures, which is
+   * what makes the log worth having on a flow that worked. It also means a step
+   * that fired forty requests would render forty open cURLs, which is the wall this
+   * whole feature is designed to avoid. So: a failure opens itself, because that is
+   * the answer someone came for, and a success keeps its cURL one click away. The
+   * data is all there either way; only the reading order changes. */
+  function netItem(r, open) {
+    var wrap = mk("div", "netitem");
+    var row = netRow(r);
+    var detail = netDetail(r);
+    if (detail.childNodes.length) {
+      var peek = mk("button", "netpeek");
+      var label = r.reqHeaders || r.reqBody ? "cURL" : "Body";
+      peek.textContent = open ? "Hide" : label;
+      peek.title = "Show what was sent and what came back";
+      detail.hidden = !open;
+      peek.addEventListener("click", function () {
+        detail.hidden = !detail.hidden;
+        peek.textContent = detail.hidden ? label : "Hide";
+      });
+      row.appendChild(peek);
+    }
+    wrap.appendChild(row);
+    wrap.appendChild(detail);
+    return wrap;
+  }
+
   function netInline(step, i) {
     var c = netCounts(step);
     var total = c.reqs.length + (step.networkMore || 0);
@@ -906,10 +936,8 @@
     box.appendChild(head);
 
     var list = mk("div", "netrows");
-    c.bad.forEach(function (r) {
-      list.appendChild(netRow(r));
-      list.appendChild(netDetail(r));
-    });
+    // Inline, on the step: only the failures, and they open themselves.
+    c.bad.forEach(function (r) { list.appendChild(netItem(r, true)); });
     box.appendChild(list);
 
     var foot = mk("div", "netfoot");
@@ -1002,10 +1030,8 @@
         var rm = netRemoveBtn(s, i, function () { paint(); renderEditor(); });
         gh.appendChild(rm);
         grp.appendChild(gh);
-        show.forEach(function (r) {
-          grp.appendChild(netRow(r));
-          grp.appendChild(netDetail(r));
-        });
+        // In the drawer: failures open, successes one click from their cURL.
+        show.forEach(function (r) { grp.appendChild(netItem(r, !r.ok)); });
         if (s.networkMore && !only) {
           var more = mk("div", "netmoreline");
           more.textContent = s.networkMore + " more not recorded (per-step limit)";

@@ -298,24 +298,28 @@
   <code>password</code> field in a submitted form is replaced the same way. Your browser cookies
   are not readable by this mechanism at all.</p>
 
-  <p><b>The full exchange is a separate opt-in, and it is off.</b> By default only the summary
-  above is recorded. You can switch on "Include failed API requests" — once per recording, or per
-  armed site for catch-up capture — and then, for a request that <em>failed</em> (an error status,
-  or no response at all), GuideGen also keeps the request headers, the body that was sent and the
-  body that came back, and can show them to you as a <code>curl</code> command. Successful requests
-  never have their contents captured, on either setting. What is kept is trimmed — roughly eight
-  thousand characters of response, four thousand of request — and a limited number are held per
-  guide.</p>
+  <p><b>Request details are a separate opt-in, and it is off.</b> By default only the summary
+  above is recorded. You can switch on "Include API request details" — once per recording, or per
+  armed site for catch-up capture — and then GuideGen also keeps, for each request, its headers and
+  the body that was sent, which is what lets it show you the request as a <code>curl</code>
+  command.</p>
+
+  <p><b>A response body is kept only when the request failed.</b> That line does not move with any
+  setting. If a request returned an error status, or no response at all, the response is kept
+  because it is the thing being diagnosed. If it <em>succeeded</em>, the response is not recorded —
+  it is not even read. A successful response is where the customer records, personal details and
+  full result sets are, and the status code has already told you it worked. What is kept is trimmed
+  — roughly eight thousand characters of a failed response, four thousand of a request — and a
+  limited number are held per guide.</p>
 
   <p>That command is a record of a call, not a way to repeat it: with the credential values masked
   and cookies absent, pasting it into a terminal will not sign in as you.</p>
 
   <p>We are explicit about why that one is off by default. Everything else GuideGen records, you
   can see: a screenshot is a picture of what was on your screen, and you can black out parts of it
-  before sharing. A request and response body are data you never looked at, so you cannot check
-  them the same way. Failed requests are the narrow case where the content is usually a short error
-  message rather than someone's personal data — which is why it is the only content we will keep,
-  and only when you ask.</p>
+  before sharing. A request body is data you never looked at, so you cannot check it the same way —
+  although it is at least something you sent, from a form you filled in yourself. A successful
+  response is neither, which is why no setting keeps one.</p>
 
   <p><b>You can remove it.</b> Each step's API log can be deleted from the editor, on its own,
   without affecting the rest of the guide. Turning the catch-up setting off also discards anything

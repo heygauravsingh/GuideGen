@@ -289,10 +289,10 @@
     <label class="opt" id="bodyOpt">
       <input type="checkbox" id="netBodies" />
       <span>
-        <b>Include failed API requests</b>
-        <small>Keeps the whole exchange for a request that errors — headers, what was sent, what
-        came back — copyable as a cURL. Credential values are masked. Off by default: you can't
-        check a body you never saw.</small>
+        <b>Include API request details</b>
+        <small>Keeps every request as a copyable cURL — headers and the body you sent — plus the
+        response body of anything that <b>fails</b>. A successful response is never kept.
+        Credential values are masked. Off by default.</small>
       </span>
     </label>
 
@@ -330,7 +330,7 @@
       <label class="opt tight" id="bufBodyOpt" hidden>
         <input type="checkbox" id="bufBodies" />
         <span>
-          <b>Include failed API requests</b>
+          <b>Include API request details</b>
           <small>Held for 7 days on armed sites, like the rest of the capture.</small>
         </span>
       </label>

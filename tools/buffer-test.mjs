@@ -238,6 +238,48 @@ console.log('\n=== 6c. "capture last 2 minutes" ===');
 }
 
 // ---------------------------------------------------------------------------
+// The pill's own CTA. It sends no sessionId — the worker resolves one from the
+// sender's tab — so what has to be asserted is *which* session that resolves to.
+console.log("\n=== 6c2. fs_buf_capture: the button on the page ===");
+{
+  const h = await armed();
+  const OTHER = { id: 2, windowId: 9, url: "https://admin.other.com/x", title: "Other", incognito: false };
+  h.harnessTabs[2] = OTHER;
+  await send(h, { type: "fs_buf_arm", origin: "https://admin.other.com", on: true });
+  await tick(50);
+
+  const t0 = Date.now();
+  for (const [i, t] of [t0 - 9 * 60000, t0 - 30 * 1000, t0 - 5 * 1000].entries()) {
+    await send(h, { type: "fs_buffer_step", step: step("Here " + (i + 1), { timestamp: t }) }, { tab: TAB });
+    await tick(90);
+  }
+  await send(h, {
+    type: "fs_buffer_step",
+    step: step("Elsewhere", { timestamp: t0 - 4 * 1000, url: OTHER.url, pageTitle: OTHER.title }),
+  }, { tab: OTHER });
+  await tick(120);
+
+  const r = await send(h, { type: "fs_buf_capture" }, { tab: TAB });
+  await tick();
+  const texts = (h.store["fs_steporder_" + r.guideId] || []).map((id) => h.store["fs_step_" + id].text);
+  check("it takes the slice, not the whole session", texts, ["Here 2", "Here 3"]);
+  check("and never the session on another origin", texts.includes("Elsewhere"), false);
+
+  // Same resolution rule as fs_buf_status: the session on *this* tab's origin.
+  const other = await send(h, { type: "fs_buf_capture" }, { tab: OTHER });
+  await tick();
+  check("asked from the other tab, it captures that origin instead",
+        (h.store["fs_steporder_" + other.guideId] || []).map((id) => h.store["fs_step_" + id].text),
+        ["Elsewhere"]);
+}
+{
+  const h = await armed();
+  const r = await send(h, { type: "fs_buf_capture" }, { tab: TAB });
+  check("nothing held yet is an ordinary refusal, not a crash or an empty guide",
+        [r.ok, !!r.guideId], [false, false]);
+}
+
+// ---------------------------------------------------------------------------
 console.log("\n=== 6d. redeemed, and discarded ===");
 {
   const h = await armed();

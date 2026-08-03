@@ -48,10 +48,15 @@
  *   below this layer, and an HttpOnly cookie is invisible to any page script. So a
  *   captured cURL is not a replayable session token — it is the shape of the call.
  *
- * Only failures. A 2xx exchange is the bulk of the data and the bulk of the risk —
- * customer records, personal details, whole result sets — for the least value: if
- * it worked, the status line already said so. A failure envelope is small, it is
- * the thing being diagnosed, and it is the only exchange worth the exposure.
+ * **The line is drawn between request and response, not between success and
+ * failure.** That was the first cut and it was wrong in practice: a guide of a flow
+ * that *worked* — which is most guides — held nothing but status lines, so the cURL
+ * was missing in exactly the case where nothing had gone wrong. The request side is
+ * reported for every call now: it is small, bounded, and something the user
+ * themselves sent. A **response body is still kept only for a failure** — a 2xx body
+ * is the bulk of the data and the bulk of the risk (customer records, personal
+ * details, whole result sets) for the least value, since if it worked the status
+ * line already said so.
  */
 (() => {
   const MARK = "__ggNetPatched";
@@ -206,6 +211,10 @@
                 (t) => report(res.url, res.status, t, req),
                 () => report(res.url, res.status, "", req)
               );
+            } else if (res) {
+              // Succeeded: the request travels, the response body does not. Not even
+              // read — a clone of a 200 is the one thing this file must not touch.
+              report(res.url, res.status, "", req);
             }
           } catch (e) { /* already-consumed or opaque response */ }
           return res;
@@ -250,7 +259,9 @@
       try {
         this.addEventListener("load", () => {
           try {
-            if (this.status < 400) return;
+            const url = this[MARK + "_u"] || this.responseURL;
+            // Succeeded: the request travels, the response is not even read.
+            if (this.status < 400) return report(url, this.status, "", req);
             // Only the text-ish response types can be read without touching the
             // page's own view of the data. blob and arraybuffer are skipped —
             // they are downloads, not API errors.
@@ -258,7 +269,7 @@
             let out = "";
             if (rt === "" || rt === "text") out = this.responseText;
             else if (rt === "json") out = JSON.stringify(this.response);
-            report(this[MARK + "_u"] || this.responseURL, this.status, out, req);
+            report(url, this.status, out, req);
           } catch (e) { /* cross-origin or unreadable */ }
         });
       } catch (e) { /* ignore */ }

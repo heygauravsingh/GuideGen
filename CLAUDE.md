@@ -66,7 +66,7 @@ Local guide data lives in `chrome.storage.local`.
 ## File map
 | File | Role |
 |---|---|
-| `manifest.json` | MV3 config, v1.2.1. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
+| `manifest.json` | MV3 config, v1.2.2. Permissions: activeTab, scripting, storage, unlimitedStorage, tabs, downloads, offscreen, webRequest (observational only — see The API log); host `<all_urls>`; `externally_connectable` names `https://guide-gen.vercel.app/*` and nothing else. CSP adds `'wasm-unsafe-eval'` for the TTS engine. |
 | `background.js` | Service worker. Owns recording state, `captureVisibleTab` screenshots (serialized via a throttled queue), their re-encode to width-capped WebP (see Screenshot normalisation), and all persistence. Message router (`fs_start`, `fs_stop`, `fs_capture_step`, `fs_get_state`, `fs_open_editor`). On stop, `finalizeGuide()` merges redundant steps and names the guide (see Post-processing). |
 | `recorder.js` | Content script. Listens (capture phase) for `pointerdown` + `change` + `keydown` (Enter), builds a human-readable step description from the DOM element (see Step wording), hides its own pill before each capture, shows the floating "Recording" pill. Runs in two modes — recording, or buffering an armed origin (see Catch-up capture) — with `mode()` the single source of truth for which. Also retires itself when orphaned (see Orphaned content scripts). |
 | `netpatch.js` | The only code that runs in the page's **MAIN world**. Patches `fetch`/`XHR` to report a *failed* exchange — request headers, sent body, response body — back through `postMessage`, because `chrome.webRequest` can read none of them. Masks credential header values and obvious body secrets *before* posting, so a secret never crosses the boundary. Opt-in, off by default; injected per tab by the worker via `executeScript({world:"MAIN"})`. Nothing it says is trusted — see The API log. |
@@ -276,8 +276,18 @@ along and throwing it away, and that is the entire reason for every constraint b
   it made a 7-day retention decoration — ~40 clicks of ordinary work evicted yesterday's session
   before lunch, so nothing survived a night whatever the card said. If you lower `maxSteps`,
   lower `maxAgeMs` with it. `tools/buffer-test.mjs` asserts a 26-hour-old session survives.
-- **Disclosure on the page, redemption in the popup.** recorder.js shows a bare `fs-buf` **dot**,
-  not a pill, and it is not a button. The full pill said "something is being written down", which
+- **Disclosure on the page, and redemption in both places.** recorder.js shows a bare `fs-buf`
+  **dot**, not a pill. Hovering it expands the status *and* a `Capture last 2 min` button
+  (`fs-cap` → `fs_buf_capture`), because the moment someone wants the last two minutes is the
+  moment they are still looking at the page, and sending them to the toolbar first is a detour
+  away from what they just did. **This is not the button that was rejected in v1.2**: that one
+  said "Make a guide" of the *entire* buffer, on a pill that claimed to be recording — a wrong
+  action under a false status. The dot still says nothing until hovered, still admits it is only
+  *holding* steps, and the action is now the slice. Two guards on it: the click must be
+  `isTrusted`, since the button lives in the page's own DOM and `.click()` from a page script
+  would otherwise mint a guide out of the buffer silently; and no `sessionId` crosses the
+  boundary — the worker resolves it from `sender.tab.url`, the same rule `fs_buf_status` uses, so
+  the button can only ever redeem the site it is sitting on. The full pill said "something is being written down", which
   while buffering is false in the other direction — nothing is going into any guide and there is
   nothing to stop. It names itself on hover (a `max-width` transition, so a host page killing
   transitions degrades to an instant label rather than to nothing) and says nothing the rest of
@@ -328,10 +338,20 @@ report someone can act on; "clicked Save, it didn't work" is a guessing game. Th
   catch-up origin. Method, path, status, duration. `webRequest` **cannot read a response
   body**, at any permission level, and never could — so the cheap tier is free of the one
   thing that makes this feature dangerous.
-- **Tier 2, the whole failed exchange, as a cURL** — request headers, the body that was sent,
-  the body that came back. Needs the page's own `fetch`/`XHR`, so `netpatch.js` runs in the
-  **MAIN world**. Opt-in, off by default, on both surfaces separately
-  (`fs_state.captureBodies` for a recording, chosen at Start; `fs_buf_bodies` for catch-up).
+- **Tier 2, the exchange, as a cURL** — request headers and the body that was sent, for
+  *every* request, plus the response body **of a failure only**. Needs the page's own
+  `fetch`/`XHR`, so `netpatch.js` runs in the **MAIN world**. Opt-in, off by default, on both
+  surfaces separately (`fs_state.captureBodies` for a recording, chosen at Start;
+  `fs_buf_bodies` for catch-up).
+
+**The line is request-vs-response, not success-vs-failure — and it moved once, for a reason
+worth keeping.** Tier 2 first captured only failed exchanges, which meant a guide of a flow that
+*worked* held nothing but status lines: the cURL was missing in exactly the case where nothing
+had gone wrong, which is most guides. That was the first thing anyone noticed in production. So
+the request side now travels for every call — it is small, bounded (`NET.maxReqs`), and
+something the user themselves sent — while a **response body is still failures-only**
+(`NET.maxBodies`). Two caps, because a response body is kilobytes and a request is hundreds of
+bytes; one shared cap let forty successful requests eat the room forty error bodies needed.
 
 **Why Tier 2 is the exchange and not just the response.** A status line says a call failed and
 nothing about what was sent, so acting on it means asking the reporter to reproduce it — which
@@ -355,9 +375,12 @@ Rules that are not negotiable:
    made the cURL a guess. The names identify the call; the values are where ids and session
    keys ride. `maskBody`/`MASKED_KEY` in netpatch.js does the same job for a sent body, so a
    login request's password never lands.
-3. **Failures only.** A 2xx exchange is the bulk of the data and the bulk of the risk for none
-   of the value: if it worked, the status line already said so. `netRecord` only marks a
-   request body-eligible when `!entry.ok`.
+3. **A response body only for a failure.** A 2xx body is the bulk of the data and the bulk of
+   the risk for none of the value: if it worked, the status line already said so. Guarded
+   twice, at both ends — `netpatch.js` does not even *read* a successful response, and
+   `netBody` discards `msg.body` unless the status says it failed, because the page shares that
+   channel and could send one anyway. Mutation-checked: dropping the worker-side guard fails
+   two assertions in `tools/net-test.mjs`.
 4. **The exchange annotates a request; it never creates one.** The page shares the
    `postMessage` channel `netpatch.js` uses, so it is matched against something `webRequest`
    independently saw (tab + status + path) and dropped otherwise. `netBody` is a source of
@@ -407,8 +430,12 @@ failed:
   filter defaulting on when there are failures, and a copy button. Nothing truncated there —
   which is what lets the inline view stay that small.
 
-A failed row carries up to two labelled blocks (`netDetail` → `netBlock`): **Request** — the
-cURL, with a Copy cURL button — then **Response**. Labels are not decoration: two runs of
+A row carries up to two labelled blocks (`netDetail` → `netBlock`): **Request** — the cURL,
+with a Copy cURL button — then **Response**. `netItem` decides whether they start open: **a
+failure opens itself, a success keeps its cURL behind a `.netpeek` button.** Once every request
+had a cURL, a step that fired forty of them would otherwise have rendered forty open code blocks
+— the exact wall this feature is designed around. Same data either way; only the reading order
+changes. Labels are not decoration: two runs of
 monospace under one row with no seam between them is precisely the "filled with logs" failure
 this feature has to avoid. Request first, because that is the order they happened in and what
 someone reproducing the bug needs first.

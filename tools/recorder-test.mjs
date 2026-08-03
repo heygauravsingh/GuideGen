@@ -40,6 +40,9 @@ function el(tag) {
   const node = {
     tagName: (tag || "div").toUpperCase(),
     className: "", innerHTML: "", style: {}, children: [], attrs: {}, parent: null,
+    // The catch-up CTA drives these directly: it disables itself while capturing
+    // and narrates on the label, so a no-op stub would hide a broken button.
+    disabled: false, textContent: "", isConnected: true,
     classList: {
       _s: new Set(),
       add(...c) { c.forEach((x) => this._s.add(x)); },
@@ -54,6 +57,7 @@ function el(tag) {
     // be findable without a real parser.
     querySelector(sel) {
       if (sel === ".fs-stop") return this._stop || (this._stop = el("button"));
+      if (sel === ".fs-cap") return this._cap || (this._cap = el("button"));
       if (sel === ".fs-count b") return this._count || (this._count = el("b"));
       return null;
     },
@@ -300,6 +304,63 @@ console.log("\n=== 8. the netpatch relay reshapes rather than forwards ===");
   h.sent.length = 0;
   post({ source: "something-else", url: "https://api.x/orders", status: 500, body: "b" });
   check("another page's postMessage is ignored", h.sent.length, 0);
+}
+
+// ---------------------------------------------------------------------------
+// The catch-up pill's "Capture last 2 min". The button sits in the *page's* DOM,
+// so the case that matters is a page clicking it itself.
+console.log("\n=== 9. the catch-up CTA ===");
+{
+  const h = harness({});
+  await settle();
+  h.pending[0].cb({ armed: true, count: 12, origin: "https://dash.uengage.in" });
+  await settle();
+  const cap = pill(h).querySelector(".fs-cap");
+  h.sent.length = 0;
+
+  // A page script can reach this button and call .click() on it. That must not
+  // mint a guide out of a buffer nobody asked to redeem.
+  cap.fire("click", { isTrusted: false, stopPropagation() {}, preventDefault() {} });
+  check("a synthetic click redeems nothing", h.sent.length, 0);
+
+  cap.fire("click", { isTrusted: true, stopPropagation() {}, preventDefault() {} });
+  check("a real click asks the worker for the slice",
+        h.sent.map((m) => m.type), ["fs_buf_capture"]);
+  // No sessionId crosses the boundary — the worker resolves it from the sender's
+  // own tab, so the button cannot name someone else's session.
+  check("and names no session", Object.keys(h.sent[0]), ["type"]);
+  check("the button locks while it works", [cap.disabled, cap.textContent],
+        [true, "Capturing…"]);
+
+  h.pending.forEach((p) => p.cb({ ok: true, guideId: "g9", count: 7 }));
+  check("the new guide is opened", h.sent.map((m) => m.type),
+        ["fs_buf_capture", "fs_open_editor"]);
+  check("and it says so", cap.textContent, "Opening…");
+}
+{
+  const h = harness({});
+  await settle();
+  h.pending[0].cb({ armed: true, count: 0, origin: "https://dash.uengage.in" });
+  await settle();
+  const cap = pill(h).querySelector(".fs-cap");
+  cap.fire("click", { isTrusted: true, stopPropagation() {}, preventDefault() {} });
+  h.pending.forEach((p) => p.cb({ ok: false, error: "Nothing is held for this site yet." }));
+  check("an empty buffer says so on the button, and no editor opens",
+        [cap.textContent, h.sent.some((m) => m.type === "fs_open_editor")],
+        ["Nothing held yet", false]);
+}
+{
+  // The orphan case, on the newest chrome call in the file. The reply arrives
+  // after the context has died, which is where the two shipped bugs both were.
+  const h = harness({});
+  await settle();
+  h.pending[0].cb({ armed: true, count: 12, origin: "https://dash.uengage.in" });
+  await settle();
+  const cap = pill(h).querySelector(".fs-cap");
+  cap.fire("click", { isTrusted: true, stopPropagation() {}, preventDefault() {} });
+  let threw = null;
+  try { drain(h, true); } catch (e) { threw = String(e.message); }
+  check("an orphaned reply does not throw", threw, null);
 }
 
 console.log(failures ? `\n${failures} failed\n` : "\nall passed\n");
