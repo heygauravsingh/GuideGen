@@ -64,8 +64,9 @@
   <div class="dl">
     <div class="dl-main">
       <h2 class="dl-h">Download the extension</h2>
-      <p class="dl-sub">A ZIP file, about 68 MB. Almost all of that is the offline voice used
-      for narrated video — the guide-making itself is under a megabyte.</p>
+      <p class="dl-sub">A ZIP file, about 3 MB. The offline voice for narrated video is a
+      separate 78 MB download, and it only happens the first time you actually export one —
+      once, on that machine, with a progress bar.</p>
     </div>
     <a class="btn brand-btn lg" id="dl-btn" href="#" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
@@ -83,7 +84,7 @@
   (function () {
     /* The Drive file's own page, not the uc?export=download shortcut. The
        shortcut is one click fewer and it does work at this size, but it hands the
-       browser a 68MB stream with no filename in the UI and no indication of what
+       browser a raw stream with no filename in the UI and no indication of what
        it is — which for a stranger installing an unpacked extension is exactly
        the wrong first impression. The Drive page shows the name, the size and a
        Download button. */

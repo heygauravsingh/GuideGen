@@ -81,7 +81,14 @@ While it is pending:
 4. **Submit for review.** Nothing after that: a new package restarts the queue.
 
 Never verified against live backends, and worth knowing before people arrive: republish,
-delete/purge, the export log, and the offscreen narrated-video render.
+delete/purge, and the export log.
+
+**The offscreen narrated-video render IS verified now** — 3 Aug 2026, run from an unzipped
+`GuideGen-Beta.zip` (v1.2.6, 3.3MB, without the voice files). It fetched both data files from
+the `voice-v1` release, rendered narrated video, and the second export started instantly from
+the cache. So the whole first-use download path is confirmed end to end, including the part I
+could not test from outside a browser: GitHub's asset host sends no CORS header, and an
+extension page reading it works anyway because of `<all_urls>` in `host_permissions`.
 
 ---
 
