@@ -94,6 +94,10 @@
     </a>
   </div>
   <script>
+  // Where a stuck tester is sent. Every "get in touch" across this site points at the same
+  // screen on the house page, which opens the message box for them rather than naming an
+  // inbox they have to switch apps for.
+  var SAY_HI = "https://www.backpocket.website/#say-hi";
   /* The one thing to edit on this page. Paste the Google Drive share link between
      the quotes and the button starts working.
 
@@ -122,8 +126,8 @@
     }
     var p = document.createElement("p");
     p.className = "dl-pending";
-    p.innerHTML = "The download link is being set up. Email " +
-      '<a href="mailto:heygauravsingh@gmail.com">heygauravsingh@gmail.com</a> and ' +
+    p.innerHTML = "The download link is being set up. " +
+      '<a href="' + SAY_HI + '">Say hi on backpocket.website</a> and ' +
       "I'll send you the build directly — the steps below are ready to follow.";
     btn.replaceWith(p);
   })();
@@ -238,7 +242,7 @@
   blocks extensions on those, and there's nothing GuideGen can do about it.</p>
 
   <h3>Still stuck</h3>
-  <p>Email <a href="mailto:heygauravsingh@gmail.com">heygauravsingh@gmail.com</a> and say what you
+  <p><a href="https://www.backpocket.website/#say-hi">Say hi on backpocket.website</a> and say what you
   saw. Screenshot helps.</p>
 
   <p class="closing">GuideGen is free during early access. Everything runs on your own machine
@@ -253,7 +257,7 @@
     <span class="spacer"></span>
     <a href="/privacy">Privacy</a>
     <a href="/terms">Terms</a>
-    <a href="mailto:heygauravsingh@gmail.com">Contact</a>
+    <a href="https://www.backpocket.website/#say-hi">Say hi</a>
   </div>
 </footer>
 
