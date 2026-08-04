@@ -28,3 +28,27 @@ Right now `X-Robots-Tag: noindex` is applied to **every** route, so nothing gets
 indexed before launch. When you're ready for the landing page to appear in Google,
 narrow that rule to `/g/(.*)` only — guide pages must stay `noindex` permanently,
 because users publish internal SOPs through them.
+
+## assets/demo.js — the try-it demo, above the FAQ
+
+A pretend admin panel; click it and a guide writes itself beside it, ending on "Copy it
+for an AI". It arrived from the house page (`backpocket.website`) on 4 Aug 2026 — it
+advertises this product, and the house advertises the house. Its rules, all of which exist
+because each was a bug first:
+
+- **Typing is one step per burst**, using the same 650ms settle as `recorder.js`. One step
+  per keystroke is not a guide, it is a keylogger transcript.
+- **A pending typing burst is flushed before a click is recorded.** Steps append in arrival
+  order, so left to its own timer `Type "demo"` lands *after* the click it caused and the
+  guide reads as though the result was clicked before it was searched for. The real recorder
+  flushes on pointerdown for exactly this reason.
+- **A checkbox is recorded on `change`, never on `click`.** Clicking a `<label>` toggles the
+  inner input, which fires a second bubbling click, and every checkbox step appeared twice.
+- **Step text carries the row it acted on** — `Click "View KYC" on "Rider #104112"`. Two
+  identical buttons on two rows produced two identical steps and an unusable guide.
+- **Consecutive identical clicks merge**, like `mergeRedundant`: "Click Payouts. Click
+  Payouts." reads as broken.
+- **The step pictures are DOM clones of the mock, not captures**, scaled with `zoom` — a
+  `transform` keeps the element's original box and leaves a hole under it. Honest by
+  construction: it is our own markup, and a real capture would need permissions no landing
+  page should ask for. The copy under the demo says outright that nothing is recorded.
