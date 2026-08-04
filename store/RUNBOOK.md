@@ -95,9 +95,19 @@ extension page reading it works anyway because of `<all_urls>` in `host_permissi
 Everything you need is in this folder. Work top to bottom; the whole thing is about
 40 minutes of your time, most of it taking screenshots.
 
-> The project folder on disk is still `~/Desktop/FlowScribe 2` — only the product name
-> changed, not the directory. Renaming it would break your Chrome "Load unpacked" path,
-> so it stays. Everything a user or reviewer sees says GuideGen.
+> **The folder was renamed on 4 Aug 2026.** The codebase now lives at
+> `~/Desktop/backpocket/GuideGen/GuideGen-CodeBase`, one product inside a house of
+> several — see `~/Desktop/backpocket/AGENTS.md` for the layout.
+>
+> Renaming *did* unload the extension from Chrome, exactly as this note used to warn.
+> The fix is one action: `chrome://extensions` → **Load unpacked** → pick the new folder.
+> **Recorded guides survive**, because `manifest.json` pins the extension id with `key`
+> — Chrome treats it as the same extension and hands back the same `chrome.storage.local`.
+> Without that key a rename would have orphaned every local guide, which is why the old
+> warning existed and why it is now merely an inconvenience.
+>
+> Internal identifiers are still untouched: `fs_*` storage keys, the `FS*` globals, the
+> `flowscribe-pill` CSS class. Everything a user or reviewer sees says GuideGen.
 
 **Set expectations:** you will *submit* today. Google reviews it. A first submission
 with `<all_urls>` host permission usually takes 1–3 days, occasionally longer. Nothing
@@ -137,13 +147,13 @@ Load the extension unpacked, record one real guide in uEngage, then capture:
 Any size is fine. Then:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && open store/screenshots-raw
+cd "/Users/apple/Desktop/backpocket/GuideGen/GuideGen-CodeBase" && open store/screenshots-raw
 ```
 
 Drop them in that folder and run:
 
 ```bash
-bash "/Users/apple/Desktop/FlowScribe 2/store/make-screenshots.sh"
+bash "/Users/apple/Desktop/backpocket/GuideGen/GuideGen-CodeBase/store/make-screenshots.sh"
 ```
 
 That converts each one to exactly 1280×800 in `store/screenshots-out/`. Verified
@@ -186,7 +196,7 @@ First check the two things that are generated and go stale silently — the webs
 copies of the shared renderer, and the icons:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check && node tools/make-og.mjs --check && node tools/set-extension-key.mjs --check
+cd "/Users/apple/Desktop/backpocket/GuideGen/GuideGen-CodeBase" && node tools/sync-web-assets.mjs --check && node tools/make-icons.mjs --check && node tools/make-og.mjs --check && node tools/set-extension-key.mjs --check
 ```
 
 A stale renderer mirror keeps the site working while rendering last week's annotations.
@@ -203,7 +213,7 @@ differ only in layout:
 | `../GuideGen-Beta.zip` | wrapped — everything inside `guidegen/` | Google Drive, for `/install` |
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && FILES=(manifest.json background.js recorder.js recorder.css netpatch.js popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js voicecache.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" -x "lib/voices/*.onnx" -x "lib/piper/*.data" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && rm -f /tmp/gg-stage/guidegen/lib/voices/*.onnx /tmp/gg-stage/guidegen/lib/piper/*.data && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
+cd "/Users/apple/Desktop/backpocket/GuideGen/GuideGen-CodeBase" && FILES=(manifest.json background.js recorder.js recorder.css netpatch.js popup.html popup.js sync.js editor.html redirect.js offscreen.html offscreen.js render.js exporters.js tts.js voicecache.js icons lib) && rm -f ../GuideGen-Prod.zip && zip -r -q -X ../GuideGen-Prod.zip "${FILES[@]}" -x "*.DS_Store" -x "*.map" -x "lib/voices/*.onnx" -x "lib/piper/*.data" && rm -rf /tmp/gg-stage && mkdir -p /tmp/gg-stage/guidegen && for f in "${FILES[@]}"; do cp -R "$f" /tmp/gg-stage/guidegen/; done && rm -f /tmp/gg-stage/guidegen/lib/voices/*.onnx /tmp/gg-stage/guidegen/lib/piper/*.data && find /tmp/gg-stage -name ".DS_Store" -delete && find /tmp/gg-stage -name "*.map" -delete && (cd /tmp/gg-stage && zip -r -q -X /tmp/GuideGen-Beta.zip guidegen) && mv -f /tmp/GuideGen-Beta.zip ../GuideGen-Beta.zip && rm -rf /tmp/gg-stage && ls -lh ../GuideGen-*.zip
 ```
 
 `FILES` is a **zsh array**, and the `"${FILES[@]}"` expansions matter: zsh does not
@@ -238,7 +248,7 @@ destination, a stale build, and a missing or wrong `key` — none of which are v
 file listing:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && node -e '
+cd "/Users/apple/Desktop/backpocket/GuideGen/GuideGen-CodeBase" && node -e '
 const {execSync}=require("child_process");const {createHash}=require("crypto");
 const id=k=>createHash("sha256").update(Buffer.from(k,"base64")).digest().subarray(0,16).reduce((s,x)=>s+String.fromCharCode(97+(x>>4))+String.fromCharCode(97+(x&15)),"");
 for (const [z,mp,label] of [["../GuideGen-Prod.zip","manifest.json","PROD (store, flat)"],["../GuideGen-Beta.zip","guidegen/manifest.json","BETA (drive, wrapped)"]]) {
@@ -378,7 +388,7 @@ instead of the path, and the unpacked build loads as `pifkel…` everywhere.
 2. Copy the whole PEM block, then:
 
 ```bash
-cd "/Users/apple/Desktop/FlowScribe 2" && pbpaste | node tools/set-extension-key.mjs -
+cd "/Users/apple/Desktop/backpocket/GuideGen/GuideGen-CodeBase" && pbpaste | node tools/set-extension-key.mjs -
 ```
 
 The script checks the key against the id the store already assigned and **refuses** if they

@@ -3,26 +3,6 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "backpocket.website"
-        }
-      ],
-      "destination": "/house"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.backpocket.website"
-        }
-      ],
-      "destination": "/house"
-    },
-    {
       "source": "/g/:id",
       "has": [
         {

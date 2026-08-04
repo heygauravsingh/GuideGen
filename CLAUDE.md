@@ -1,6 +1,22 @@
 # CLAUDE.md — GuideGen
 
-Project context for Claude Code. Read this first before making changes.
+Project context for any AI agent. Read this before making changes.
+
+**This is one product in a house.** The tree is `~/Desktop/backpocket/`, and the house-level
+brief — how to work here, who the work is for, and the **documentation contract every agent
+must follow** — is `../../AGENTS.md`. Read that, then `../../STATUS.md` (what is live, what
+is mid-review), then `../../WORKLOG.md`. This file is the deep product detail and assumes
+you have.
+
+Build outputs land beside this folder, in `~/Desktop/backpocket/GuideGen/`. The house site
+for `backpocket.website` is a **separate project** at `~/Desktop/backpocket/house/` — it used
+to live in this repo's `web/` folder and was moved out on 4 Aug 2026. Do not add house-level
+marketing pages here.
+
+Why `web/` nonetheless stays with this product: `/app` is the editor and talks to the
+extension over an exact allowed origin, and `/g/{id}` shares `render.js` and `exporters.js`
+verbatim with the extension through `tools/sync-web-assets.mjs`. Split those across repos and
+you break both the mirror and the origin check.
 
 ## What this is
 GuideGen is a Chrome Manifest V3 extension plus a static website. You record a browser

@@ -35,8 +35,6 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = [
   { file: "og.png", kind: "product" },
   { file: "og-guide.png", kind: "guide" },
-  // The house banner. Sells the *house*, not one tool: the promise every tool shares.
-  { file: "og-house.png", kind: "house" },
 ];
 
 if (process.argv.includes("--check")) {
@@ -77,7 +75,10 @@ if (!CHROME) {
  */
 function html(kind) {
   const guide = kind === "guide";
-  const house = kind === "house";
+  // The house banner moved to the house repo (../../house), which owns backpocket.website
+  // and carries its own trimmed copy of this script. Kept out of here so this generator
+  // can't produce an image this site never serves.
+  const house = false;
   const eyebrow = house
     ? "One tool at a time"
     : guide ? "Someone shared a guide with you" : "Do it once. Hand it over.";
