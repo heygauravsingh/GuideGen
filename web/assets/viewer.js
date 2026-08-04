@@ -620,7 +620,7 @@
     html +=
       '<div class="viewer-foot"><span>Made with <b>GuideGen</b> — this guide wrote ' +
       "itself while someone did the work once. " +
-      '<a href="https://www.backpocket.website" target="_blank" rel="noopener">A Backpocket tool</a>.</span>' +
+      '<a href="https://www.backpocket.website" target="_blank" rel="noopener">A backpocket.website tool</a>.</span>' +
       '<span class="spacer"></span>' +
       '<a class="btn brand-btn" style="padding:8px 13px;font-size:13.5px" href="/install">' +
       "Get it free</a></div>";
