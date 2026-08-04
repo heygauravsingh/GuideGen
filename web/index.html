@@ -36,6 +36,26 @@
 </head>
 <body>
 
+<!-- The house bar. GuideGen is one tool inside backpocket.website, and the chrome has to
+     say so: this strip is the parent brand, and the header under it is this product's own
+     nav. Deliberately *not* sticky — the product header is what should follow you down the
+     page; two stacked sticky bars eat a phone's whole viewport. -->
+<div class="house-bar">
+  <div class="row">
+    <a class="hb-brand" href="https://www.backpocket.website/">
+      <span class="hb-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5h15v6.2c0 2.4-2 4.3-4.4 4.3H8.9c-2.4 0-4.4-1.9-4.4-4.3z"/><path d="M6.4 12.4h11.2"/><circle cx="12" cy="18.2" r="0.9" fill="currentColor" stroke="none"/><path d="M8 10.5V6.2"/><path d="M6.8 6.2h2.4"/><path d="M12 10.5V4.6"/><path d="M12 4.6l-1.1 1.9h2.2z" fill="currentColor" stroke="none"/><path d="M16 10.5V7.4"/><circle cx="16" cy="5.6" r="1.8"/></svg></span>
+      <span class="hb-wm"><b>backpocket</b>.website</span>
+    </a>
+    <span class="hb-sep" aria-hidden="true">/</span>
+    <span class="hb-here">GuideGen</span>
+    <span class="spacer"></span>
+    <nav class="hb-nav">
+      <a href="https://www.backpocket.website/#tools">All tools</a>
+      <a href="https://clocked.backpocket.website">Clocked</a>
+    </nav>
+  </div>
+</div>
+
 <header class="site">
   <div class="row">
     <a class="brand" href="/">
@@ -435,7 +455,94 @@
     </div>
   </section>
 
-  <section id="faq" class="tint">
+  <!-- ============================================================= try it here
+       The one component that doesn't *describe* GuideGen but runs the idea in the
+       visitor's browser: click the fake dashboard, watch the guide write itself, then copy
+       it as text for an assistant — the flagship export demonstrated rather than claimed.
+
+       It was built on the house page (backpocket.website) and moved here on 4 Aug 2026,
+       because it sells this product specifically and the house sells the house.
+
+       Nothing is captured or sent. The "screenshots" are clones of the mock's own DOM,
+       which is honest — it is our markup — and a real capture would need permissions no
+       landing page should ask for. Logic: assets/demo.js. -->
+  <section id="try" class="tint">
+    <div class="wrap">
+      <h2 class="sec">Try it without installing anything</h2>
+      <p class="sec-lede">
+        No install needed for this. It's a pretend admin panel — click around it like
+        you're doing a real job: search for something, open a record, tick a box. The guide
+        on the right builds as you go, exactly the way GuideGen does on real websites.
+      </p>
+
+      <div class="demo">
+        <!-- the fake app -->
+        <div class="demo-app" id="demo-app" data-demo-root>
+          <div class="da-top">
+            <span class="da-dot"></span><span class="da-dot"></span><span class="da-dot"></span>
+            <span class="da-url">app.yourcompany.com/riders</span>
+          </div>
+          <div class="da-body">
+            <div class="da-side">
+              <button class="da-nav" data-label="Dashboard">Dashboard</button>
+              <button class="da-nav" data-label="Rider Management">Rider Management</button>
+              <button class="da-nav" data-label="Payouts">Payouts</button>
+              <button class="da-nav" data-label="Settings">Settings</button>
+            </div>
+            <div class="da-main">
+              <div class="da-row">
+                <input class="da-input" id="da-search" data-label="Search riders" placeholder="Search riders" />
+                <button class="da-btn" data-label="Search">Search</button>
+              </div>
+              <div class="da-card" data-label="Rider #104037">
+                <div><b>Rider #104037</b><span class="da-muted">Chandigarh · active</span></div>
+                <button class="da-btn ghost" data-label="View KYC">View KYC</button>
+              </div>
+              <div class="da-card" data-label="Rider #104112">
+                <div><b>Rider #104112</b><span class="da-muted">Zirakpur · disabled</span></div>
+                <button class="da-btn ghost" data-label="View KYC">View KYC</button>
+              </div>
+              <label class="da-check" data-label="Only show disabled riders">
+                <input type="checkbox" /> Only show disabled riders
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- the guide that writes itself -->
+        <div class="demo-out">
+          <div class="demo-out-top">
+            <span class="do-title">Your guide</span>
+            <span class="do-count" id="demo-count">0 steps</span>
+            <span class="spacer"></span>
+            <button class="btn sm" id="demo-reset" hidden>Start over</button>
+          </div>
+          <div class="demo-steps" id="demo-steps">
+            <div class="demo-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <p>Click something on the left.</p>
+            </div>
+          </div>
+          <div class="demo-out-foot" id="demo-foot" hidden>
+            <button class="btn brand-btn" id="demo-copy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M3 12h3M18 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+              Copy it for an AI
+            </button>
+            <span class="demo-hint">Paste it into ChatGPT or Claude and ask it to write the SOP.</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="demo-note">
+        Nothing here is recorded or sent anywhere — it's a demo running in your browser. The
+        real tool does this on <em>any</em> website, with a real screenshot of every step, and
+        it also exports as a PDF, a slide deck or a narrated video.
+        <a href="https://guidegen.backpocket.website">See GuideGen →</a>
+      </p>
+    </div>
+  </section>
+
+  <section id="faq">
     <div class="wrap">
       <h2 class="sec">Questions worth asking first</h2>
       <div class="faq">
@@ -582,6 +689,9 @@
     <a href="mailto:heygauravsingh@gmail.com">Contact</a>
   </div>
 </footer>
+
+<div class="toast" id="toast"></div>
+<script src="/assets/demo.js"></script>
 
 <script>
 // Waitlist -> Firestore REST. No SDK, no bundler, nothing external loaded.

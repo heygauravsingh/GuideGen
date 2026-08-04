@@ -19,6 +19,26 @@
 </head>
 <body>
 
+<!-- The house bar. GuideGen is one tool inside backpocket.website, and the chrome has to
+     say so: this strip is the parent brand, and the header under it is this product's own
+     nav. Deliberately *not* sticky — the product header is what should follow you down the
+     page; two stacked sticky bars eat a phone's whole viewport. -->
+<div class="house-bar">
+  <div class="row">
+    <a class="hb-brand" href="https://www.backpocket.website/">
+      <span class="hb-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10.5h15v6.2c0 2.4-2 4.3-4.4 4.3H8.9c-2.4 0-4.4-1.9-4.4-4.3z"/><path d="M6.4 12.4h11.2"/><circle cx="12" cy="18.2" r="0.9" fill="currentColor" stroke="none"/><path d="M8 10.5V6.2"/><path d="M6.8 6.2h2.4"/><path d="M12 10.5V4.6"/><path d="M12 4.6l-1.1 1.9h2.2z" fill="currentColor" stroke="none"/><path d="M16 10.5V7.4"/><circle cx="16" cy="5.6" r="1.8"/></svg></span>
+      <span class="hb-wm"><b>backpocket</b>.website</span>
+    </a>
+    <span class="hb-sep" aria-hidden="true">/</span>
+    <span class="hb-here">GuideGen</span>
+    <span class="spacer"></span>
+    <nav class="hb-nav">
+      <a href="https://www.backpocket.website/#tools">All tools</a>
+      <a href="https://clocked.backpocket.website">Clocked</a>
+    </nav>
+  </div>
+</div>
+
 <header class="site">
   <div class="row">
     <a class="brand" href="/">
