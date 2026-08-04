@@ -124,8 +124,7 @@ service cloud.firestore {
       // because both appear in this project and the choice is his, not mine.
       allow read: if request.auth != null
                   && request.auth.token.email in [
-                       'heygauravsingh@gmail.com',
-                       'ravit@uengage.in'
+                       'heygauravsingh@gmail.com'
                      ];
 
       allow update, delete: if false;
