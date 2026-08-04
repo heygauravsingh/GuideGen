@@ -63,7 +63,7 @@ function adoptId(oldId, newId) {
   }
   console.log(
     `\nStill mentioning ${oldId} in prose — update by hand:\n` +
-    `  CLAUDE.md, PLAN.md, store/RUNBOOK.md`
+    `  CLAUDE.md, PLAN.md, ../private/GuideGen/store/RUNBOOK.md`
   );
 }
 

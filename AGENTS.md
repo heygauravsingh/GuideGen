@@ -21,5 +21,5 @@ node tools/recorder-test.mjs && node tools/buffer-test.mjs && node tools/net-tes
 ```
 
 Release procedure, including the build commands and every step that needs Gaurav's hands:
-`store/RUNBOOK.md`. **Do not touch the Chrome Web Store item while a review is pending** —
+`../../private/GuideGen/store/RUNBOOK.md`. **Do not touch the Chrome Web Store item while a review is pending** —
 uploading a package restarts the queue.
