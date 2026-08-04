@@ -52,3 +52,24 @@ because each was a bug first:
   `transform` keeps the element's original box and leaves a hole under it. Honest by
   construction: it is our own markup, and a real capture would need permissions no landing
   page should ask for. The copy under the demo says outright that nothing is recorded.
+
+## /inbox — the owner's view of every submission
+
+Every form in the house writes to **one** Firestore collection, `waitlist`, in this project,
+and `note` carries a prefix so they can be told apart:
+
+| `note` starts with | Came from |
+|---|---|
+| `hi:` | a Say Hi message on `backpocket.website/#say-hi` (may also carry `shots`) |
+| `rain:` | a Make it rain competition answer |
+| `vote:` | a "build this next" vote |
+| anything else | an email signup (`landing`, `house`) |
+
+`/inbox` lists them newest first with tabs per kind, thumbnails for any attached screenshots,
+and a button that copies the addresses of whatever tab is showing. It needs a signed-in
+session, which it borrows from `/app` rather than duplicating the auth UI.
+
+**Access is the rule, not the page.** `firebase/firestore.rules` allows read only for the
+owner's verified token email; the page is public and comes back empty-handed for anyone else.
+Never widen that rule to unblock someone — being locked out is the feature. Every size cap on
+a submission is in the rules too, because a form can be bypassed with one curl.

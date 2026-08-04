@@ -93,11 +93,42 @@ service cloud.firestore {
     // ---- Waitlist -----------------------------------------------------------
     // Write-only drop box. Nobody can read it back, including via the client,
     // so a scraped API key can't harvest the email list.
+    // ---- Waitlist, votes, hellos and competition entries --------------------
+    // One collection for every form in the house: the email box, the "build this
+    // next" votes, the Say Hi messages and the Make it rain answers. `note`
+    // carries a prefix (`vote:`, `hi:`, `rain:`) so they can be told apart, and
+    // that is why there is no second collection to write rules for.
+    //
+    // Anyone may create; nobody may edit or delete; only the owner may read.
+    // Every size limit below is enforced HERE and nowhere else that matters — the
+    // forms truncate before sending, but a client can be bypassed with one curl,
+    // so a missing cap here is a cap that does not exist. `note` had no limit
+    // until 4 Aug 2026, which meant a megabyte of text was a legal submission.
     match /waitlist/{docId} {
       allow create: if request.resource.data.email is string
                     && request.resource.data.email.size() <= 200
-                    && request.resource.data.keys().hasOnly(['email', 'note', 'createdAt']);
-      allow read, update, delete: if false;
+                    && request.resource.data.note is string
+                    && request.resource.data.note.size() <= 600
+                    && request.resource.data.keys().hasOnly(['email', 'note', 'createdAt', 'shots'])
+                    // `shots` is optional: up to three image URLs from a Say Hi
+                    // message. Length-capped so the field cannot become a payload.
+                    && (!request.resource.data.keys().hasAny(['shots'])
+                        || (request.resource.data.shots is list
+                            && request.resource.data.shots.size() <= 3));
+
+      // Read is for the owner's inbox at /inbox, and for nobody else. Matched on
+      // the token's verified email rather than a uid, because a uid is invisible
+      // in the console and impossible to check by eye.
+      //
+      // KEEP ONLY THE ADDRESS GAURAV ACTUALLY SIGNS IN WITH. Both are here
+      // because both appear in this project and the choice is his, not mine.
+      allow read: if request.auth != null
+                  && request.auth.token.email in [
+                       'heygauravsingh@gmail.com',
+                       'ravit@uengage.in'
+                     ];
+
+      allow update, delete: if false;
     }
 
     // Everything else: denied (implicit, but stated for the next reader).

@@ -36,6 +36,15 @@
           "value": "noindex"
         }
       ]
+    },
+    {
+      "source": "/inbox",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }
