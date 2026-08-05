@@ -34,6 +34,16 @@
 (function () {
   var DB = "gg_voice";
   var STORE = "assets";
+  /* REMOTE-BEGIN — everything between these markers is removed from the Chrome Web Store build by
+     `tools/build.mjs`. It must stay in one contiguous block for that reason.
+
+     **Why it is removed rather than merely unused.** The store build bundles both files, so this
+     path never runs there — but Chrome Web Store review rejected v1.1.0 for "including remotely
+     hosted code in a Manifest V3 item", and a reviewer or scanner reads the package, not the control
+     flow. A GitHub URL that fetches a WebAssembly module's data payload looks exactly like the thing
+     the policy forbids whether or not it is reachable. So the store package contains no such URL and
+     no such fetch. The beta build handed to testers keeps this, because a build distributed outside
+     the store is not governed by store policy. */
   var RELEASE = "https://github.com/heygauravsingh/GuideGen/releases/download/voice-v1/";
 
   /* The two files, their expected size and hash, and where each one lives.
@@ -164,6 +174,8 @@
 
   var inFlight = {};
 
+  /* REMOTE-END */
+
   /* Returns an ArrayBuffer for one asset. Concurrent callers share a single fetch —
      `init()` in tts.js asks for both, and a second export pressed while the first is
      still downloading must not start the download again. */
@@ -208,7 +220,16 @@
     return Promise.all(names.map(function (n) {
       var a = ASSETS[n];
       return idbGet(keyOf(a))
-        .then(function (hit) { return !!(hit && hit.byteLength === a.bytes); })
+        .then(function (hit) {
+          if (hit && hit.byteLength === a.bytes) return true;
+          /* A bundled copy is as good as a cached one — in the store build both files ship inside
+             the package, so nothing is ever fetched and the answer to "will this cost a download?"
+             is no. Before this, that build reported "not cached" and any caller would have warned
+             about a download that cannot happen. */
+          return fetch(extUrl(a.local), { method: "GET" })
+            .then(function (res) { return !!res.ok; })
+            .catch(function () { return false; });
+        })
         .catch(function () { return false; });
     })).then(function (all) {
       return all.every(Boolean);
