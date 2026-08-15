@@ -91,7 +91,7 @@
         <a href="/install" class="btn brand-btn lg">Install it now</a>
         <a href="#how" class="btn lg">See how it works</a>
       </div>
-      <p class="cta-note">Chrome, Edge, Brave and Arc · Free account · Guides stay on your device</p>
+      <p class="cta-note">Chrome, Edge, Brave and Arc · Free account · Guides stay on your device, and so does <a href="#video">Backpocket AI</a></p>
       <p class="cta-note">Two-minute manual install while the Chrome Web Store review runs.
         <a href="#get">Rather wait for the store?</a></p>
 
@@ -218,11 +218,19 @@
         voice reading each step aloud.
       </p>
       <div class="steps">
+        <!-- **The positioning, 15 Aug 2026.** Gaurav's call: every product in the house is powered
+             by Backpocket AI. GuideGen is the awkward one, because this page already says "AI" a lot
+             and means somebody *else's* — the handoff you paste into ChatGPT or Claude. So the name
+             is introduced exactly where it belongs, on the one model this product actually runs, and
+             the difference is stated rather than left to be inferred. See the FAQ entry below and
+             the house page's single definition. -->
         <div>
-          <h3>It speaks without a cloud</h3>
-          <p>The voice is a neural text-to-speech model that runs on your machine. The words of your
-          internal processes are never sent to a speech service — there is no speech service. The
-          voice ships inside the extension, so there is nothing to fetch and nothing to wait for.</p>
+          <h3><b>Backpocket AI</b> speaks it, on your machine</h3>
+          <p>The voice is Backpocket AI: a neural text-to-speech model that runs on your own
+          computer. The words of your internal processes are never sent to a speech service — there
+          is no speech service. It ships inside the extension, so there is nothing to fetch and
+          nothing to wait for. <a href="https://www.backpocket.website/#ai">What Backpocket AI
+          is</a>, and where it runs in each tool.</p>
         </div>
         <div>
           <h3>Paced by what the step says</h3>
@@ -238,7 +246,7 @@
       </div>
       <p style="color:var(--muted);margin-top:30px">
         Comes out as a <code>.webm</code> on your disk. Nothing about it touches a server — the
-        pictures, the voice and the muxing all happen in your browser.
+        pictures, Backpocket AI's voice and the muxing all happen in your browser.
       </p>
     </div>
   </section>
@@ -320,8 +328,8 @@
         <div class="card">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
           <h3>A narrated video</h3>
-          <p>1080p, one slide per step, spoken aloud in a natural voice that is synthesized on your
-          own computer — no speech service, nothing uploaded. <a href="#video">How the video
+          <p>1080p, one slide per step, read aloud by <b>Backpocket AI</b> on your own computer —
+          no speech service, nothing uploaded. <a href="#video">How the video
           works</a>.</p>
         </div>
 
@@ -411,7 +419,8 @@
       </p>
       <p style="color:var(--muted)">
         GuideGen records locally and exports locally. Every export format is generated inside your
-        browser, and even the voiceover is produced on your own machine. An account signs you in to
+        browser, and even the voiceover — <b>Backpocket AI</b>, running on your own machine — is
+        produced there. An account signs you in to
         the editor and is what makes publishing possible — it does not upload your guides. If you
         never publish one, we never receive your screenshots.
       </p>
@@ -546,6 +555,20 @@
     <div class="wrap">
       <h2 class="sec">Questions worth asking first</h2>
       <div class="faq">
+        <!-- **The one question this page creates for itself.** It says "AI" throughout meaning the
+             assistant *you* paste into, and now also carries Backpocket AI, which is ours and runs
+             locally. Two different things wearing one word is how a person ends up believing their
+             internal workflow was sent somewhere. Answered first, before the handoff questions. -->
+        <details>
+          <summary>Is Backpocket AI the same thing as the AI handoff?</summary>
+          <p>No, and the difference is worth thirty seconds. <b>Backpocket AI</b> is ours: it is the
+          voice that reads your narrated video, and it runs on your own computer — the model ships
+          inside the extension and nothing is sent anywhere to produce it. The <b>AI handoff</b> is
+          the opposite direction: it puts the written workflow on your clipboard so <em>you</em> can
+          paste it into whichever assistant you already use. Nothing is sent there either until you
+          paste it yourself. <a href="https://www.backpocket.website/#ai">Backpocket AI, defined in
+          one place</a> — where it runs depends on the tool, and each page says which.</p>
+        </details>
         <details>
           <summary>Which AI does the handoff work with?</summary>
           <p>All of them. It copies plain text to your clipboard — Markdown, with the steps grouped
