@@ -33,9 +33,23 @@
       : p;
   }
 
+  /* **Only ever a file inside this extension, and now it is enforced rather than assumed.**
+     The speech engine is two large bundled files that most sessions never need, so they are
+     attached on demand instead of costing every offscreen document 260KB of parse time. The shape
+     of that — build a <script>, set .src, append it — is also the shape of loading code off the
+     internet, which is banned outright in a Manifest V3 extension and is what v1.2.7 was rejected
+     for (the actual offender was a CDN URL inside the vendored jsPDF; see the note at the top of
+     that file). The path is checked against this extension's own origin before anything is
+     appended, so this function cannot become that even by mistake. */
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       const abs = url(src);
+      const base = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL
+        ? chrome.runtime.getURL("")
+        : null;
+      if (base && abs.indexOf(base) !== 0) {
+        return reject(new Error("Refusing to load a script from outside the extension: " + abs));
+      }
       if (document.querySelector('script[data-fstts="' + src + '"]')) return resolve();
       const s = document.createElement("script");
       s.src = abs;

@@ -22,6 +22,34 @@ see reachability** — a GitHub URL fetching a WASM payload looks like the forbi
 `node tools/build.mjs --check` fails if the store archive is missing either file, or if any remote
 URL survived in it. Run it before every upload.
 
+## It happened again on 15 Aug 2026, from a different file — read this before the next upload
+
+**v1.2.7 was rejected for the same policy**, and nothing above was wrong: the voice was bundled and
+`voicecache.js` was clean. The offender was **`lib/jspdf.umd.min.js`**, which ships an output mode
+(`pdfobjectnewwindow`) that builds a `<script src="…a public CDN…">` and `document.write`s it into a
+new window. Nothing in GuideGen calls it. **That does not matter** — it is remote-code loading
+inside a Manifest V3 package, and the review reads the package rather than the call graph. A second
+line in the same file, an `http://…/md5.js` attribution inside a licence comment, matched the same
+shape.
+
+Two things changed, and the second is the one that matters:
+
+- Both jsPDF output modes now throw, and the attribution keeps the credit without the URL. **Both
+  must be re-applied after any jsPDF upgrade** — there is a note at the top of the vendored file.
+- **`--check` no longer knows which file to distrust.** It used to read `voicecache.js`, the file
+  that had just been fixed the last time, which is exactly why this shipped. It now sweeps every
+  text file in the built archive — vendored libraries included — for fetchable `http(s)` URLs, the
+  known script CDNs by name, and `importScripts()` with a computed argument.
+
+**The lesson worth carrying: the check that catches a rejection must not be written to look at the
+file that caused it.** The next violation will come from somewhere else, and probably from a
+dependency nobody has read.
+
+One exemption exists, by filename, in `--check`: onnxruntime's bundle contains Emscripten's pthread
+bootstrap (`importScripts(e.data.urlOrBlob)`). It cannot run here — `tts.js` sets `numThreads = 1`
+and `proxy = false`, so no worker is created, and `wasmPaths` is pinned to `chrome.runtime.getURL`.
+`tts.js` also refuses, at runtime, to attach any script whose URL is not inside this extension.
+
 The beta build keeps the fetch on purpose: it is handed to testers directly rather than through the
 store, so store policy does not govern it, and 3.3MB is the difference between a tester trying it and
 not bothering.

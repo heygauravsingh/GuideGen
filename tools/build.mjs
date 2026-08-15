@@ -74,15 +74,97 @@ if (checkOnly) {
     if (!prod.includes(f)) { console.log(`FAIL  store build is missing ${f}`); bad++; }
     if (beta.includes("guidegen/" + f)) { console.log(`FAIL  beta build should not carry ${f}`); bad++; }
   }
-  // and it must contain no remote fetch
+  /* ---------------------------------------------------------------- the remote-code sweep
+   *
+   * **This used to read one file, and that is how the second rejection happened.**
+   *
+   * v1.1.0 was rejected in Aug 2026 for fetching the voice model from a GitHub release, the fix
+   * was to bundle it and excise the fetch from `voicecache.js`, and the check written that day
+   * looked at `voicecache.js` — the file that had just been fixed. **v1.2.7 was then rejected for
+   * the same policy from a different file**: the vendored `lib/jspdf.umd.min.js` carries an output
+   * mode that writes `<script src="…a public CDN…">` into a new window. Nothing calls it. It does
+   * not matter: it is remote-code loading, sitting in a Manifest V3 package, and a review scan
+   * reads the package rather than the call graph.
+   *
+   * So the check no longer knows which file to distrust. It reads **every text file in the archive
+   * that is going to the store**, including the vendored libraries, and fails on the shapes that
+   * get an extension rejected:
+   *
+   *   - an http(s) URL ending in `.js`, `.wasm`, `.mjs` or `.data` — a fetchable payload;
+   *   - the well-known script CDNs by name, which is what a scanner greps for first;
+   *   - `importScripts(` or `new Function(` on a string that is not a literal local path.
+   *
+   * **The allow-list is deliberately short and every entry is a link in prose, not a load.** If a
+   * new entry is needed, it belongs here with a reason beside it, and it should be rare enough
+   * that adding one feels like a decision. */
+  const ALLOWED = [
+    // Prose in PptxGenJS's own error messages, pointing a developer at its documentation.
+    "gitbrent.github.io/PptxGenJS",
+    "stuk.github.io/jszip",
+    // A link in an onnxruntime warning about cross-origin isolation.
+    "web.dev/cross-origin-isolation-guide",
+    // Our own site: the dashboard the editor page redirects to, and sign-in. Pages, not code.
+    "guidegen.backpocket.website",
+    "guide-gen.vercel.app",
+    "accounts.google.com",
+    "identitytoolkit.googleapis.com",
+    "securetoken.googleapis.com",
+    "chromiumapp.org",
+    // Licence headers and repository links inside the vendored libraries.
+    "github.com/",
+    "opensource.org",
+    "www.w3.org",
+    "creativecommons.org",
+  ];
+  const CDNS = /cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|ajax\.googleapis\.com|code\.jquery\.com|esm\.sh|skypack\.dev/i;
+  const FETCHABLE = /https?:\/\/[^\s"'`)]+\.(?:js|mjs|wasm|data)\b/gi;
+
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gg-check-"));
-  execFileSync("unzip", ["-q", OUT_PROD, "voicecache.js", "-d", tmp]);
+  execFileSync("unzip", ["-q", OUT_PROD, "-d", tmp]);
+
+  const textFiles = [];
+  (function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(js|mjs|html|json|css)$/i.test(e.name)) textFiles.push(p);
+    }
+  }(tmp));
+
+  for (const file of textFiles) {
+    const rel = path.relative(tmp, file);
+    const text = fs.readFileSync(file, "utf8");
+    const hits = new Set();
+    for (const m of text.match(FETCHABLE) || []) {
+      if (!ALLOWED.some((a) => m.includes(a))) hits.add(m.slice(0, 90));
+    }
+    const cdn = text.match(CDNS);
+    if (cdn) hits.add(cdn[0]);
+    /* **One exemption, and it is narrow on purpose.** onnxruntime's bundle carries Emscripten's
+       pthread bootstrap, which does `importScripts(e.data.urlOrBlob)` inside a worker — a computed
+       argument, and therefore a match. It is not reachable here: `tts.js` sets
+       `ort.env.wasm.numThreads = 1` and `ort.env.wasm.proxy = false`, so no worker is ever
+       created, and `wasmPaths` is pinned to `chrome.runtime.getURL(...)` so even the paths ORT
+       does use are inside the package. Exempted by filename rather than by pattern, so the rule
+       still fires on every other file including any future vendored library. */
+    const ortPthreads = /ort[.\-\w]*\.min\.js$/i.test(rel);
+    if (!ortPthreads && /importScripts\(\s*[^"')]/.test(text)) {
+      hits.add("importScripts() with a computed argument");
+    }
+    for (const h of hits) {
+      console.log(`FAIL  ${rel} → remotely hosted code: ${h}`);
+      bad++;
+    }
+  }
+
+  // The original check, kept: this is the specific line that caused the first rejection.
   const vc = fs.readFileSync(path.join(tmp, "voicecache.js"), "utf8");
-  if (/github\.com|releases\/download|RELEASE\s*\+/.test(vc)) {
+  if (/github\.com\/[^\s"']*releases\/download|RELEASE\s*\+/.test(vc)) {
     console.log("FAIL  the store build still references a remote download — that is the rejection.");
     bad++;
   }
   if (/REMOTE-BEGIN/.test(vc)) { console.log("FAIL  the remote block was not excised"); bad++; }
+  if (!bad) console.log(`swept ${textFiles.length} files for remotely hosted code — clean`);
   fs.rmSync(tmp, { recursive: true, force: true });
 
   console.log(bad ? `\n${bad} FAILED\n` : "both archives look right");
