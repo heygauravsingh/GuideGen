@@ -39,11 +39,20 @@
     ctx.closePath();
   }
 
+  /* **The block size is in CSS pixels, scaled up to bitmap pixels — not a fixed count of bitmap
+     pixels.** It was `12` flat, and because `dpr` is bitmap px per CSS px, that meant the sharper the
+     screen the weaker the redaction: 12 CSS px of destruction at dpr 1, six at dpr 2, four at dpr 3.
+     Rendered side by side the dpr-1 block is unreadable, dpr 2 shows every word's shape, and dpr 3 is
+     very nearly legible — and dpr 2 is what a Retina Mac captures, which is to say the normal case.
+     For a feature whose whole job is that something cannot be read afterwards, weakest-where-most-used
+     is the wrong way round. `block` is now CSS px and the caller multiplies. */
   function pixelate(ctx, x, y, w, h, block) {
     x = Math.round(x); y = Math.round(y);
     w = Math.round(w); h = Math.round(h);
     if (w <= 0 || h <= 0) return;
-    block = block || 10;
+    /* A floor as well as a scale: a downscaled capture can fold a fraction into `dpr` and drive the
+       block below the point where it destroys anything. */
+    block = Math.max(8, Math.round(block || 10));
     const tw = Math.max(1, Math.floor(w / block));
     const th = Math.max(1, Math.floor(h / block));
     const tmp = document.createElement("canvas");
@@ -78,9 +87,10 @@
     const dpr = step.dpr || 1;
     const scale = dpr;
 
-    // Redaction regions first.
+    // Redaction regions first. `12 * scale` keeps the block twelve *CSS* pixels wide whatever the
+    // capture density — see pixelate for what the flat 12 was doing on a Retina screen.
     (step.blurs || []).forEach((b) => {
-      pixelate(ctx, b.x * scale, b.y * scale, b.w * scale, b.h * scale, 12);
+      pixelate(ctx, b.x * scale, b.y * scale, b.w * scale, b.h * scale, 12 * scale);
     });
 
     // One accent, one idea: dim the page, lift the target back out of the dim,
