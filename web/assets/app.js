@@ -674,9 +674,20 @@
     } catch (e) { return ""; }
   }
 
+  /* Step ids come from `uid()` and are safe today, but a selector built from stored data is a
+     footgun waiting for the day that changes. */
+  function cssEscape(v) {
+    v = String(v);
+    if (window.CSS && CSS.escape) return CSS.escape(v);
+    return v.replace(/["\\]/g, "\\$&");
+  }
+
   function stepShell(step, i) {
     var card = mk("div", "step" + (step.type === "note" ? " is-note" : ""));
     card.dataset.i = String(i);
+    /* The id as well as the index, so `refreshStep` can find this card without counting
+       children — see the comment there for what counting cost. */
+    card.dataset.stepId = step.id;
 
     var gutter = mk("div", "gutter");
     var num = mk("div", "num");
@@ -1253,6 +1264,10 @@
         if (!show.length) return;
         var i = cur.steps.indexOf(s);
         var grp = mk("div", "netgrp");
+        /* Tagged, because the loop `return`s for any step with nothing to show — so `body.children`
+           is a filtered list while `i` indexes the unfiltered one. Scrolling to the focused step by
+           position therefore landed on a different step's group. Same fault as `refreshStep` had. */
+        grp.dataset.stepId = s.id;
         var gh = mk("div", "netgrph");
         gh.innerHTML = '<span class="n">' + (i + 1) + "</span><span class=\"tx\"></span>";
         gh.querySelector(".tx").textContent = (s.text || "").replace(/\s+/g, " ").trim();
@@ -1274,8 +1289,7 @@
         body.appendChild(none);
       }
       if (focusStepId) {
-        var idx = steps.map(function (s) { return s.id; }).indexOf(focusStepId);
-        var node = idx >= 0 ? body.children[idx] : null;
+        var node = body.querySelector('.netgrp[data-step-id="' + cssEscape(focusStepId) + '"]');
         if (node && node.scrollIntoView) node.scrollIntoView({ block: "start" });
       }
     }
@@ -1520,10 +1534,26 @@
   // step, which on a long guide means every canvas is redrawn and the page height
   // collapses and re-expands under the scroll position — very visible when the
   // thing that triggered it was drawing a small box halfway down.
+  /* **`wrap.children[i]` was not this step's card, and that is why a redaction did not appear
+     until the page was reloaded.**
+     `renderEditor` puts an `insertRow` — the "+ add a step here" row — *before every card* and one
+     after the last, so the children of `#ed-steps` alternate: row, card, row, card. The card for
+     step `i` is at child index `2i + 1`. Reading `children[i]` therefore returned an insert row for
+     step 0, step 0's card for step 1, and so on — so `replaceChild` painted the freshly redacted
+     card over a "+" row while the real card sat there unchanged, showing the old pixels. A reload
+     rebuilt everything from `cur.steps`, which had the blur all along; that is exactly why it "only
+     worked after a refresh".
+     Two other callers went through the same door: clearing every blur on a step, and one of the
+     network-log removals. Both looked ignored for the same reason.
+     Found by the step's own id rather than by any index, so a reorder or an insert between the save
+     and the repaint cannot reintroduce this. */
   function refreshStep(i) {
     var wrap = el("ed-steps");
-    var old = wrap.children[i];
     var step = cur.steps[i];
+    var old = step
+      ? wrap.querySelector('.step[data-step-id="' + cssEscape(step.id) + '"]')
+      : null;
+    if (!old) old = wrap.querySelectorAll(".step")[i];
     if (!old || !step || cur.kind !== "local") return renderEditor();
     var card = localCard(step, i);
     wrap.replaceChild(card, old);
