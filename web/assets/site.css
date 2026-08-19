@@ -1568,3 +1568,33 @@ header.site .menu-wrap .menu { top: calc(100% + 8px); }
   font-size: 14px; font-weight: 560; color: var(--err); background: var(--panel);
   border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px;
 }
+
+/* ---------------------------------------------------------------- the free claim
+ *
+ * Added 18 Aug 2026. The site said "free" in four places and never once said *why*, and an
+ * unexplained "free" does not read as generous — it reads as a trial about to expire, or as a
+ * product planning to harvest something. The answer here is architectural rather than a promise:
+ * nothing renders in the cloud, so there is no compute to bill for. That belongs on the page
+ * directly above the install button, because it is the last objection before the click.
+ *
+ * `.claim` is the one-line version under the hero headline; `.why` is the full argument. */
+.claim {
+  display: inline-block; margin: 26px 0 20px; padding: 13px 19px;
+  border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 11px;
+  background: var(--brand-soft); color: var(--ink);
+  font-size: 17px; font-weight: 600; line-height: 1.5;
+}
+.why { border: 1px solid var(--line); border-radius: 15px; padding: 27px 30px; margin: 0 0 30px; }
+.why h3 { font-size: 23px; font-weight: 750; letter-spacing: -.012em; margin: 0 0 13px; }
+.why p { font-size: 17px; line-height: 1.62; color: var(--muted); margin: 0 0 15px; }
+.why p:last-of-type { margin-bottom: 0; }
+.why b { color: var(--ink); font-weight: 700; }
+.nolist { display: flex; flex-wrap: wrap; gap: 9px; margin: 20px 0 0; padding: 0; list-style: none; }
+.nolist li {
+  font-size: 15px; font-weight: 700; color: var(--brand); background: var(--brand-soft);
+  border-radius: 999px; padding: 8px 15px;
+}
+@media (max-width: 640px) {
+  .claim { font-size: 15.5px; padding: 11px 15px; }
+  .why { padding: 21px 20px; }
+}
