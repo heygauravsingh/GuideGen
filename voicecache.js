@@ -34,18 +34,6 @@
 (function () {
   var DB = "gg_voice";
   var STORE = "assets";
-  /* REMOTE-BEGIN — everything between these markers is removed from the Chrome Web Store build by
-     `tools/build.mjs`. It must stay in one contiguous block for that reason.
-
-     **Why it is removed rather than merely unused.** The store build bundles both files, so this
-     path never runs there — but Chrome Web Store review rejected v1.1.0 for "including remotely
-     hosted code in a Manifest V3 item", and a reviewer or scanner reads the package, not the control
-     flow. A GitHub URL that fetches a WebAssembly module's data payload looks exactly like the thing
-     the policy forbids whether or not it is reachable. So the store package contains no such URL and
-     no such fetch. The beta build handed to testers keeps this, because a build distributed outside
-     the store is not governed by store policy. */
-  var RELEASE = "https://github.com/heygauravsingh/GuideGen/releases/download/voice-v1/";
-
   /* The two files, their expected size and hash, and where each one lives.
      `local` is the in-package path — checked first, and absent from the store build. */
   var ASSETS = {
@@ -139,6 +127,33 @@
     });
   }
 
+  // ---------------------------------------------------------------- the one entry point
+
+  var inFlight = {};
+
+  /* REMOTE-BEGIN — everything between these markers is removed from the Chrome Web Store build by
+     `tools/build.mjs`. It must stay in one contiguous block for that reason, and it must contain
+     *only* the fetching itself.
+
+     **Why it is removed rather than merely unused.** The store build bundles both files, so this
+     path never runs there — but Chrome Web Store review rejected v1.1.0 for "including remotely
+     hosted code in a Manifest V3 item", and a reviewer or scanner reads the package, not the control
+     flow. A GitHub URL that fetches a WebAssembly module's data payload looks exactly like the thing
+     the policy forbids whether or not it is reachable. So the store package contains no such URL and
+     no such fetch. The beta build handed to testers keeps this, because a build distributed outside
+     the store is not governed by store policy.
+
+     **Keep the boundary tight.** v1.2.8 shipped with these markers wrapped around the whole middle
+     of the file — `ASSETS`, the IndexedDB helpers, `keyOf`, `verify` and `inFlight` were all inside
+     them. The store build therefore excised the definitions that `get()`, `cached()` and the
+     `window.FSVoice` assignment on the last line all still referenced, so the IIFE threw
+     `ReferenceError: ASSETS is not defined` before it ever reached that assignment. `FSVoice` was
+     never created, and every narrated export in the store build fell back to a silent captioned
+     video reporting "voicecache.js did not load". Nothing between these markers may be referenced
+     from outside them. `tools/build.mjs --check` now runs the excised file and fails if
+     `window.FSVoice` is missing, which is the check that would have caught it. */
+  var RELEASE = "https://github.com/heygauravsingh/GuideGen/releases/download/voice-v1/";
+
   // ---------------------------------------------------------------- fetching
 
   /* Streamed rather than a plain arrayBuffer() so there is a real progress number to
@@ -169,10 +184,6 @@
       })();
     });
   }
-
-  // ---------------------------------------------------------------- the one entry point
-
-  var inFlight = {};
 
   /* REMOTE-END */
 

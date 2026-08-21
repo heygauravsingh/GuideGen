@@ -42,6 +42,13 @@
   /* One frame of the wrong colours is very visible in a 296px panel. popup.js
      removes this as soon as it has stamped data-theme. */
   body.pre-theme { visibility: hidden; }
+  /* No max-height or overflow here on purpose, and it was tried. Chrome caps a popup
+     at 600px and scrolls the document itself past that, so a rule of our own is
+     inert — measured both ways in a 296x600 viewport, identical. The problem this
+     panel had was never that it could not scroll; it was that arming catch-up capture
+     grows it from 569px to 619px, or to 714px once there are steps to capture, and
+     everything the switch reveals lands below the fold with nothing to suggest it is
+     there. That is fixed in popup.js, where the reveal happens. */
   body {
     width: 296px; margin: 0;
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
@@ -326,11 +333,19 @@
       <!-- The same Tier 2 opt-in for catch-up, separate because the exposure is
            different: this one would hold failed request and response bodies for
            seven days, unattended, on every armed site. Its own switch, its own
-           decision. -->
+           decision.
+
+           The title names catch-up rather than repeating the one above it. While a
+           site is armed both controls are on screen at once, and two checkboxes
+           reading "Include full API requests & responses" a few centimetres apart
+           read as the same control drawn twice — which makes the one that is off
+           look like a rendering fault rather than a second decision. It has to say
+           it in full rather than "include them too": during a recording the control
+           above is hidden, so a title that leans on it would have no antecedent. -->
       <label class="opt tight" id="bufBodyOpt" hidden>
         <input type="checkbox" id="bufBodies" />
         <span>
-          <b>Include full API requests &amp; responses</b>
+          <b>Include full API requests &amp; responses in catch-up</b>
           <small>Held for 7 days on armed sites, like the rest of the capture.</small>
         </span>
       </label>

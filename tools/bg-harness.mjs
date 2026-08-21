@@ -57,7 +57,12 @@ export function harness() {
     tabs: {
       query: (q, cb) => cb([]),
       sendMessage() {},
-      get(id, cb) { cb(harnessTabs[id]); },
+      /* Asynchronous, because Chrome's is. It used to call back synchronously, and
+         that hid a real race: `netRecord` does a `tabs.get` before it remembers a
+         request as body-eligible, so in Chrome a body posted by the page can reach
+         the worker *first*. A synchronous stub made that ordering impossible to
+         reproduce here. Do not make this synchronous again to make a test simpler. */
+      get(id, cb) { setTimeout(() => cb(harnessTabs[id]), 0); },
       captureVisibleTab: async (winId) => { captures.push(winId); return "data:image/png;base64,AAA"; },
       onActivated: { addListener: (fn) => listeners.activated.push(fn) },
       onUpdated: { addListener: (fn) => listeners.updated.push(fn) },

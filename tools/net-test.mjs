@@ -18,13 +18,15 @@
 // worker-side header mask, logging every request type, letting the page write a
 // log, and removing the correlation window each break a test here.
 //
-// One exception, deliberately kept: the `target.bodies` check inside `netBody` is
-// **not** isolable, because `netRecord` only remembers a request as body-eligible
-// when the same flag is on — so removing the second check leaves nothing for a
-// body to match and it is refused anyway. Two checks on one flag, at both ends of
-// the exchange, is the right shape for the one switch in this feature that governs
-// whether response bodies exist at all. Don't delete it because a mutation run
-// called it redundant.
+// **`target.bodies` inside `netBody` is now the only gate**, and that changed on
+// 21 Aug 2026. It used to be un-isolable: `netRecord` pushed body-eligible requests
+// onto an in-memory array and `netBody` matched against it, so with the flag off
+// there was nothing for a body to match and the second check looked redundant. That
+// array is gone — it lost bodies whenever the page won the race to the worker or the
+// MV3 worker had restarted (see section 13) — and `netBody` now matches against the
+// stored log, which exists whether or not Tier 2 is on. So the check carries the
+// whole switch on its own. Section 12 pins it: delete it and a body is stored for a
+// user who never opted in.
 import { harness, send, tick, request } from "./bg-harness.mjs";
 
 let failures = 0;
@@ -511,6 +513,105 @@ console.log("\n=== 12. curlOf: what it emits, and what it admits ===");
         curlOf({ method: "GET", scheme: "http", host: "localhost:3000", path: "/api",
                  reqHeaders: [["accept", "*/*"]] }).split("\n")[0],
         "curl -X GET 'http://localhost:3000/api' \\");
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n=== 12b. the opt-in is the only thing standing between a body and the log ===");
+//
+// Pinned separately because it became load-bearing on its own — see the header.
+{
+  const h = await armed(false);          // armed, Tier 2 NOT ticked
+  request(h, { method: "GET", url: "https://api.uengage.in/v2/orders", status: 200 });
+  await tick(200);
+  const r = await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/v2/orders", status: 200,
+    body: '{"customer":"real data"}', req: { headers: [["authorization", "x"]], body: "" },
+  }, { tab: TAB });
+  await tick(300);
+  const log = h.store["fs_bufnet"] || [];
+  check("the summary is still recorded", log.length, 1);
+  check("the body is refused", !!(r && r.ok), false);
+  check("and neither half of the exchange was stored",
+        ["body", "reqHeaders", "reqBody"].filter((k) => k in log[0]), []);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n=== 13. an exchange that arrives before its summary ===");
+//
+// The two halves race in Chrome. `netRecord` runs a `chrome.tabs.get` and two
+// storage reads before the request is in the log, while the page posts its body as
+// soon as `response.clone().text()` resolves — so the body reaching the worker first
+// is ordinary, not exotic. It used to be matched against an array held in memory and
+// was simply dropped when it arrived early, or when the MV3 worker had been killed
+// and restarted since. Catch-up capture lives in exactly that state, which is why the
+// loss was worst there.
+//
+// The harness's `tabs.get` is asynchronous **because Chrome's is** — a synchronous
+// stub makes this ordering impossible to reproduce, which is how it survived.
+{
+  const h = await armed(true);
+  request(h, { method: "GET", url: "https://api.uengage.in/v2/orders", status: 200 });
+  // No tick: the body wins the race to the worker.
+  const r = await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/v2/orders", status: 200,
+    body: '{"rows":1}', req: { headers: [["accept", "*/*"]], body: "" },
+  }, { tab: TAB });
+  await tick(400);
+  const log = h.store["fs_bufnet"] || [];
+  check("the body is accepted rather than dropped", !!(r && r.ok), true);
+  check("the summary is still a single entry", log.length, 1);
+  check("and the exchange landed on it", [!!log[0].body, !!log[0].reqHeaders], [true, true]);
+}
+{
+  // The same guarantee must not become "annotate anything": a body for a request
+  // webRequest never saw still writes nothing, which is the property that stops the
+  // page forging log entries over the channel it shares.
+  const h = await armed(true);
+  const r = await send(h, {
+    type: "fs_net_body", url: "https://api.uengage.in/v2/never-happened", status: 200,
+    body: '{"forged":true}', req: { headers: [], body: "" },
+  }, { tab: TAB });
+  await tick(400);
+  check("a body for a request that never happened is still refused", !!(r && r.ok), false);
+  check("and nothing was written", (h.store["fs_bufnet"] || []).length, 0);
+}
+{
+  // Two calls to one path get one exchange each, rather than both landing on the
+  // first row and one being lost.
+  const h = await armed(true);
+  request(h, { method: "GET", url: "https://api.uengage.in/v2/orders", status: 200 });
+  request(h, { method: "GET", url: "https://api.uengage.in/v2/orders", status: 200 });
+  await tick(200);
+  for (const n of [1, 2]) {
+    await send(h, {
+      type: "fs_net_body", url: "https://api.uengage.in/v2/orders", status: 200,
+      body: '{"call":' + n + '}', req: { headers: [], body: "" },
+    }, { tab: TAB });
+  }
+  await tick(400);
+  const log = h.store["fs_bufnet"] || [];
+  check("two calls to one path keep two bodies", log.filter((e) => e.body).length, 2);
+  check("and they are not the same body", log[0].body !== log[1].body, true);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n=== 14. switching Tier 2 on reaches a page that is already open ===");
+//
+// `netpatch.js` is injected once, when recorder.js attaches, and the worker decides
+// then whether it is wanted. Ticking the box afterwards used to change nothing until
+// the page was reloaded — the patch had been refused and nothing asked again — so a
+// user ticked it, did the thing they wanted a cURL for, and got status lines only.
+{
+  const h = await armed(false);
+  const before = await send(h, { type: "fs_net_patch" }, { tab: TAB });
+  check("with the box off the patch is refused", !!(before && before.ok), false);
+  h.broadcasts.length = 0;
+  await send(h, { type: "fs_buf_bodies", on: true });
+  await tick(100);
+  check("switching it on tells every open page to ask again",
+        h.broadcasts.filter((m) => m.type === "fs_net_patch_changed").length, 1);
+  const after = await send(h, { type: "fs_net_patch" }, { tab: TAB });
+  check("and the patch is granted the second time", !!(after && after.ok), true);
 }
 
 console.log(failures ? `\n${failures} failed\n` : "\nall passed\n");

@@ -79,3 +79,58 @@ node tools/recorder-test.mjs && node tools/buffer-test.mjs && node tools/net-tes
 Release procedure, including the build commands and every step that needs Gaurav's hands:
 `../../private/GuideGen/store/RUNBOOK.md`. **Do not touch the Chrome Web Store item while a review is pending** —
 uploading a package restarts the queue.
+
+## And once more on 21 Aug 2026 — this time the excision broke the file it was cutting
+
+**v1.2.8 shipped to the store with narration silently dead.** Every narrated export produced a
+silent captioned video and said *"Narration unavailable (voicecache.js did not load)"*. Nothing was
+wrong with the store policy work, and nothing was wrong in the checkout: `voicecache.js` in the
+repo was correct, and the beta build — which keeps the whole file — narrated fine. The damage was
+done by the excision itself.
+
+The `REMOTE-BEGIN` / `REMOTE-END` markers had been drawn far too wide. They opened just after
+`var STORE` and closed just before `get()`, so the block `tools/build.mjs` cut out of the store
+build contained not only the GitHub URL and `download()` but also **`ASSETS`, `extUrl()`, the three
+IndexedDB helpers, `keyOf()`, `sha256Hex()`, `verify()` and `inFlight`** — every one of which is
+still referenced by `get()`, `cached()`, and the `window.FSVoice = {…, ASSETS: ASSETS}` assignment
+on the file's last line. The store copy parsed cleanly and contained no remote URL, so it passed
+every check, then threw `ReferenceError: ASSETS is not defined` the moment `offscreen.html` ran it.
+`window.FSVoice` was never assigned, and `tts.js` reported the only thing it could see.
+
+Two changes:
+
+- **The markers now wrap only `RELEASE` and `download()`.** Everything else moved above
+  `REMOTE-BEGIN`. The rule is written into the marker comment: *nothing between the markers may be
+  referenced from outside them.*
+- **`--check` now runs the excised file** in a `node:vm` context with a bare `window` and fails
+  unless `window.FSVoice.get` exists afterwards. It needs no DOM, no `chrome` and no network,
+  because everything `voicecache.js` touches at load time is a `var` or a function declaration.
+
+**The lesson worth carrying — and it is a sharper version of the one above.** Every check we had
+asked *"is the forbidden thing absent?"*. Not one asked *"does the thing we shipped still work?"*.
+A build step that **removes** code needs a test that the remainder still runs, because the property
+being verified — absence — is satisfied perfectly by a file that has been cut to pieces. Cheap rule:
+**if a build transforms a file, the check must execute the transformed file, not just read it.**
+
+## Two rules from the 21 Aug 2026 catch-up capture bugs
+
+**Anything the worker holds only in memory is gone by the next event.** An MV3 service worker is
+killed after ~30s idle. `netBody` used to match a posted exchange against `netAwaitingBody`, an array
+`netRecord` pushed to — so a body was lost whenever the worker had restarted, and lost *again*
+whenever the page simply won the race (`netRecord` does a `chrome.tabs.get` and two storage reads
+before it would have remembered the request). Catch-up capture is idle-and-armed almost all of the
+time, which is precisely when the worker is dead, so the feature that depended on it worked least
+where it was needed most. **If a correlation has to survive more than one turn of the event loop, it
+belongs in storage.**
+
+**A decision the worker makes once, at attach, has to be re-askable.** `netpatch.js` is injected when
+recorder.js attaches and the worker decides then whether Tier 2 is wanted. Ticking the box afterwards
+changed nothing until the page reloaded, and the `patchAsked` latch is per page load — so on an armed
+site, catch-up burned the latch with the box off and pressing Start with it on attached no patch
+either. Any switch that gates an injection needs a broadcast and a latch that resets; re-injection is
+safe here because `netpatch.js` marks the window and returns early.
+
+**And a testing rule, because this is what hid it.** `bg-harness.mjs` called `tabs.get` back
+synchronously. Chrome does not. That one shortcut made the losing ordering impossible to reproduce,
+so the race lived in a file with an otherwise thorough test suite. **A stub that is more orderly than
+the real API does not simplify a test — it deletes the case the test existed to catch.**

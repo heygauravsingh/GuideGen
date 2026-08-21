@@ -35,6 +35,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_PROD = path.join(ROOT, "..", "GuideGen-Prod.zip");
@@ -164,6 +165,32 @@ if (checkOnly) {
     bad++;
   }
   if (/REMOTE-BEGIN/.test(vc)) { console.log("FAIL  the remote block was not excised"); bad++; }
+
+  /* **Does the excised file still run?** Both checks above passed for v1.2.8, which shipped with
+     `voicecache.js` broken: the REMOTE markers had been drawn around the whole middle of the file,
+     so the excision took `ASSETS`, the IndexedDB helpers, `keyOf`, `verify` and `inFlight` with it.
+     The result parses cleanly and contains no remote URL — it satisfies every check written above —
+     but throws `ReferenceError: ASSETS is not defined` on the last line of the IIFE, where
+     `window.FSVoice` is assigned. `FSVoice` was therefore never created, `tts.js` reported
+     "voicecache.js did not load", and every narrated export in the store build came out silent.
+
+     Grepping for what the excision must not remove would need updating every time the file gains a
+     helper. Running it needs nothing: evaluate the store copy the way `offscreen.html` does and ask
+     whether the one thing it exists to produce is there. Everything it touches at load time is a
+     `var` or a function declaration, so this needs no DOM, no `chrome`, and no network. */
+  try {
+    const sandbox = { window: {} };
+    vm.createContext(sandbox);
+    vm.runInContext(vc, sandbox, { filename: "voicecache.js" });
+    if (!sandbox.window.FSVoice || typeof sandbox.window.FSVoice.get !== "function") {
+      console.log("FAIL  the store voicecache.js ran but never set window.FSVoice — narration would be silent.");
+      bad++;
+    }
+  } catch (e) {
+    console.log(`FAIL  the store voicecache.js threw on load: ${e.message}`);
+    console.log("      the excision removed something outside the markers still refers to.");
+    bad++;
+  }
   if (!bad) console.log(`swept ${textFiles.length} files for remotely hosted code — clean`);
   fs.rmSync(tmp, { recursive: true, force: true });
 

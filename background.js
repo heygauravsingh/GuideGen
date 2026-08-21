@@ -946,6 +946,11 @@ const NET = {
   // Requests are attributed to the step they follow, so this is how long after a
   // click a request can land and still be considered its consequence.
   windowMs: 10000,
+  /* How long a body waits for its summary to land before it is given up on. The
+     product of the two stays inside windowMs — past that the match itself would
+     refuse the entry anyway, so waiting longer only delays a refusal. */
+  bodyTries: 12,
+  bodyRetryMs: 120,
   // Generous, because the editor has a place to read all of them (the API log
   // drawer) and a step that fired 30 requests is exactly the step someone is
   // trying to debug. The *inline* view is what stays small — that is a display
@@ -1041,10 +1046,16 @@ function netScrubHeaders(pairs) {
 const netStarted = {};
 
 let netChain = Promise.resolve();
-// requestId -> entry, for the short window between the summary landing and a body
-// arriving from the MAIN world for the same request. Matched on method+url+status
-// rather than requestId, because the page has no idea what a requestId is.
-let netAwaitingBody = [];
+
+/* Queues work on the same serial chain every log write uses, and hands back what
+   that work returned. `netChain` itself must never reject or every later write
+   would be skipped, so the chain continues from a swallowed copy while the caller
+   gets the real promise. */
+function netChainRun(fn) {
+  const run = netChain.then(fn);
+  netChain = run.then(() => {}, () => {});
+  return run;
+}
 
 async function netTarget(tab) {
   // Which log this request belongs to, or null for "don't record it". Recording
@@ -1100,13 +1111,6 @@ function netRecord(details, status, error) {
     if (scheme !== "https") entry.scheme = scheme;
     if (error) entry.error = String(error).replace(/^net::/, "");
     netAppend(target.key, entry, target.kind === "buf");
-    /* Remember it briefly so what netpatch.js sends can be matched to it. Every
-     * request, whatever its status: the exchange is captured in full when the user
-     * asked for it, and the status is not what decides whether they will want it. */
-    if (target.bodies) {
-      netAwaitingBody.push({ entry, key: target.key, isBuf: target.kind === "buf" });
-      netAwaitingBody = netAwaitingBody.filter((x) => Date.now() - x.entry.ts < NET.windowMs);
-    }
   });
 }
 
@@ -1136,15 +1140,6 @@ async function netBody(msg, sender) {
   if (!target || !target.bodies) return { ok: false };
   const status = Number(msg.status) || 0;
   const path = netPath(msg.url);
-  const hit = netAwaitingBody.filter(
-    (x) =>
-      x.key === target.key &&
-      x.entry.tabId === tab.id &&
-      x.entry.status === status &&
-      x.entry.path === path
-  )[0];
-  if (!hit) return { ok: false };
-  netAwaitingBody = netAwaitingBody.filter((x) => x !== hit);
 
   /* Both halves of every call, and the reason the success/failure line is gone is
    * in the netpatch.js header: nobody knows in advance which request they will need
@@ -1161,8 +1156,28 @@ async function netBody(msg, sender) {
   const reqHeaders = req ? netScrubHeaders(req.headers) : [];
   const rawReqBody = netScrubBody(req ? String(req.body || "") : "");
   const reqBody = rawReqBody.slice(0, NET.reqBodyChars);
-  netChain = netChain
-    .then(async () => {
+  /* Attaches the exchange to a request `webRequest` independently recorded, looked
+   * up in the **stored log** rather than in a list held in memory.
+   *
+   * It used to be matched against `netAwaitingBody`, an array `netRecord` pushed to.
+   * That lost bodies two ways, and both are ordinary rather than rare:
+   *
+   * 1. **The body can arrive first.** `netRecord` runs a `chrome.tabs.get` and two
+   *    storage reads before it would have remembered the request, while the page
+   *    posts its body as soon as `response.clone().text()` resolves. Whichever wins
+   *    is a coin toss, and when the body won it was dropped on the floor.
+   * 2. **The worker restarts.** An MV3 service worker is killed after ~30s idle and
+   *    anything held only in memory dies with it. Catch-up capture spends almost all
+   *    of its life in exactly that state — armed, unattended, nobody pressing
+   *    anything — which is why the loss was worst there.
+   *
+   * The stored log survives both. The security property is unchanged and is in fact
+   * the same sentence: a body only ever annotates an entry that is already in the
+   * log, so a page posting an exchange for a request it never made still writes
+   * nothing. `target.bodies` above is now the only gate on whether Tier 2 exists at
+   * all, so it is load-bearing on its own — see the note in tools/net-test.mjs. */
+  const attach = () =>
+    netChainRun(async () => {
       const list = await get(target.key, []);
       /* Two caps, because the two halves cost different amounts: a body is kilobytes,
        * a request line is hundreds of bytes. Both are counted per log, and a request
@@ -1170,21 +1185,43 @@ async function netBody(msg, sender) {
        * because a response was too long would be the wrong half to drop. */
       const overBodies = list.filter((e) => e.body).length >= NET.maxBodies;
       const overReqs = list.filter((e) => e.reqHeaders || e.reqBody).length >= NET.maxReqs;
-      if (overBodies && overReqs) return;
-      const e = list.filter(
-        (x) => x.ts === hit.entry.ts && x.path === hit.entry.path && x.status === status
-      )[0];
-      if (!e) return;
+      if (overBodies && overReqs) return true;
+      /* Newest first, and only inside the correlation window: the same endpoint is
+       * usually called more than once, and the exchange just posted belongs to the
+       * most recent of them. Entries already carrying an exchange are skipped so two
+       * calls to one path get one each instead of both landing on the same row. The
+       * list is appended in timestamp order, so the first entry older than the window
+       * ends the search. */
+      const now = Date.now();
+      let e = null;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const c = list[i];
+        if (now - (c.ts || 0) > NET.windowMs) break;
+        if (c.tabId !== tab.id || c.status !== status || c.path !== path) continue;
+        if (c.body || c.reqHeaders || c.reqBody) continue;
+        e = c;
+        break;
+      }
+      if (!e) return false;
       if (body && !overBodies) e.body = body;
       if (body && !overBodies && raw.length > body.length) e.bodyTruncated = raw.length;
-      if (overReqs) { await set({ [target.key]: list }); return; }
-      if (reqHeaders.length) e.reqHeaders = reqHeaders;
-      if (reqBody) e.reqBody = reqBody;
-      if (rawReqBody.length > reqBody.length) e.reqBodyTruncated = rawReqBody.length;
+      if (!overReqs) {
+        if (reqHeaders.length) e.reqHeaders = reqHeaders;
+        if (reqBody) e.reqBody = reqBody;
+        if (rawReqBody.length > reqBody.length) e.reqBodyTruncated = rawReqBody.length;
+      }
       await set({ [target.key]: list });
-    })
-    .catch(() => {});
-  return { ok: true };
+      return true;
+    });
+
+  /* If the summary has not landed yet, wait for it rather than dropping the body.
+   * Bounded by NET.windowMs overall, which is the same window the match itself
+   * uses — past it the request is no longer one this body could belong to. */
+  for (let i = 0; i < NET.bodyTries; i++) {
+    if (await attach()) return { ok: true };
+    await new Promise((r) => setTimeout(r, NET.bodyRetryMs));
+  }
+  return { ok: false };
 }
 
 /* The worker's own pass over a body netpatch.js already masked.
@@ -1903,6 +1940,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             });
             await set({ [K.bufNet]: list });
           }
+          /* Tell every page to ask about the patch again.
+           *
+           * `netpatch.js` is injected once, when recorder.js attaches, and the worker
+           * decides then whether it is wanted. Flipping this switch afterwards used to
+           * change nothing until the page was reloaded: the patch had already been
+           * refused, and nothing asked a second time. So a user ticked the box, did
+           * the thing they wanted a cURL for, and got only status lines. Re-injection
+           * is safe — `netpatch.js` marks the window and returns early if it is
+           * already installed. */
+          broadcast({ type: "fs_net_patch_changed" });
           sendResponse({ ok: true });
           break;
         }

@@ -27,6 +27,9 @@
   let orphaned = false;
   function mode() { return recording ? "rec" : buffering ? "buf" : null; }
   let attached = null;
+  // Declared here rather than beside askNetPatch(): sync() resets it, and sync() is
+  // reachable from the first storage callback. See the temporal-dead-zone note above.
+  let patchAsked = false;
 
   // Attach, detach or switch, whichever the current mode calls for. Called after
   // every state change rather than each caller deciding — recording starting while
@@ -36,6 +39,10 @@
     if (m === attached) { updatePill(); return; }
     if (attached) stop();
     attached = m;
+    // A new mode gets to ask about the patch again. Buffering with the opt-in off
+    // used to burn the latch for the whole page load, so pressing Start on an armed
+    // site — with the box ticked — attached no patch and captured no exchanges.
+    patchAsked = false;
     if (m) start(m);
   }
 
@@ -72,6 +79,13 @@
       if (typeof msg.count === "number") bufCount = msg.count;
       askBuffer();
     }
+    // The Tier 2 opt-in changed while this page was already open. Ask again: the
+    // worker refused the patch when the box was off, and nothing else would ever
+    // re-ask, so the box did nothing until a reload.
+    if (msg.type === "fs_net_patch_changed") {
+      patchAsked = false;
+      if (mode()) askNetPatch();
+    }
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -90,9 +104,10 @@
    * only the one Start was pressed in. The worker decides whether it is wanted;
    * asking is cheap and the answer is authoritative there.
    *
-   * Requested once per page. A second injection would chain a second patch onto
-   * the first and report every failure twice. */
-  let patchAsked = false;
+   * Asked once per attach rather than once per page: the answer depends on the
+   * Tier 2 opt-in, which the user can change while the page is open. Re-asking is
+   * safe because `netpatch.js` marks the window (`__ggNetPatched`) and returns
+   * early rather than chaining a second patch onto the first. */
   function askNetPatch() {
     if (patchAsked) return;
     patchAsked = true;
