@@ -88,7 +88,15 @@ async function startRecording(tab, opts) {
     [K.state]: { recording: true, guideId, stepCount: 0, captureBodies: !!(opts && opts.bodies) },
   });
   acked = 0;
+  /* Seed first so a start on a page that cannot be recorded — chrome://, the Web
+     Store, a PDF — still suppresses the navigation away from it, then take the
+     opening step. Without this a guide began at whatever the user did *second*:
+     "Scroll down the page", with no picture of the page being scrolled and no
+     address to open. `startUrl` was already on the guide but nothing rendered it,
+     so the one thing a reader needs first — where to begin — was the one thing the
+     guide never said. */
   seedContext(t);
+  await contextStep(t, "nav", true);
   if (t && t.id != null) await ensureInjected(t.id);
   broadcast({ type: "fs_recording_changed", recording: true, guideId });
   return guideId;
@@ -480,7 +488,12 @@ function shortUrl(u) {
   }
 }
 
-async function contextStep(tab, kind) {
+/* `opening` is the step a recording starts with — where the user already was when
+   they pressed Start. It is the same shape as a navigation step and takes the same
+   path, so nothing downstream needs a new case; it only skips the duplicate check,
+   because `seen` has just been seeded with this exact tab and url and would
+   otherwise suppress the one step that must never be suppressed. */
+async function contextStep(tab, kind, opening) {
   if (!tab || tab.id == null || !RECORDABLE.test(tab.url || "")) return;
   const state = await get(K.state, {});
   /* Buffered sessions get these too. They did not at first, and the result was a
@@ -493,7 +506,7 @@ async function contextStep(tab, kind) {
   if (!state.recording && !buffering) return;
 
   const sameTab = seen.tabId === tab.id;
-  if (sameTab && bareUrl(seen.url) === bareUrl(tab.url)) return;
+  if (!opening && sameTab && bareUrl(seen.url) === bareUrl(tab.url)) return;
   seen = { tabId: tab.id, url: tab.url };
 
   const text = kind === "switch" && tab.title
@@ -1725,7 +1738,7 @@ async function ensureOffscreen() {
     reasons: ["AUDIO_PLAYBACK", "BLOBS"],
     justification:
       "Render the narrated video export: Web Audio for the offline voice, " +
-      "MediaRecorder for the webm.",
+      "MediaRecorder for the video.",
   });
 }
 
@@ -1756,7 +1769,7 @@ function downloadVideo(url, filename) {
       return;
     }
     // Wait for the write to finish before closing the offscreen document — the
-    // blob: URL dies with it, and a half-written webm is worse than none.
+    // blob: URL dies with it, and a half-written video is worse than none.
     const watch = (delta) => {
       if (delta.id !== id || !delta.state) return;
       if (delta.state.current === "complete") {

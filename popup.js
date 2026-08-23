@@ -170,7 +170,7 @@ function bufRender(r) {
 // `after` runs once the card has been re-rendered. Anything that measures the panel
 // has to wait for that: the status round trip is two async hops, so a caller that
 // measures straight after calling this measures the layout it had before.
-function bufRefresh(after) {
+function bufRefresh(after) {   // eslint-disable-line no-unused-vars -- kept for callers that measure
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const t = tabs && tabs[0];
     bufTabId = t ? t.id : null;
@@ -188,26 +188,18 @@ el("bufArm").addEventListener("change", (e) => {
     { type: "fs_buf_arm", origin: bufOrigin, on, tabId: bufTabId },
     () => {
       if (chrome.runtime.lastError) return;
-      /* Arming grows the panel past Chrome's 600px popup ceiling — 569px to 619px
-         with nothing held, and to 714px once there are steps to capture — so the
-         document scrolls and the last thing in it, the account row, is left sliced
-         across the bottom edge. That half-cut line is the whole of what "look what
-         happens when I tap Catch-up capture" was: it reads as a broken panel rather
-         than as a panel with more below.
+      /* **Do not auto-scroll here.** Arming grows the panel, and a previous fix
+         scrolled the document to its end so the account row was not left sliced. That
+         shipped in 1.2.9 and traded one clipped edge for a worse one: scrolling to the
+         end pushes the header off the top, so the panel opened with "GuideGen" cut in
+         half instead. Choosing which end to slice is not a fix.
 
-         Scrolled to the end rather than to the card, because the card is already in
-         view and `scrollIntoView` on it does nothing — measured. Going to the end
-         moves by exactly the overflow, so the switch that was just pressed stays on
-         screen and the reveal below it is shown whole. */
-      bufRefresh(() => {
-        if (!on) return;
-        requestAnimationFrame(() => {
-          document.documentElement.scrollTo({
-            top: document.documentElement.scrollHeight,
-            behavior: "smooth",
-          });
-        });
-      });
+         What fits, fits — the spacing above was tightened until the ordinary armed
+         state does — and what does not is handled by the account row's bottom padding
+         absorbing the overflow, so the text stays readable while only whitespace is
+         clipped. Past that the document scrolls from the top, header visible, which is
+         what a panel with more content below should look like. */
+      bufRefresh();
     }
   );
 });

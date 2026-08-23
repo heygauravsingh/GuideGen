@@ -48,11 +48,11 @@ Every format crops each screenshot toward the thing you clicked, so the UI is re
 | **Markdown (.md)** | Images embedded as data URIs. |
 | **PDF (.pdf)** | Title page + paginated steps. |
 | **PowerPoint (.pptx)** | Title slide + one slide per step. |
-| **Narrated video (.webm)** | Slideshow of your steps, narrated by a built-in offline voice. |
+| **Narrated video (.mp4)** | Slideshow of your steps, narrated by a built-in offline voice. |
 | **Copy for AI** | The workflow as text on your clipboard: every step, the action it was, the URL and page title it happened on, grouped by page — plus the API log. Text only, no screenshots. |
 
 ### About the narrated video
-The video is rendered on a canvas and captured to `.webm`. With narration on, GuideGen synthesizes the speech itself — a neural voice (Piper) bundled in `lib/` and run in your browser — then mixes it into the recording. Nothing is uploaded and no voice service is called.
+The video is rendered on a canvas and captured to `.mp4` (H.264/AAC, so it opens in QuickTime, PowerPoint and a phone; `.webm` is the fallback if the browser cannot mux MP4). With narration on, GuideGen synthesizes the speech itself — a neural voice (Piper) bundled in `lib/` and run in your browser — then mixes it into the recording. Nothing is uploaded and no voice service is called.
 
 **Pace** — Very fast through Very slow — sets how quickly the voice reads. There's no seconds-per-step setting: each step stays on screen as long as its own text takes to say, so short steps go by quickly and wordy ones get room. The dialog shows the estimated video length as you change pace.
 

@@ -488,7 +488,7 @@
       item("pdf", "PDF document", "Title page + steps") +
       item("pptx", "PowerPoint", "One slide per step") +
       '<div class="sep"></div><div class="lbl">Video</div>' +
-      item("video", "Narrated video", "1080p .webm, needs the extension") +
+      item("video", "Narrated video", "1080p .mp4, needs the extension") +
       "</div></div>";
 
     var btn = document.getElementById("exp-btn");

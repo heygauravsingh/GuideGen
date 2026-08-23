@@ -147,9 +147,14 @@ console.log("\n=== 5. requests land on the step that caused them ===");
   await send(h, { type: "fs_stop" });
   await tick(300);
   const steps = guideSteps(h, guideId);
+  // The leading `[]` is the opening step — where the user was when they pressed
+  // Start. It is captured before anything has been clicked, so nothing has caused a
+  // request yet and an empty list is the right answer, not a miss.
+  check("the guide opens on the page the recording started from",
+        [steps[0].type, steps[0].text], ["nav", "Go to dash.uengage.in/orders"]);
   check("each step gets its own request",
         steps.map((s) => (s.network || []).map((r) => r.method + " " + r.status)),
-        [["GET 200"], ["POST 422"]]);
+        [[], ["GET 200"], ["POST 422"]]);
   check("the log itself is deleted once folded onto the steps",
         "fs_net_" + guideId in h.store, false);
   check("steps carry the tab they happened in, which is what makes that possible",
@@ -376,7 +381,11 @@ console.log("\n=== 10. the editor may remove a log, never write one ===");
   await send(h, { type: "fs_stop" });
   await tick(300);
 
-  const stepId = (h.store["fs_steporder_" + guideId] || [])[0];
+  // Index 0 is the opening step now — where the recording started, before anything
+  // was clicked. Pick the clicked step by name rather than by position, so this does
+  // not move again the next time the shape of a guide changes.
+  const stepId = (h.store["fs_steporder_" + guideId] || [])
+    .filter((id) => (h.store["fs_step_" + id] || {}).text === "Click")[0];
   check("the step has a log with its body", h.store["fs_step_" + stepId].network[0].body, "oops");
 
   await h.sandbox.bridge({ type: "gg_update_step", stepId, patch: { network: [{ method: "GET", path: "/fake", status: 200 }] } });

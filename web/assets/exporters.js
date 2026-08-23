@@ -466,9 +466,29 @@
     await pptx.writeFile({ fileName: safeName(guide.title) + ".pptx" });
   }
 
-  // ---------- Video (webm) with optional TTS narration ----------
+  // ---------- Video (mp4, falling back to webm) with optional TTS narration ----------
+  //
+  /* MP4 first, because the file has to survive being handed to somebody. A `.webm`
+     plays in a browser and almost nowhere else — QuickTime will not open it,
+     PowerPoint will not embed it, WhatsApp re-encodes or refuses it. That is the
+     wrong result for an export whose entire purpose is to be sent to a colleague.
+     Chrome's MediaRecorder has muxed H.264/AAC into MP4 since Chrome 126.
+
+     **The codec string must name AAC explicitly.** Asking for a bare `video/mp4`
+     passes `isTypeSupported` and produces a real MP4 — with **Opus** inside it
+     (measured: `video/mp4;codecs=avc1,opus`). Opus-in-MP4 is legal and is exactly
+     as unplayable in QuickTime and PowerPoint as the WebM we were trying to get
+     away from, so it would have looked fixed while changing nothing. `mp4a.40.2`
+     is AAC-LC and is what makes the file ordinary.
+
+     Baseline (`42E01E`) rather than Main: Chrome negotiates its own level anyway —
+     it answered `avc1.420028`, Baseline 4.0 — and baseline is the profile every
+     decoder handles. Main was also measured and produced a suspiciously small file
+     for identical input, which is not a thing to ship on. WebM stays as the tail of
+     the list so a Chrome without MP4 muxing still exports something. */
   function pickMime() {
     const c = [
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
       "video/webm;codecs=vp9,opus",
       "video/webm;codecs=vp8,opus",
       "video/webm",
@@ -476,6 +496,11 @@
     for (const m of c)
       if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
     return "";
+  }
+  // The extension has to follow whatever was actually negotiated, not what was
+  // asked for. A WebM written as `.mp4` is worse than an honest `.webm`.
+  function extFor(mime) {
+    return String(mime || "").indexOf("video/mp4") === 0 ? "mp4" : "webm";
   }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -912,8 +937,9 @@
     await stopped;
 
     prog(0.98, "Finalizing video…");
-    const blob = new Blob(chunks, { type: (mime || "video/webm").split(";")[0] });
-    const filename = safeName(guide.title) + ".webm";
+    const type = (mime || "video/webm").split(";")[0];
+    const blob = new Blob(chunks, { type });
+    const filename = safeName(guide.title) + "." + extFor(type);
     // An offscreen document can't start a download itself — it only has
     // chrome.runtime — so it takes the blob and hands it to the service worker.
     if (opts.onBlob) await opts.onBlob(blob, filename);

@@ -199,5 +199,42 @@ console.log("\n=== 6. a navigation the previous step already explains ===");
   ]), ["click:Click", 'switch:Switch to the "X" tab']);
 }
 
+// ---------------------------------------------------------------------------
+console.log("\n=== 7. the opening step: where the recording started ===");
+//
+// A guide used to begin at whatever the user did *second*. Press Start on a page,
+// scroll, and step 1 read "Scroll down the page" — no picture of the page being
+// scrolled and no address to open. `startUrl` was on the guide the whole time and
+// nothing rendered it, so the first thing a reader needs was the one thing missing.
+{
+  const h = harness();
+  h.harnessTabs[1] = { id: 1, windowId: 9, url: "https://www.uengage.io/", title: "uEngage", active: true };
+  const guideId = await h.sandbox.startRecording(h.harnessTabs[1], {});
+  await tick();
+  check("the recording opens with where it started", stepsOf(h), [
+    { type: "nav", text: "Go to uengage.io" },
+  ]);
+  const ids = h.store["fs_steporder_" + guideId] || [];
+  const first = h.store["fs_step_" + ids[0]];
+  check("it carries the full url, not just the readable form", first.url, "https://www.uengage.io/");
+  check("and a screenshot of the starting screen", !!first.screenshot, true);
+
+  // The suppression it has to survive: `seen` was just seeded with this exact tab
+  // and url, which is what would otherwise have swallowed it.
+  h.listeners.updated.forEach((fn) => fn(1, { status: "complete" }, h.harnessTabs[1]));
+  await tick();
+  check("the page settling afterwards does not repeat it", stepsOf(h).length, 1);
+}
+{
+  // A start on a page that cannot be recorded still has to seed the context, or the
+  // navigation away from it arrives as a spurious first step.
+  const h = harness();
+  h.harnessTabs[1] = { id: 1, windowId: 9, url: "chrome://extensions", title: "Extensions", active: true };
+  await h.sandbox.startRecording(h.harnessTabs[1], {});
+  await tick();
+  check("a chrome:// start makes no opening step", stepsOf(h), []);
+  check("and does not throw", true, true);
+}
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);
