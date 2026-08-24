@@ -647,6 +647,43 @@ footer.site .spacer { flex: 1; }
    moment the reader looked at the screenshot — Next was gone exactly when it was
    wanted. Sticky keeps it reachable at any scroll position without covering the top of
    the picture, and the backdrop keeps the label legible over a screenshot behind it. */
+/* ---------- the tour stop: dim, spotlight, callout ----------
+   An instruction above a picture with a Next button underneath is a deck. An
+   instruction pinned to the thing it is talking about is a walkthrough. */
+.viewer.is-walk .vstep figure { position: relative; }
+.vdim {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  transition: opacity 160ms ease;
+}
+.vcall {
+  position: absolute; z-index: 3;
+  width: min(320px, 74%);
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 13px 14px 12px; text-align: left; line-height: 1.45;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  transform: translateY(18px);
+}
+/* Flipped above the target when the target sits low, so the callout never hangs off
+   the bottom of the picture. */
+.vcall.above { transform: translateY(-100%) translateY(-18px); }
+/* No target to pin to — sit at the foot of the picture instead of guessing. */
+.vcall.is-loose {
+  position: static; width: auto; transform: none; margin: 0;
+  border-radius: 0; border: 0; border-top: 1px solid var(--line);
+  box-shadow: none;
+}
+.vcall-t { margin: 0 0 10px; font-size: 15.5px; font-weight: 600; letter-spacing: -0.012em; }
+.vcall-r { display: flex; align-items: center; gap: 10px; }
+.vcall-n {
+  flex: 1; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.vcall-done { flex: 1; font-size: 12.5px; color: var(--muted); }
+.vcall-b { padding: 7px 13px; font-size: 13.5px; }
+.vcall-b svg { width: 14px; height: 14px; }
+/* The hotspot has to sit above the dimming it is the hole in. */
+.vspot { z-index: 2; }
+
 .vwalk {
   position: sticky; bottom: 0; z-index: 5;
   margin: 8px 0 0; padding: 8px 0 10px;
@@ -668,6 +705,9 @@ footer.site .spacer { flex: 1; }
 }
 .vwalk-count b { color: var(--ink); font-weight: 650; }
 .vwalk-b { padding: 9px 15px; font-size: 14px; }
+/* Continuing belongs to the callout on the picture. Two Next buttons on one screen is
+   a question the reader has to answer before they can carry on. */
+.viewer.is-walk .vwalk [data-go="next"] { display: none; }
 .vwalk-b svg { width: 15px; height: 15px; }
 .vwalk-b:disabled { opacity: 0.4; cursor: default; }
 /* ---------- walkthrough layout ----------
@@ -680,7 +720,9 @@ footer.site .spacer { flex: 1; }
 /* The number lives in the counter at the bottom now, so a second one in the margin is
    the same fact twice and costs the picture its width. */
 .viewer.is-walk .vstep .n { display: none; }
-.viewer.is-walk .vstep .txt { font-size: 20px; letter-spacing: -0.02em; margin: 0 0 4px; }
+/* The instruction lives in the callout on the picture now. Leaving a copy above it
+   as well is the same sentence twice and pushes the picture down the page. */
+.viewer.is-walk .vstep .txtrow { display: none; }
 .viewer.is-walk .vstep figure { margin-top: 12px; }
 /* Everything that describes the *document* rather than the step. In scroll mode this
    is a useful header; in walkthrough it is 130px of chrome between the reader and the
@@ -707,6 +749,10 @@ footer.site .spacer { flex: 1; }
 }
 /* The picture is the control in this mode — say so with the cursor. */
 .viewer.is-walk .vstep figure { cursor: pointer; }
+/* And the zoom button goes with it. Pressing the picture advances here, so a second
+   control sitting on top of it that does something else entirely is exactly the
+   ambiguity this mode exists to remove. Zoom is still one click away in Scroll. */
+.viewer.is-walk .zoombtn { display: none !important; }
 .viewer.is-walk .vstep figure:hover { border-color: var(--brand); }
 @media (prefers-reduced-motion: reduce) {
   .vwalk-fill { transition: none; }

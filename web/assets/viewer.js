@@ -702,6 +702,7 @@
     // pressed is worse than none.
     var lastSpot = els[els.length - 1].querySelector(".vspot");
     if (lastSpot) lastSpot.classList.toggle("is-end", walkAt === els.length - 1);
+    if (walkOn) dressStep(els[walkAt], walkAt, els.length);
 
     var bar = main.querySelector(".vwalk");
     if (bar) {
@@ -724,6 +725,64 @@
       var top = el.getBoundingClientRect().top + window.scrollY - 76;
       window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }
+  }
+
+  /* Turns the visible step into a tour stop: the rest of the screenshot dimmed, the
+   * target left bright, and the instruction in a callout pinned beside it with the
+   * button that continues.
+   *
+   * **This is what stops it being a slide player.** An instruction above a picture and
+   * a Next button underneath is a deck; an instruction *attached to the thing it is
+   * talking about* is a walkthrough. The reader's eye never has to travel between the
+   * words and the place they refer to, which is the entire difference.
+   *
+   * Degrades on purpose. A step with no click position — a navigation, or any guide
+   * published before the position was recorded — gets the same callout at the foot of
+   * the picture and no dimming, because dimming around a point we are guessing at
+   * would point confidently at the wrong control. */
+  function dressStep(el, i, total) {
+    var fig = el.querySelector("figure");
+    if (!fig) return;
+    var old = fig.querySelector(".vcall");
+    if (old) old.remove();
+    var dim = fig.querySelector(".vdim");
+    if (dim) dim.remove();
+
+    var spot = fig.querySelector(".vspot");
+    var fx = spot ? parseFloat(spot.style.left) : null;
+    var fy = spot ? parseFloat(spot.style.top) : null;
+    var last = i === total - 1;
+
+    if (spot) {
+      var d = document.createElement("div");
+      d.className = "vdim";
+      // A hole punched at the target. One element and one gradient rather than four
+      // positioned panels, so it stays exact at every image width.
+      d.style.background =
+        "radial-gradient(circle at " + fx + "% " + fy + "%, " +
+        "rgba(0,0,0,0) 0, rgba(0,0,0,0) 52px, rgba(0,0,0,0.42) 104px, rgba(0,0,0,0.52) 100%)";
+      fig.insertBefore(d, fig.firstChild.nextSibling);
+    }
+
+    var call = document.createElement("div");
+    call.className = "vcall" + (spot ? "" : " is-loose") +
+      (fy != null && fy > 62 ? " above" : "");
+    if (spot) {
+      call.style.left = Math.min(78, Math.max(4, fx)) + "%";
+      call.style.top = fy + "%";
+    }
+    call.innerHTML =
+      '<p class="vcall-t"></p>' +
+      '<div class="vcall-r"><span class="vcall-n">' + (i + 1) + " of " + total + "</span>" +
+      (last
+        ? '<span class="vcall-done">End of guide</span>'
+        : '<button class="btn brand-btn vcall-b" data-go="next">Next' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>') +
+      "</div>";
+    // textContent, not innerHTML: the step text is the user's and must never be markup.
+    call.querySelector(".vcall-t").textContent =
+      (el.querySelector(".txt") || {}).textContent || "";
+    fig.appendChild(call);
   }
 
   function setMode(mode, fromClick) {
@@ -846,6 +905,8 @@
          is pointing at is what makes this read as *using* the product rather than
          paging a deck — so it advances, and in scroll mode it simply scrolls on to the
          step it leads to rather than doing nothing. */
+      var cb = e.target.closest(".vcall-b");
+      if (cb) { e.preventDefault(); return walkShow(walkAt + 1, true); }
       var spot = e.target.closest(".vspot");
       if (spot) {
         e.preventDefault();
