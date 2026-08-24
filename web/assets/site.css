@@ -486,6 +486,29 @@ footer.site .spacer { flex: 1; }
   border-radius: 6px; padding: 3px 7px; margin-bottom: 6px;
 }
 
+/* ---------- the three verbs ----------
+   Under the hero, above everything else: the whole shape of the product in three
+   lines. Numbered because it genuinely is a sequence — you cannot redact a recording
+   you have not made. */
+.verbs {
+  list-style: none; counter-reset: v; padding: 0;
+  margin: 30px 0 0; display: grid; gap: 14px;
+  /* Exactly three, not `auto-fit` — the sequence is three steps and always will be,
+     and auto-fit was leaving a collapsed fourth track on a wide viewport. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 640px) { .verbs { grid-template-columns: 1fr; } }
+.verbs li {
+  counter-increment: v; padding-top: 13px; border-top: 2px solid var(--line);
+}
+.verbs li::before {
+  content: counter(v);
+  font-size: 12px; font-weight: 700; color: var(--brand);
+  font-variant-numeric: tabular-nums; display: block; margin-bottom: 5px;
+}
+.verbs b { display: block; font-size: 16.5px; letter-spacing: -0.015em; margin-bottom: 3px; }
+.verbs span { display: block; font-size: 14px; line-height: 1.55; color: var(--muted); }
+
 /* ---------- scroll vs walkthrough ----------
    Two ways to read one guide. Both render the same steps from the same DOM nodes —
    the walkthrough hides all but one — so anchors, the lightbox and #step-N links keep

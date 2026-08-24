@@ -1985,7 +1985,22 @@
         "</span></label>"
       : "";
 
-    el("modal").innerHTML = body + exportRow +
+    /* The embed snippet, offered only once the guide is actually published — before
+       that there is nothing to point an iframe at. `?embed=1` strips our house bar,
+       nav and promo, so what lands on someone else's page is the guide and one quiet
+       credit line rather than our chrome inside their layout. */
+    var embedRow = remoteId
+      ? '<p style="margin:16px 0 6px"><b>Embed it on your own site</b></p>' +
+        '<div class="field"><input id="sh-embed" readonly value="' +
+        escapeHtml('<iframe src="' + url + '?embed=1" width="100%" height="640" ' +
+                   'style="border:1px solid #e5dfd2;border-radius:12px" loading="lazy" ' +
+                   'title="Step-by-step guide"></iframe>') + '" /></div>' +
+        '<p style="color:var(--muted);font-size:13px;margin:6px 0 0">Paste it into your help centre, ' +
+        'docs or product page. Readers get the walkthrough — one step at a time — with none of our ' +
+        'chrome around it.</p>'
+      : "";
+
+    el("modal").innerHTML = body + exportRow + embedRow +
       '<div class="progress" id="sh-prog" style="display:none"><div></div></div>' +
       '<div class="status-line" id="sh-msg"></div>' +
       '<div class="row"><button class="btn" id="sh-close">Close</button><span class="spacer"></span>' +
@@ -2007,6 +2022,16 @@
     // The field is read-only and holds one value. Clicking it should hand over the
     // whole link, not start a text selection the user has to finish by hand.
     if (el("sh-url")) el("sh-url").onclick = function (e) { e.currentTarget.select(); };
+    // Same reasoning as the link field: one value, read-only, and the thing you want
+    // from it is the whole of it.
+    if (el("sh-embed")) el("sh-embed").onclick = function (e) {
+      e.currentTarget.select();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(e.currentTarget.value).then(function () {
+          note("Embed code copied.");
+        }, function () {});
+      }
+    };
 
     if (el("sh-allow")) {
       el("sh-allow").addEventListener("change", function (e) {
