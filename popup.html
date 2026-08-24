@@ -58,6 +58,22 @@
      was written. Constrain the root and the document's preferred width is the panel's
      width, which is what Chrome measures. Keep the two numbers identical. */
   html, body { width: 296px; background: var(--panel); }
+  /* **The scrollbar must not be allowed to change the popup's width.**
+     Arming catch-up capture takes the content past Chrome's 600px popup ceiling, so a
+     vertical scrollbar appears. `html` and `body` are pinned at exactly 296px, so a
+     classic scrollbar cannot come out of that width — the document becomes 296 + ~15px
+     and Chrome re-sizes the window to match. The panel visibly jumps wider the instant
+     the switch is touched, which is the "abruptly widens" everyone can see and nobody
+     can explain from the markup, because nothing in the markup got wider.
+
+     Hidden rather than reserved with `scrollbar-gutter: stable`: a reserved gutter is a
+     permanent ~15px strip of empty panel down the right-hand side, which is the *other*
+     complaint this popup already had. The document still scrolls with a wheel or a
+     trackpad; only the bar is gone. Whether the bar takes layout space at all depends on
+     the pointing device — a Mac trackpad gets overlay scrollbars and a mouse gets classic
+     ones — which is exactly why this cannot be left to chance. */
+  html { scrollbar-width: none; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
   body {
     margin: 0;
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
