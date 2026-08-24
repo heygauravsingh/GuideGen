@@ -96,6 +96,81 @@
     download(new Blob([doc], { type: "text/html" }), safeName(guide.title) + ".html");
   }
 
+  /* ---------- Rich copy: paste straight into Notion, Confluence, Google Docs ----------
+   *
+   * Every other document export hands back a *file*, which means the reader has to
+   * download it, find it, and import it into the tool their team's docs already live
+   * in. This one skips all three: the guide goes onto the clipboard as `text/html`
+   * with the screenshots inline as data URIs, so a single paste lands a formatted,
+   * illustrated guide in the destination.
+   *
+   * **Structure over styling, deliberately.** Notion and Confluence discard almost all
+   * CSS on paste and rebuild the content from the tags they recognise — so this emits
+   * plain `h1`/`h3`/`p`/`img` and spends nothing on a stylesheet that would be thrown
+   * away. Google Docs keeps more, and still reads this correctly.
+   *
+   * `text/plain` is written alongside on purpose: a destination that refuses HTML —
+   * a terminal, a plain-text field, Slack's composer — gets the readable outline
+   * rather than nothing at all. */
+  async function richHtml(guide, steps) {
+    let body =
+      "<h1>" + esc(guide.title || "Untitled guide") + "</h1>" +
+      "<p>" + steps.length + (steps.length === 1 ? " step" : " steps") +
+      (guide.startUrl ? " · " + esc(guide.startUrl) : "") + "</p>";
+    for (let i = 0; i < steps.length; i++) {
+      const s = steps[i];
+      body += "<h3>" + (i + 1) + ". " + esc(s.text || "") + "</h3>";
+      if (s.screenshot) {
+        const a = await annoDataUrl(s, i + 1, 1200, DOC_ASPECT);
+        if (a) body += '<p><img alt="Step ' + (i + 1) + '" src="' + a.data + '" /></p>';
+      }
+    }
+    body += "<p><i>Generated with GuideGen</i></p>";
+    return body;
+  }
+
+  function richPlain(guide, steps) {
+    let t = (guide.title || "Untitled guide") + "\n\n";
+    if (guide.startUrl) t += guide.startUrl + "\n\n";
+    steps.forEach(function (s, i) { t += (i + 1) + ". " + (s.text || "") + "\n"; });
+    return t + "\nGenerated with GuideGen";
+  }
+
+  async function rich(guide, steps) {
+    const htmlStr = await richHtml(guide, steps);
+    const plain = richPlain(guide, steps);
+    /* The async clipboard API is the only route that can carry two flavours at once,
+     * and it must be handed the ClipboardItem synchronously enough to stay inside the
+     * user gesture — hence the Blobs rather than a second await here. */
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([htmlStr], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        }),
+      ]);
+      return true;
+    }
+    /* Fallback for a browser without ClipboardItem: put the markup in a live,
+     * off-screen element, select it, and let the old copy command lift it as HTML.
+     * Nothing else preserves the images. */
+    const host = document.createElement("div");
+    host.setAttribute("contenteditable", "true");
+    host.style.cssText = "position:fixed;left:-99999px;top:0;white-space:normal";
+    host.innerHTML = htmlStr;
+    document.body.appendChild(host);
+    const range = document.createRange();
+    range.selectNodeContents(host);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const ok = document.execCommand("copy");
+    sel.removeAllRanges();
+    host.remove();
+    if (!ok) throw new Error("This browser wouldn't let GuideGen write to the clipboard.");
+    return true;
+  }
+
   // ---------- Markdown ----------
   async function markdown(guide, steps) {
     let md = "# " + (guide.title || "Untitled guide") + "\n\n";
@@ -953,7 +1028,7 @@
    * `GET /api/session → 200` on every slide of a video is noise at best. If you add
    * an exporter, leave it out of that one too. */
   window.FSExport = {
-    html, markdown, ai, aiText, apiLogText, curlOf, pdf, pptx, video,
+    html, markdown, rich, richHtml, ai, aiText, apiLogText, curlOf, pdf, pptx, video,
     PACES, DEFAULT_PACE, stepSecs,
   };
 })();

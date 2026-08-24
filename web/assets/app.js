@@ -1761,6 +1761,7 @@
 
     if (kind === "video") return openVideoModal(guide);
     if (kind === "ai") return copyForAI(guide);
+    if (kind === "rich") return copyRich(guide);
 
     var need = kind === "pdf"
       ? loadLib("/assets/lib/jspdf.umd.min.js", function () { return !!window.jspdf; })
@@ -1783,6 +1784,25 @@
     }).catch(function (e) {
       say("ed-msg", "Export failed: " + e.message, "err");
     });
+  }
+
+  /* ---- Rich copy ----
+   *
+   * Needs the screenshots, unlike the AI handoff — the whole point is that the images
+   * come with it — so it goes through exportSteps() and can take a moment on a long
+   * guide. Says so, because a clipboard action that takes four seconds with no message
+   * reads as a dead button. */
+  function copyRich(guide) {
+    say("ed-msg", "Building it for the clipboard…");
+    exportSteps()
+      .then(function (steps) { return X.rich(guide, steps); })
+      .then(function () {
+        say("ed-msg", "");
+        toast("Copied — paste it into Notion, Confluence or Google Docs.");
+      })
+      .catch(function (e) {
+        say("ed-msg", "Couldn't copy it: " + e.message, "err");
+      });
   }
 
   // ---- AI handoff ----

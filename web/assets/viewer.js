@@ -576,6 +576,31 @@
       });
       html += "</ol></details>";
     }
+
+    /* Two ways to read the same guide.
+     *
+     * **Scroll** is the whole document at once — right for a reader who wants to scan,
+     * search the page, or print it. **Walkthrough** is one step at a time, which is
+     * what somebody *following along* actually wants: a screenshot big enough to read
+     * beside the instruction for the step they are on, and nothing else competing for
+     * attention.
+     *
+     * It costs nothing extra to publish. The ring and the crop are already baked into
+     * each image before upload (see publish.js), so both modes render exactly the same
+     * data — this is a presentation choice, not a second format. Offered only when
+     * there is more than one step, because a one-step walkthrough is a slideshow with
+     * one slide. */
+    if (steps.length > 1) {
+      html +=
+        '<div class="vmode" role="group" aria-label="How to read this guide">' +
+        '<button class="vmode-b is-on" data-mode="scroll" aria-pressed="true">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>' +
+        "Scroll</button>" +
+        '<button class="vmode-b" data-mode="walk" aria-pressed="false">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M10 9.5l4 2.5-4 2.5z"/></svg>' +
+        "Walkthrough</button>" +
+        "</div>";
+    }
     html += "</div>";
 
     if (!steps.length) {
@@ -634,10 +659,143 @@
     var d = main.querySelector(".vdesc");
     if (d) d.textContent = g.description;
     renderExportBar();
+    wireMode(steps.length);
     wireSteps();
     wireHeader(title, steps.length);
     wirePromo(g);
     jumpToHash();
+  }
+
+  // ------------------------------------------------------ scroll vs walkthrough
+
+  /* The walkthrough is the scroll view with every step but one hidden, driven from a
+   * single index. Deliberately *not* a second render: the steps in the DOM are the
+   * same nodes, so anchors, the lightbox, the table of contents and #step-N deep links
+   * all keep working in both modes with no second code path to keep in sync.
+   *
+   * Scroll stays the default. Someone arriving from a chat message is usually looking
+   * for one specific step, and a mode that hides eleven of twelve steps is hostile to
+   * that until they have chosen it. */
+  var walkAt = 0;
+  var walkOn = false;
+
+  function walkSteps() {
+    return Array.prototype.slice.call(main.querySelectorAll(".vstep"));
+  }
+
+  function walkShow(i, focus) {
+    var els = walkSteps();
+    if (!els.length) return;
+    walkAt = Math.max(0, Math.min(els.length - 1, i));
+    els.forEach(function (el, n) { el.hidden = n !== walkAt; });
+
+    var bar = main.querySelector(".vwalk");
+    if (bar) {
+      bar.querySelector(".vwalk-at").textContent = walkAt + 1;
+      bar.querySelector(".vwalk-of").textContent = els.length;
+      bar.querySelector(".vwalk-fill").style.width = ((walkAt + 1) / els.length) * 100 + "%";
+      bar.querySelector('[data-go="prev"]').disabled = walkAt === 0;
+      bar.querySelector('[data-go="next"]').disabled = walkAt === els.length - 1;
+    }
+    // The hash follows the step, so the address bar is always a link to what is on
+    // screen — the same promise the anchor button on each step already makes.
+    history.replaceState(null, "", location.pathname + "#step-" + (walkAt + 1));
+    // Only when the reader drove it. Doing this on entry would yank a reader who just
+    // pressed the toggle down past the header they were reading.
+    if (focus) {
+      var top = main.querySelector(".vwalk").getBoundingClientRect().top + window.scrollY - 16;
+      window.scrollTo({ top: top, behavior: "smooth" });
+    }
+  }
+
+  function setMode(mode, fromClick) {
+    var els = walkSteps();
+    if (!els.length) return;
+    walkOn = mode === "walk";
+    main.classList.toggle("is-walk", walkOn);
+
+    var btns = main.querySelectorAll(".vmode-b");
+    Array.prototype.forEach.call(btns, function (b) {
+      var on = b.dataset.mode === mode;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+
+    if (!walkOn) {
+      els.forEach(function (el) { el.hidden = false; });
+      var bar = main.querySelector(".vwalk");
+      if (bar) bar.remove();
+      return;
+    }
+
+    if (!main.querySelector(".vwalk")) {
+      var nav = document.createElement("div");
+      nav.className = "vwalk";
+      nav.innerHTML =
+        '<div class="vwalk-rail"><span class="vwalk-fill"></span></div>' +
+        '<div class="vwalk-row">' +
+        '<button class="btn ghost-btn vwalk-b" data-go="prev">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>' +
+        "Back</button>" +
+        '<span class="vwalk-count"><b class="vwalk-at">1</b> of <span class="vwalk-of">1</span></span>' +
+        '<button class="btn brand-btn vwalk-b" data-go="next">Next' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>' +
+        "</button></div>";
+      els[0].parentNode.insertBefore(nav, els[0]);
+      nav.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-go]");
+        if (!b) return;
+        walkShow(walkAt + (b.dataset.go === "next" ? 1 : -1), true);
+      });
+    }
+    // Carry the reader's place across the switch: whichever step the hash names, or
+    // whichever they had reached, rather than dumping them back at step 1.
+    var m = /^#step-(\d+)$/.exec(location.hash);
+    walkShow(m ? Number(m[1]) - 1 : walkAt, !!fromClick);
+  }
+
+  /* Embedded on somebody else's page. Everything that belongs to *our* site — the
+   * house bar, the product nav, the promo strip, the export bar — is chrome around a
+   * guide, and inside a 600px iframe on a customer's help page it is somebody else's
+   * branding taking up their space. What survives is the guide and one quiet line
+   * saying what made it.
+   *
+   * Walkthrough is the default here, unlike on the full page. An embed is nearly
+   * always a demo — a fixed-height box on a marketing or help page — and a scroll view
+   * inside a short frame gives the reader a scrollbar inside a scrollbar. */
+  function isEmbed() {
+    return new URLSearchParams(location.search).get("embed") === "1";
+  }
+
+  function wireMode(count) {
+    if (isEmbed()) {
+      document.body.classList.add("gg-embed");
+      // Every link has to leave the frame, or it opens the target inside the host's
+      // little box, which looks broken and traps the reader.
+      main.addEventListener("click", function (e) {
+        var a = e.target.closest("a[href^='http']");
+        if (a && !a.target) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+      }, true);
+      if (count > 1) setMode("walk", false);
+    }
+    if (count < 2) return;
+    var group = main.querySelector(".vmode");
+    if (!group) return;
+    group.addEventListener("click", function (e) {
+      var b = e.target.closest(".vmode-b");
+      if (b) setMode(b.dataset.mode, true);
+    });
+    // Arrow keys, because a walkthrough is a thing you page through. Ignored while a
+    // modal is open or the reader is typing, and never in scroll mode where the arrow
+    // keys already mean scroll.
+    document.addEventListener("keydown", function (e) {
+      if (!walkOn || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.getElementById("overlay").classList.contains("show")) return;
+      var t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); walkShow(walkAt + 1, true); }
+      if (e.key === "ArrowLeft")  { e.preventDefault(); walkShow(walkAt - 1, true); }
+    });
   }
 
   // ------------------------------------------------------ step-level affordances
@@ -651,6 +809,14 @@
         copyText(location.origin + location.pathname + "#step-" + n,
                  "Link to step " + n + " copied");
         return;
+      }
+      /* A contents link in walkthrough mode has to *move* the walkthrough — the step
+         it points at is hidden, so letting the browser jump to the anchor would look
+         like the link did nothing at all. */
+      var toc = e.target.closest(".vtoc a");
+      if (toc && walkOn) {
+        var tm = /#step-(\d+)$/.exec(toc.getAttribute("href") || "");
+        if (tm) { e.preventDefault(); walkShow(Number(tm[1]) - 1, true); return; }
       }
       var z = e.target.closest(".zoombtn");
       if (z) return openLightbox(z.dataset.src, z.dataset.n);

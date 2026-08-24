@@ -486,6 +486,72 @@ footer.site .spacer { flex: 1; }
   border-radius: 6px; padding: 3px 7px; margin-bottom: 6px;
 }
 
+/* ---------- scroll vs walkthrough ----------
+   Two ways to read one guide. Both render the same steps from the same DOM nodes —
+   the walkthrough hides all but one — so anchors, the lightbox and #step-N links keep
+   working in either mode. */
+.vmode {
+  display: inline-flex; gap: 2px; margin-top: 20px; padding: 3px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+}
+.vmode-b {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--muted);
+  padding: 7px 13px; border-radius: 7px;
+  transition: background 120ms, color 120ms;
+}
+.vmode-b svg { width: 15px; height: 15px; flex: none; }
+.vmode-b:hover { color: var(--ink); }
+.vmode-b.is-on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
+.vmode-b:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* **This rule is load-bearing.** `.vstep` is `display: flex`, which beats the user
+   agent's `[hidden] { display: none }` on specificity — without this the walkthrough
+   sets `hidden` on eleven of twelve steps and every one of them stays on screen. */
+.vstep[hidden] { display: none !important; }
+
+.vwalk { margin: 4px 0 18px; }
+.vwalk-rail {
+  height: 3px; border-radius: 999px; background: var(--line); overflow: hidden;
+}
+.vwalk-fill {
+  display: block; height: 100%; width: 0; background: var(--brand);
+  border-radius: 999px; transition: width 180ms ease;
+}
+.vwalk-row {
+  display: flex; align-items: center; gap: 12px; margin-top: 13px;
+}
+.vwalk-count {
+  flex: 1; text-align: center; color: var(--muted); font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.vwalk-count b { color: var(--ink); font-weight: 650; }
+.vwalk-b { padding: 9px 15px; font-size: 14px; }
+.vwalk-b svg { width: 15px; height: 15px; }
+.vwalk-b:disabled { opacity: 0.4; cursor: default; }
+/* In walkthrough the step is the whole page, so the rule that separates it from a
+   step above is noise — there is nothing above it. */
+.viewer.is-walk .vstep { border-top: 0; padding-top: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .vwalk-fill { transition: none; }
+}
+
+/* ---------- embedded on someone else's page ----------
+   Strips everything that is our branding rather than their content. `/g/:id?embed=1`. */
+body.gg-embed .house-bar,
+body.gg-embed header.site,
+body.gg-embed #promo { display: none !important; }
+body.gg-embed .viewer { padding: 18px 16px 22px; max-width: none; }
+body.gg-embed .viewer-head { margin-bottom: 18px; }
+body.gg-embed .viewer-head h1 { font-size: clamp(19px, 3.4vw, 24px); }
+/* One quiet line instead of the full growth-loop footer: an embed is a guest on
+   someone else's page and should not run a call to action there. */
+body.gg-embed .viewer-foot {
+  margin-top: 22px; padding-top: 14px; font-size: 12.5px;
+}
+body.gg-embed .viewer-foot .btn { display: none; }
+
 .viewer-foot {
   margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--line);
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
