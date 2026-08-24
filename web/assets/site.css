@@ -198,7 +198,11 @@ header.site nav a:hover { background: var(--panel-2); text-decoration: none; col
 .btn.lg { padding: 14px 22px; font-size: 15.5px; }
 
 /* ---------- hero ---------- */
-.hero { padding: 74px 0 8px; text-align: center; }
+/* **Left-aligned, like every section under it.** The hero was centred while the whole
+   rest of the page starts at the same left edge — measured, a 248px jump between the
+   headline and the first section heading. Centred text also wraps unevenly, which is
+   what left "enough." orphaned on its own line. One axis for the whole page. */
+.hero { padding: 74px 0 8px; }
 .pill {
   display: inline-flex; align-items: center; gap: 7px;
   background: var(--brand-soft); color: var(--brand-2);
@@ -206,15 +210,19 @@ header.site nav a:hover { background: var(--panel-2); text-decoration: none; col
   padding: 6px 13px; border-radius: 999px; margin-bottom: 20px;
 }
 h1.big {
+  /* Breaks the headline into even lines instead of leaving one word stranded. */
+  text-wrap: balance;
   font-size: clamp(34px, 5.4vw, 55px); line-height: 1.08;
   letter-spacing: -0.035em; font-weight: 700;
-  margin: 0 auto 18px; max-width: 15ch;
+  /* `auto` side margins centred this when the hero was centred. Left-aligned they
+     shove the headline off the page's one left edge — keep the measure, drop the auto. */
+  margin: 0 0 18px; max-width: 17ch;
 }
 .lede {
   font-size: clamp(16.5px, 2vw, 19.5px); color: var(--muted);
-  max-width: 60ch; margin: 0 auto 30px; line-height: 1.6;
+  max-width: 62ch; margin: 0 0 30px; line-height: 1.6;
 }
-.cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.cta-row { display: flex; gap: 10px; justify-content: flex-start; flex-wrap: wrap; }
 .cta-note { margin-top: 14px; font-size: 13px; color: var(--faint); }
 
 /* What the product does, in one glance, under the hero. Chips rather than a second
