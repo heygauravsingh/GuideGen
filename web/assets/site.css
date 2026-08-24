@@ -480,6 +480,41 @@ footer.site .spacer { flex: 1; }
   overflow: hidden; background: var(--panel-2); line-height: 0;
 }
 .vstep figure img { width: 100%; }
+
+/* ---------- the walkthrough hotspot ----------
+   A live target sitting exactly where the click landed, so the reader advances by
+   pressing the thing the guide is pointing at rather than a Next button somewhere
+   else on the page. Position comes from `focus` on the published step, as a
+   percentage, so it tracks the image at every width without measuring. */
+.vstep figure.has-spot { position: relative; }
+.vspot {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 38px; height: 38px; padding: 0; border: 0; background: none;
+  cursor: pointer; display: grid; place-items: center;
+}
+.vspot-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--brand); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9);
+  position: relative; z-index: 1;
+}
+.vspot-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid var(--brand); opacity: 0;
+  animation: vspot-pulse 2s ease-out infinite;
+}
+@keyframes vspot-pulse {
+  0%   { transform: scale(0.45); opacity: 0.85; }
+  70%  { transform: scale(1);    opacity: 0;    }
+  100% { transform: scale(1);    opacity: 0;    }
+}
+.vspot:hover .vspot-dot { transform: scale(1.15); }
+.vspot:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 50%; }
+/* The final step leads nowhere, so the target stops inviting a press. */
+.vspot.is-end { cursor: default; }
+.vspot.is-end .vspot-ring { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .vspot-ring { animation: none; opacity: 0.6; transform: scale(1); }
+}
 .note-tag {
   display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
   text-transform: uppercase; color: var(--brand-2); background: var(--brand-soft);

@@ -28,6 +28,11 @@ window.GGPublish = (function () {
   var PRESET = "GuideGen_Unsigned";
   var CLD = "https://api.cloudinary.com/v1_1/" + CLOUD + "/image/upload";
 
+  // Set by stepImage() for the step being encoded, read immediately after by the
+  // entry builder below. Single-threaded and consumed on the next line, so a carrier
+  // is honest here where threading it through three return types would not be.
+  var lastFocus = null;
+
   var MAX_W = 1600;
   var QUALITY = 0.85;
   var ASPECT = 1.6;
@@ -44,12 +49,36 @@ window.GGPublish = (function () {
     }).join("");
   }
 
+  /* Where the click landed, as a fraction of the *published* image.
+   *
+   * The ring is already burned into the picture, so this adds nothing a reader cannot
+   * see — what it adds is something the reader can press. The walkthrough uses it to
+   * put a live hotspot exactly on the target, which is the difference between a
+   * slideshow you page through and a demo you click through.
+   *
+   * Two transforms have to be undone to get there: `renderStep` draws at device pixels
+   * (`point` is in CSS px, hence `* dpr`), and the published image is then cropped to
+   * `roi`. Normalised rather than absolute so it survives the 1600px cap and any future
+   * change to it. Null for anything with no click — navigations, notes — and the
+   * walkthrough falls back to a plain Next for those. */
+  function focusPoint(step, canvas, roi) {
+    if (!step || !step.point || step.type === "note") return null;
+    var dpr = step.dpr || 1;
+    var x = (step.point.x * dpr - roi.x) / roi.w;
+    var y = (step.point.y * dpr - roi.y) / roi.h;
+    // Off the crop entirely means the heuristic framed something else; a hotspot
+    // pinned to an edge would point at the wrong thing, so offer none.
+    if (!isFinite(x) || !isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return null;
+    return { x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 };
+  }
+
   function stepImage(step, seq) {
     var R = window.FSRender;
     return R.renderStep(Object.assign({}, step, { seq: seq })).then(function (canvas) {
       if (!canvas) return null;
       var roi = R.focusRegion(step, canvas.width, canvas.height, ASPECT, { canvas: canvas }) ||
                 { x: 0, y: 0, w: canvas.width, h: canvas.height };
+      lastFocus = focusPoint(step, canvas, roi);
       var scale = Math.min(1, MAX_W / roi.w);
       var out = document.createElement("canvas");
       out.width = Math.max(1, Math.round(roi.w * scale));
@@ -112,8 +141,11 @@ window.GGPublish = (function () {
              "Uploading image " + (done + 1) + " of " + withShots + "…");
         return stepImage(step, i + 1).then(function (blob) {
           if (!blob) { out.push(entry); done++; return; }
+          // Read straight after the encode that set it — see the note on `lastFocus`.
+          var focus = lastFocus;
           return uploadImage(blob, uid, assetTag).then(function (url) {
             entry.imageUrl = url;
+            if (focus) entry.focus = focus;
             out.push(entry);
             done++;
           });

@@ -629,8 +629,18 @@
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>'
           : "") +
         (s.imageUrl
-          ? '<figure><img loading="lazy" decoding="async" alt="Step ' + n +
+          ? '<figure' + (s.focus ? ' class="has-spot"' : "") + '>' +
+            '<img loading="lazy" decoding="async" alt="Step ' + n +
             '" src="' + esc(s.imageUrl) + '" />' +
+            /* The live target. Positioned as a percentage of the image, so it stays on
+               the right control at every width without measuring anything. Only exists
+               where publish.js found a click to point at. */
+            (s.focus
+              ? '<button class="vspot" data-step="' + n + '" style="left:' +
+                (s.focus.x * 100).toFixed(2) + '%;top:' + (s.focus.y * 100).toFixed(2) + '%" ' +
+                'aria-label="Continue: ' + esc(s.text || "next step") + '">' +
+                '<span class="vspot-ring"></span><span class="vspot-dot"></span></button>'
+              : "") +
             '<button class="zoombtn" data-src="' + esc(s.imageUrl) + '" data-n="' + n +
             '" aria-label="Enlarge the screenshot for step ' + n + '">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21M11 8v6M8 11h6"/></svg>' +
@@ -688,6 +698,10 @@
     if (!els.length) return;
     walkAt = Math.max(0, Math.min(els.length - 1, i));
     els.forEach(function (el, n) { el.hidden = n !== walkAt; });
+    // Nothing to advance to from the last step, and a hotspot that does nothing when
+    // pressed is worse than none.
+    var lastSpot = els[els.length - 1].querySelector(".vspot");
+    if (lastSpot) lastSpot.classList.toggle("is-end", walkAt === els.length - 1);
 
     var bar = main.querySelector(".vwalk");
     if (bar) {
@@ -817,6 +831,20 @@
       if (toc && walkOn) {
         var tm = /#step-(\d+)$/.exec(toc.getAttribute("href") || "");
         if (tm) { e.preventDefault(); walkShow(Number(tm[1]) - 1, true); return; }
+      }
+      /* The hotspot is the walkthrough's primary control. Pressing the thing the guide
+         is pointing at is what makes this read as *using* the product rather than
+         paging a deck — so it advances, and in scroll mode it simply scrolls on to the
+         step it leads to rather than doing nothing. */
+      var spot = e.target.closest(".vspot");
+      if (spot) {
+        e.preventDefault();
+        e.stopPropagation();
+        var at = Number(spot.dataset.step) - 1;
+        if (walkOn) return walkShow(at + 1, true);
+        var nextEl = walkSteps()[at + 1];
+        if (nextEl) nextEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
       }
       var z = e.target.closest(".zoombtn");
       if (z) return openLightbox(z.dataset.src, z.dataset.n);
