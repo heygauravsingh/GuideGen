@@ -642,7 +642,16 @@ footer.site .spacer { flex: 1; }
    sets `hidden` on eleven of twelve steps and every one of them stays on screen. */
 .vstep[hidden] { display: none !important; }
 
-.vwalk { margin: 4px 0 18px; }
+/* Stuck to the bottom of the viewport, and last in the document.
+   The controls used to sit above the step, which meant they scrolled out of view the
+   moment the reader looked at the screenshot — Next was gone exactly when it was
+   wanted. Sticky keeps it reachable at any scroll position without covering the top of
+   the picture, and the backdrop keeps the label legible over a screenshot behind it. */
+.vwalk {
+  position: sticky; bottom: 0; z-index: 5;
+  margin: 8px 0 0; padding: 8px 0 10px;
+  background: linear-gradient(to bottom, transparent, var(--panel) 30%);
+}
 .vwalk-rail {
   height: 3px; border-radius: 999px; background: var(--line); overflow: hidden;
 }
@@ -651,7 +660,7 @@ footer.site .spacer { flex: 1; }
   border-radius: 999px; transition: width 180ms ease;
 }
 .vwalk-row {
-  display: flex; align-items: center; gap: 12px; margin-top: 13px;
+  display: flex; align-items: center; gap: 12px; margin-top: 10px;
 }
 .vwalk-count {
   flex: 1; text-align: center; color: var(--muted); font-size: 14px;
@@ -661,9 +670,44 @@ footer.site .spacer { flex: 1; }
 .vwalk-b { padding: 9px 15px; font-size: 14px; }
 .vwalk-b svg { width: 15px; height: 15px; }
 .vwalk-b:disabled { opacity: 0.4; cursor: default; }
-/* In walkthrough the step is the whole page, so the rule that separates it from a
-   step above is noise — there is nothing above it. */
-.viewer.is-walk .vstep { border-top: 0; padding-top: 2px; }
+/* ---------- walkthrough layout ----------
+   One step fills the view, so the layout stops being a list and becomes a screen: the
+   instruction reads as a heading, the picture directly under it is the thing the
+   reader is here for, and everything that belongs to the *document* — the numbered
+   bullet in the margin, the rule between steps, the contents list — is out of the way.
+   The whole point is that the reader looks at one thing. */
+.viewer.is-walk .vstep { border-top: 0; padding-top: 0; gap: 0; display: block; }
+/* The number lives in the counter at the bottom now, so a second one in the margin is
+   the same fact twice and costs the picture its width. */
+.viewer.is-walk .vstep .n { display: none; }
+.viewer.is-walk .vstep .txt { font-size: 20px; letter-spacing: -0.02em; margin: 0 0 4px; }
+.viewer.is-walk .vstep figure { margin-top: 12px; }
+/* Everything that describes the *document* rather than the step. In scroll mode this
+   is a useful header; in walkthrough it is 130px of chrome between the reader and the
+   only thing they are looking at. The title stays — it is the one piece of context a
+   reader who was sent this link still needs. */
+.viewer.is-walk .vtoc,
+.viewer.is-walk .appchip,
+.viewer.is-walk .viewer-head .meta,
+.viewer.is-walk .startrow { display: none; }
+.viewer.is-walk .viewer-head { margin-bottom: 14px; }
+.viewer.is-walk .viewer-head h1 { font-size: clamp(20px, 2.6vw, 26px); }
+
+/* **One step, one screen.** Without a ceiling the picture ran off the bottom and the
+   reader had to scroll through it before they could reach the next control — which is
+   a document, not a walkthrough. Bounded against the viewport so the instruction, the
+   whole picture and the controls are visible together at any window height. */
+.viewer.is-walk .vstep figure {
+  background: var(--panel-2); text-align: center; line-height: 0;
+}
+.viewer.is-walk .vstep figure img {
+  width: auto; max-width: 100%;
+  max-height: calc(100vh - 330px); min-height: 180px;
+  object-fit: contain;
+}
+/* The picture is the control in this mode — say so with the cursor. */
+.viewer.is-walk .vstep figure { cursor: pointer; }
+.viewer.is-walk .vstep figure:hover { border-color: var(--brand); }
 @media (prefers-reduced-motion: reduce) {
   .vwalk-fill { transition: none; }
 }

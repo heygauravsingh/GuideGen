@@ -717,8 +717,12 @@
     // Only when the reader drove it. Doing this on entry would yank a reader who just
     // pressed the toggle down past the header they were reading.
     if (focus) {
-      var top = main.querySelector(".vwalk").getBoundingClientRect().top + window.scrollY - 16;
-      window.scrollTo({ top: top, behavior: "smooth" });
+      // The top of the step that just appeared — its instruction and the picture under
+      // it. Scrolling to the controls instead put the reader's eye at the bottom of the
+      // thing they had just asked to see.
+      var el = els[walkAt];
+      var top = el.getBoundingClientRect().top + window.scrollY - 76;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }
   }
 
@@ -755,7 +759,13 @@
         '<button class="btn brand-btn vwalk-b" data-go="next">Next' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>' +
         "</button></div>";
-      els[0].parentNode.insertBefore(nav, els[0]);
+      /* **After the steps, not before them.** Sitting above the step, the controls
+         scrolled away the moment the reader looked at the screenshot — which is the
+         one thing they are there to look at — so Next was off screen exactly when it
+         was wanted. Placed last and stuck to the bottom of the viewport, it is always
+         reachable and never covers the top of the picture. */
+      var lastEl = els[els.length - 1];
+      lastEl.parentNode.insertBefore(nav, lastEl.nextSibling);
       nav.addEventListener("click", function (e) {
         var b = e.target.closest("[data-go]");
         if (!b) return;
@@ -852,6 +862,16 @@
       // press; the button exists so the affordance is visible, not to be the only way in.
       var img = e.target.closest(".vstep figure img");
       if (img) {
+        /* **In walkthrough the picture is the control.** It is the biggest thing on
+           screen and the obvious thing to press, and a reader following along presses
+           it to continue — not to open a lightbox they then have to dismiss before they
+           can carry on. Zoom is still there, on its own button, for the case where the
+           point is to look closer. In scroll mode the picture keeps zooming, because
+           there is nothing to advance to. */
+        if (walkOn) {
+          walkShow(walkAt + 1, true);
+          return;
+        }
         var btn = img.parentNode.querySelector(".zoombtn");
         openLightbox(img.getAttribute("src"), btn ? btn.dataset.n : "");
       }
