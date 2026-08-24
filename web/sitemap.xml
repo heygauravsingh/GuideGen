@@ -1,6 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://guide-gen.vercel.app/</loc><priority>1.0</priority></url>
-  <url><loc>https://guide-gen.vercel.app/privacy</loc><priority>0.3</priority></url>
-  <url><loc>https://guide-gen.vercel.app/terms</loc><priority>0.3</priority></url>
+  <url><loc>https://guidegen.backpocket.website/</loc><priority>1.0</priority></url>
+  <url><loc>https://guidegen.backpocket.website/privacy</loc><priority>0.3</priority></url>
+  <url><loc>https://guidegen.backpocket.website/terms</loc><priority>0.3</priority></url>
+  <url><loc>https://guidegen.backpocket.website/solutions</loc></url>
+  <url><loc>https://guidegen.backpocket.website/compare</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/reproduce-a-bug</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/hand-a-workflow-to-an-ai</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/internal-wiki</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/user-onboarding</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/customer-support</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/product-marketing</loc></url>
+  <url><loc>https://guidegen.backpocket.website/solutions/sales-demos</loc></url>
+  <url><loc>https://guidegen.backpocket.website/compare/guidegen-vs-guidejar</loc></url>
+  <url><loc>https://guidegen.backpocket.website/compare/guidegen-vs-scribe</loc></url>
+  <url><loc>https://guidegen.backpocket.website/compare/guidegen-vs-tango</loc></url>
+  <url><loc>https://guidegen.backpocket.website/compare/guidegen-vs-guidde</loc></url>
+  <url><loc>https://guidegen.backpocket.website/compare/guidegen-vs-supademo</loc></url>
+  <url><loc>https://guidegen.backpocket.website/install</loc><priority>0.6</priority></url>
 </urlset>
