@@ -141,39 +141,47 @@
           </div>
 
           <div class="hs-stage">
+            <!-- **Invented, and obviously so.** This carried a real company's brand and
+                 real third-party business names, lifted from a screenshot. A marketing
+                 asset must not wear somebody else's identity — it reads as an endorsement
+                 nobody gave. Every name here is fictional and generic on purpose. -->
             <div class="hs-app" aria-hidden="true">
-              <div class="hs-appbar"><span class="hs-brand">uEngage</span><span class="hs-user">Gaurav S.</span></div>
+              <div class="hs-appbar"><span class="hs-brand">Your dashboard</span><span class="hs-user">Signed in</span></div>
               <div class="hs-card">
-                <div class="hs-title">Select Your Business</div>
-                <div class="hs-field">demo</div>
+                <div class="hs-title">Select an account</div>
+                <div class="hs-field"><span>north</span></div>
                 <div class="hs-item hs-hit">
-                  <span class="hs-av">RD</span>
-                  <span class="hs-meta"><b>Restaurant Demo</b><i>IT Park, Chandigarh</i></span>
-                  <span class="hs-cta">Select</span>
+                  <span class="hs-av">NB</span>
+                  <span class="hs-meta"><b>Northside Branch</b><i>Account 4021</i></span>
+                  <span class="hs-cta">Open</span>
+                  <!-- Both of these live *inside* the row they point at, so they track it
+                       instead of being placed by a magic percentage of the stage. The
+                       previous version pinned the dot at left:50%/top:47% and it landed in
+                       empty space beside the text — a highlight that misses is worse than
+                       no highlight, because it tells the reader the product aims badly. -->
+                  <span class="hs-spot" aria-hidden="true"></span>
+                  <div class="hs-call">
+                    <p class="hs-call-t">Click &ldquo;Open&rdquo; on Northside Branch</p>
+                    <div class="hs-call-r">
+                      <span class="hs-call-n">Step 2 of 5</span>
+                      <span class="hs-call-b">Next</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="hs-item">
-                  <span class="hs-av">UC</span>
-                  <span class="hs-meta"><b>Uengage Demo &mdash; Corporate</b><i>Head Office</i></span>
-                  <span class="hs-cta">Select</span>
+                  <span class="hs-av">HR</span>
+                  <span class="hs-meta"><b>Harbour Road</b><i>Account 4022</i></span>
+                  <span class="hs-cta">Open</span>
                 </div>
                 <div class="hs-item">
-                  <span class="hs-av">LP</span>
-                  <span class="hs-meta"><b>La Pino&rsquo;z Pizza &mdash; Demo</b><i>Bengaluru</i></span>
-                  <span class="hs-cta">Select</span>
+                  <span class="hs-av">WD</span>
+                  <span class="hs-meta"><b>West Depot</b><i>Account 4023</i></span>
+                  <span class="hs-cta">Open</span>
                 </div>
               </div>
             </div>
 
             <div class="hs-dim" aria-hidden="true"></div>
-            <span class="hs-spot" aria-hidden="true"></span>
-
-            <div class="hs-call">
-              <p class="hs-call-t">Click &ldquo;Restaurant Demo&rdquo;</p>
-              <div class="hs-call-r">
-                <span class="hs-call-n">Step 2 of 5</span>
-                <span class="hs-call-b">Next</span>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -603,11 +611,11 @@
                 <button class="da-btn" data-label="Search">Search</button>
               </div>
               <div class="da-card" data-label="Rider #104037">
-                <div><b>Rider #104037</b><span class="da-muted">Chandigarh · active</span></div>
+                <div><b>Rider #104037</b><span class="da-muted">North zone · active</span></div>
                 <button class="da-btn ghost" data-label="View KYC">View KYC</button>
               </div>
               <div class="da-card" data-label="Rider #104112">
-                <div><b>Rider #104112</b><span class="da-muted">Zirakpur · disabled</span></div>
+                <div><b>Rider #104112</b><span class="da-muted">West zone · disabled</span></div>
                 <button class="da-btn ghost" data-label="View KYC">View KYC</button>
               </div>
               <label class="da-check" data-label="Only show disabled riders">
