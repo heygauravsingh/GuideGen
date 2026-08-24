@@ -122,6 +122,64 @@
         or plain text for an AI. One recording, no re-work.</span></li>
       </ol>
 
+      <!-- The one graphic that has to earn its place: the product's whole claim as a
+           picture. One recording on the left, six things out of it on the right.
+
+           Inline SVG rather than an image file, so it themes with the page, stays crisp
+           at any width, costs no request, and can be edited by whoever edits the copy.
+           Drawn with the page's own tokens — an exported PNG would have needed two of
+           everything, one for each theme. -->
+      <figure class="heroart" aria-labelledby="heroart-cap">
+        <svg viewBox="0 0 900 300" role="img" aria-label="One recording becomes a narrated video, a shareable link, a PDF, slides, Markdown and text for an AI">
+          <defs>
+            <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0 0l10 5-10 5z" fill="currentColor" stroke="none" />
+            </marker>
+          </defs>
+
+          <g class="ha-win">
+            <rect x="14" y="42" width="330" height="216" rx="12" />
+            <path d="M14 78h330" />
+          </g>
+          <g class="ha-dots">
+            <circle cx="40" cy="60" r="4.5" /><circle cx="56" cy="60" r="4.5" /><circle cx="72" cy="60" r="4.5" />
+          </g>
+          <rect class="ha-bar" x="92" y="53" width="228" height="14" rx="7" />
+          <g class="ha-ui">
+            <rect x="40" y="100" width="128" height="12" rx="6" />
+            <rect x="40" y="124" width="196" height="12" rx="6" />
+            <rect x="40" y="200" width="164" height="12" rx="6" />
+          </g>
+          <rect class="ha-btn" x="40" y="152" width="96" height="30" rx="8" />
+          <circle class="ha-ring" cx="88" cy="167" r="21" />
+          <circle class="ha-pt" cx="88" cy="167" r="6" />
+          <g class="ha-pill">
+            <rect x="206" y="214" width="126" height="28" rx="14" />
+            <circle class="ha-rec" cx="225" cy="228" r="5" />
+            <text x="238" y="233">Recording</text>
+          </g>
+
+          <g class="ha-flow" marker-end="url(#ga)">
+            <path d="M358 150h48" />
+            <path d="M358 150h20c8 0 12-4 12-12V77c0-8 4-12 12-12h4" />
+            <path d="M358 150h20c8 0 12 4 12 12v61c0 8 4 12 12 12h4" />
+          </g>
+
+          <g class="ha-out">
+            <rect x="424" y="42" width="210" height="46" rx="10" /><text x="444" y="71">Narrated video · .mp4</text>
+            <rect x="654" y="42" width="232" height="46" rx="10" /><text x="674" y="71">A link anyone can open</text>
+            <rect x="424" y="128" width="210" height="46" rx="10" /><text x="444" y="157">PDF · Slides · Markdown</text>
+            <rect x="654" y="128" width="232" height="46" rx="10" /><text x="674" y="157">Paste into Notion or Docs</text>
+            <rect x="424" y="214" width="210" height="46" rx="10" /><text x="444" y="243">Text for an AI</text>
+          </g>
+          <g class="ha-out is-lit">
+            <rect x="654" y="214" width="232" height="46" rx="10" /><text x="674" y="243">Every API call, as cURL</text>
+          </g>
+        </svg>
+        <figcaption id="heroart-cap">One pass through the workflow. Six things out of it, and none of
+        them written by you.</figcaption>
+      </figure>
+
       <div class="caps">
         <a href="#video">Narrated video</a>
         <a href="#catchup">Capture the last 2 minutes</a>

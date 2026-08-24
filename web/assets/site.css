@@ -594,6 +594,45 @@ footer.site .spacer { flex: 1; }
 }
 .cmp-list.them li { border-left: 3px solid var(--faint); }
 
+/* ---------- the hero diagram ----------
+   Everything is a token, nothing is a literal, so one drawing serves both themes. The
+   accent is spent in exactly two places — the click being recorded, and the one output
+   no competitor has — because a diagram where six things are highlighted highlights
+   nothing. */
+.heroart { margin: 34px 0 0; padding: 0; }
+.heroart svg { width: 100%; height: auto; display: block; }
+.heroart figcaption {
+  margin-top: 12px; font-size: 13.5px; color: var(--muted); line-height: 1.55;
+}
+
+/* the recorded window */
+.ha-win rect, .ha-win path { fill: var(--panel); stroke: var(--line); stroke-width: 1.6; }
+.ha-dots circle { fill: var(--line); }
+.ha-bar { fill: var(--panel-2); }
+.ha-ui rect { fill: var(--panel-2); }
+.ha-btn { fill: var(--pri); }
+:root[data-theme="dark"] .ha-btn { fill: var(--panel-2); }
+
+/* the click: the accent's first job */
+.ha-ring { fill: none; stroke: var(--brand); stroke-width: 2.4; opacity: 0.55; }
+.ha-pt { fill: var(--brand); }
+
+.ha-pill rect { fill: var(--ink); }
+.ha-pill text { fill: var(--panel); font: 600 12px var(--sans, system-ui, sans-serif); }
+.ha-rec { fill: var(--rec, #c1352c); }
+
+.ha-flow path { fill: none; stroke: var(--faint); stroke-width: 1.6; }
+.ha-flow { color: var(--faint); }
+
+/* what comes out */
+.ha-out rect { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.4; }
+.ha-out text { fill: var(--ink-2); font: 500 14px var(--sans, system-ui, sans-serif); }
+/* The accent's second and last job: the one output nobody else ships. */
+.ha-out.is-lit rect { fill: var(--brand-soft, var(--panel-2)); stroke: var(--brand); }
+.ha-out.is-lit text { fill: var(--brand-2, var(--brand)); font-weight: 650; }
+
+@media (max-width: 700px) { .heroart { margin-top: 26px; } }
+
 /* ---------- the three verbs ----------
    Under the hero, above everything else: the whole shape of the product in three
    lines. Numbered because it genuinely is a sequence — you cannot redact a recording
@@ -753,6 +792,14 @@ footer.site .spacer { flex: 1; }
    control sitting on top of it that does something else entirely is exactly the
    ambiguity this mode exists to remove. Zoom is still one click away in Scroll. */
 .viewer.is-walk .zoombtn { display: none !important; }
+/* **On the image, not the figure.** `.vstep figure img` sets `cursor: zoom-in`
+   directly, and a rule on the parent never wins against a rule on the element itself —
+   so hiding the zoom button left the magnifying-glass cursor promising a zoom that no
+   longer happened. The cursor is part of the affordance; it has to agree with what the
+   click does. */
+.viewer.is-walk .vstep figure img,
+.viewer.is-walk .vstep figure .vdim,
+.viewer.is-walk .vstep figure .vspot { cursor: pointer; }
 .viewer.is-walk .vstep figure:hover { border-color: var(--brand); }
 @media (prefers-reduced-motion: reduce) {
   .vwalk-fill { transition: none; }
