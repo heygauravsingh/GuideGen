@@ -28,6 +28,16 @@ const K = {
   // Opt-in for Tier 2 (failed response bodies) while buffering. Recordings carry
   // their own flag on fs_state, chosen at Start.
   bufBodies: "fs_buf_bodies",
+  /* Hubs: the folders a guide can sit in. Stored as one array of {id, name, createdAt}
+     rather than a key per hub, because there are a handful of them and the dashboard
+     always wants the whole list at once.
+
+     **Membership lives on the guide, not on the hub.** A hub holding a list of guide
+     ids would need both records rewritten on every move, and a guide deleted from one
+     side would leave a dangling id on the other. The index entry carries `hubId`, so a
+     move is one write and an orphan is impossible — a guide pointing at a hub that no
+     longer exists is simply unfiled, which is the correct answer anyway. */
+  hubs: "fs_hubs",
 };
 
 function get(key, def) {
@@ -1533,6 +1543,9 @@ async function bridge(msg) {
       // creating a second document — and a second link — on every press.
       if ("remoteId" in p) gi.remoteId = p.remoteId || null;
       if ("publishedAt" in p) gi.publishedAt = p.publishedAt || null;
+      // Moving a guide between hubs. Null, or an id no hub answers to, both mean
+      // unfiled — see the note on K.hubs about why that is deliberate.
+      if ("hubId" in p) gi.hubId = p.hubId || null;
       await set({ [K.index]: index });
       return { ok: true, guide: gi };
     }
@@ -1646,6 +1659,99 @@ async function bridge(msg) {
       await set({ [K.step(step.id)]: step, [K.order(guideId)]: order });
       await setStepCount(guideId, order.length);
       return { ok: true, step: lightStep(step), index: at };
+    }
+
+    /* ---- hubs: the folders a guide can sit in ----
+     *
+     * Four operations and no hierarchy beyond one level, deliberately. Nested folders
+     * mean a move that can create a cycle, a delete that has to recurse, and a
+     * breadcrumb in every view — and nobody filing twenty guides has asked for a
+     * folder inside a folder. One level answers the actual question, which is "where
+     * are the onboarding ones". */
+    case "gg_hubs": {
+      return { ok: true, hubs: await get(K.hubs, []) };
+    }
+
+    case "gg_hub_create": {
+      const name = String(msg.name || "").trim().slice(0, 80);
+      if (!name) return { ok: false, error: "A hub needs a name." };
+      const hubs = await get(K.hubs, []);
+      if (hubs.length >= 60) return { ok: false, error: "That's as many hubs as one library can hold." };
+      // Case-insensitive, because two hubs called Onboarding and onboarding are a
+      // filing mistake waiting to happen rather than two folders.
+      if (hubs.some((h) => h.name.toLowerCase() === name.toLowerCase())) {
+        return { ok: false, error: "You already have a hub called that." };
+      }
+      const hub = { id: uid(), name: name, createdAt: Date.now() };
+      hubs.push(hub);
+      await set({ [K.hubs]: hubs });
+      return { ok: true, hub: hub, hubs: hubs };
+    }
+
+    case "gg_hub_rename": {
+      const name = String(msg.name || "").trim().slice(0, 80);
+      if (!name) return { ok: false, error: "A hub needs a name." };
+      const hubs = await get(K.hubs, []);
+      const h = hubs.find((x) => x.id === msg.hubId);
+      if (!h) return { ok: false, error: "That hub no longer exists." };
+      if (hubs.some((x) => x.id !== h.id && x.name.toLowerCase() === name.toLowerCase())) {
+        return { ok: false, error: "You already have a hub called that." };
+      }
+      h.name = name;
+      await set({ [K.hubs]: hubs });
+      return { ok: true, hubs: hubs };
+    }
+
+    /* Deleting a hub never deletes what is in it. A folder and its contents are two
+     * different things to lose, and a control that quietly takes the second when you
+     * asked for the first is the one people never forgive. The guides become unfiled. */
+    case "gg_hub_delete": {
+      const hubs = (await get(K.hubs, [])).filter((h) => h.id !== msg.hubId);
+      const index = await get(K.index, []);
+      let moved = 0;
+      index.forEach((g) => { if (g.hubId === msg.hubId) { g.hubId = null; moved++; } });
+      await set({ [K.hubs]: hubs, [K.index]: index });
+      return { ok: true, hubs: hubs, unfiled: moved };
+    }
+
+    /* A working copy. Steps are copied by value under fresh ids, so editing or
+     * redacting the duplicate cannot reach back into the original — which is the whole
+     * reason somebody duplicates a guide before changing it. The copy is deliberately
+     * *not* published: it has no remoteId, so it starts as a private draft rather than
+     * silently appearing on a link somebody already holds. */
+    case "gg_guide_duplicate": {
+      const index = await get(K.index, []);
+      const src = index.find((g) => g.id === guideId);
+      if (!src) return { ok: false, error: "That guide isn't on this device." };
+      const order = await get(K.order(guideId), []);
+      if (order.length > 300) return { ok: false, error: "That guide is too long to duplicate." };
+
+      const newId = uid();
+      const newOrder = [];
+      const writes = {};
+      for (const stepId of order) {
+        const step = await get(K.step(stepId), null);
+        if (!step) continue;
+        const copyId = uid();
+        newOrder.push(copyId);
+        writes[K.step(copyId)] = Object.assign({}, step, { id: copyId, guideId: newId });
+      }
+      const copy = {
+        id: newId,
+        title: (src.title || "Untitled guide") + " (copy)",
+        createdAt: Date.now(),
+        startUrl: src.startUrl || "",
+        stepCount: newOrder.length,
+        hubId: src.hubId || null,
+        description: src.description || "",
+        remoteId: null,
+        publishedAt: null,
+      };
+      index.unshift(copy);
+      writes[K.index] = index;
+      writes[K.order(newId)] = newOrder;
+      await set(writes);
+      return { ok: true, guide: copy };
     }
 
     case "gg_delete_guide": {

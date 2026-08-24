@@ -188,6 +188,29 @@ window.GGBridge = (function () {
     return send({ type: "gg_delete_guide", guideId: guideId });
   }
 
+  // ---- hubs ----
+  // Folders live in the extension because the guides do: the library's editable copy
+  // is the local one, and filing that lives anywhere else would drift the moment the
+  // dashboard was open in two places.
+  function hubs() {
+    return send({ type: "gg_hubs" }).then(function (r) { return r.hubs || []; });
+  }
+  function hubCreate(name) {
+    return send({ type: "gg_hub_create", name: name });
+  }
+  function hubRename(hubId, name) {
+    return send({ type: "gg_hub_rename", hubId: hubId, name: name });
+  }
+  function hubDelete(hubId) {
+    return send({ type: "gg_hub_delete", hubId: hubId });
+  }
+  function moveGuide(guideId, hubId) {
+    return send({ type: "gg_update_guide", guideId: guideId, patch: { hubId: hubId || null } });
+  }
+  function duplicateGuide(guideId) {
+    return send({ type: "gg_guide_duplicate", guideId: guideId });
+  }
+
   /* Catch-up captures. Metadata only — a session is not a guide yet, so there is
    * nothing to render and no screenshots come over. `bufPromote` turns one into a
    * real local guide and resolves with its id; `minutes` measures back from that
@@ -264,6 +287,8 @@ window.GGBridge = (function () {
     updateGuide: updateGuide, updateStep: updateStep, reorder: reorder,
     deleteStep: deleteStep, addNote: addNote, deleteGuide: deleteGuide,
     bufSessions: bufSessions, bufPromote: bufPromote, bufDiscard: bufDiscard,
+    hubs: hubs, hubCreate: hubCreate, hubRename: hubRename, hubDelete: hubDelete,
+    moveGuide: moveGuide, duplicateGuide: duplicateGuide,
     renderVideo: renderVideo,
     STORE_ID: STORE_ID,
   };

@@ -29,7 +29,7 @@ Before saying a change is done:
 ```bash
 node tools/recorder-test.mjs && node tools/buffer-test.mjs && node tools/net-test.mjs \
 && node tools/context-test.mjs && node tools/note-test.mjs && node tools/origin-test.mjs \
-&& node tools/og-test.mjs && node tools/sync-web-assets.mjs --check \
+&& node tools/og-test.mjs && node tools/hub-test.mjs && node tools/sync-web-assets.mjs --check \
 && node tools/make-icons.mjs --check && node tools/set-extension-key.mjs --check \
 && node tools/make-pages.mjs --check
 ```
