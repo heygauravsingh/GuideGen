@@ -365,6 +365,61 @@ window.GG = (function () {
     });
   }
 
+  /* Every guide one person has published, for their hub page at /h/{uid}.
+   *
+   * **No token, and no rules change needed.** Firestore allows a query when the query
+   * itself guarantees every document it can return is readable — and the read rule
+   * already permits any guide with `visibility == 'link'`. Filtering on exactly that
+   * is what makes this legal unauthenticated, so **do not remove the visibility filter
+   * to "simplify" it**: without it the query stops being provably safe and Firestore
+   * refuses the whole thing rather than returning a subset.
+   *
+   * Two equality filters and no orderBy, for the same reason as listGuides above — an
+   * orderBy on a third field is a composite index and one more console step. Sorted
+   * here instead.
+   *
+   * This aggregates links that were each already public. It does not make anything
+   * readable that was not: a published guide's document carries `ownerUid`, so anyone
+   * holding one link could already enumerate the rest. What changes is that it takes a
+   * page instead of a script — which is why `hidden` exists, below. */
+  function listPublicGuides(uid) {
+    // The key, not a token — an unauthenticated Firestore REST call is identified by
+    // the public API key exactly as getPublicGuide below is.
+    return post(FS + ":runQuery?key=" + API_KEY, {
+      structuredQuery: {
+        from: [{ collectionId: "guides" }],
+        where: {
+          compositeFilter: {
+            op: "AND",
+            filters: [
+              { fieldFilter: { field: { fieldPath: "ownerUid" }, op: "EQUAL",
+                               value: { stringValue: String(uid || "") } } },
+              { fieldFilter: { field: { fieldPath: "visibility" }, op: "EQUAL",
+                               value: { stringValue: "link" } } },
+            ],
+          },
+        },
+        limit: 300,
+      },
+    }).then(function (rows) {
+      return (rows || [])
+        .filter(function (r) { return r.document; })
+        .map(function (r) {
+          var g = decodeFields(r.document.fields || {});
+          g.id = r.document.name.split("/").pop();
+          g.createdAt = g.createdAt || r.document.createTime;
+          return g;
+        })
+        /* Opt-out, not opt-in. Guides published before the hub existed have no `hidden`
+           field at all, and an opt-in flag would have made every one of them invisible
+           on a page whose whole job is to list them. */
+        .filter(function (g) { return g.hidden !== true; })
+        .sort(function (a, b) {
+          return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+        });
+    });
+  }
+
   // Public read — no token. Works only for guides with visibility 'link',
   // which is enforced by the rules, not here.
   function getPublicGuide(id) {
@@ -594,7 +649,8 @@ window.GG = (function () {
     googleReady: googleReady, beginGoogle: beginGoogle, completeGoogle: completeGoogle,
     sendPasswordReset: sendPasswordReset,
     getToken: getToken, onChange: onChange, current: load,
-    listGuides: listGuides, getPublicGuide: getPublicGuide, getGuide: getGuide,
+    listGuides: listGuides, listPublicGuides: listPublicGuides,
+    getPublicGuide: getPublicGuide, getGuide: getGuide,
     setVisibility: setVisibility, renameGuide: renameGuide, updateGuide: updateGuide,
     createGuide: createGuide, patchGuide: patchGuide, purgeAssetTag: purgeAssetTag,
     setAllowExport: setAllowExport, logExport: logExport, listExports: listExports,

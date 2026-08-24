@@ -1961,6 +1961,17 @@
         "<p>Anyone with this link can open the guide." +
         (canPush ? " Update re-uploads the current version to the <b>same link</b>, so nothing you've already shared goes stale." : "") +
         "</p>" +
+        /* Guides published before a feature existed keep the shape they were published
+           in. The interactive walkthrough needs a click position on each step, and that
+           is written at publish time — so an older guide falls back to Back and Next
+           until it is pushed again. Said here because there is no way for the owner to
+           know it from the reader's page, and "press Update" is not an obvious fix for
+           "the walkthrough looks basic". */
+        (canPush
+          ? '<p class="hint">Published a while ago? Press <b>Update</b> to re-publish. ' +
+            "Newer features — the interactive walkthrough's clickable hotspots, in " +
+            "particular — only appear on guides uploaded since they shipped.</p>"
+          : "") +
         '<div class="field"><input id="sh-url" readonly value="' + escapeHtml(url) + '" /></div>' +
         // Said out loud because it is a surprise otherwise: pasting the link into a
         // chat shows the *title* to that channel, whether or not they open it. The
@@ -1985,6 +1996,21 @@
         "</span></label>"
       : "";
 
+    /* The hub link. Shown beside the guide's own link because this is where an owner
+       is already thinking about sharing — and because a hub nobody can find is a hub
+       nobody uses. It lists every guide this account has published, so it only makes
+       sense once at least this one is. */
+    var hubUrl = (GG.current() && GG.current().uid)
+      ? location.origin + "/h/" + GG.current().uid
+      : "";
+    var hubRow = (remoteId && hubUrl)
+      ? '<p style="margin:16px 0 6px"><b>All your published guides, in one link</b></p>' +
+        '<div class="field"><input id="sh-hub" readonly value="' + escapeHtml(hubUrl) + '" /></div>' +
+        '<p style="color:var(--muted);font-size:13px;margin:6px 0 0">Your hub lists every guide ' +
+        'you have published — nothing private, and nothing you have unpublished. Good as the one ' +
+        'address a team keeps bookmarked.</p>'
+      : "";
+
     /* The embed snippet, offered only once the guide is actually published — before
        that there is nothing to point an iframe at. `?embed=1` strips our house bar,
        nav and promo, so what lands on someone else's page is the guide and one quiet
@@ -2000,7 +2026,7 @@
         'chrome around it.</p>'
       : "";
 
-    el("modal").innerHTML = body + exportRow + embedRow +
+    el("modal").innerHTML = body + exportRow + hubRow + embedRow +
       '<div class="progress" id="sh-prog" style="display:none"><div></div></div>' +
       '<div class="status-line" id="sh-msg"></div>' +
       '<div class="row"><button class="btn" id="sh-close">Close</button><span class="spacer"></span>' +
@@ -2024,6 +2050,14 @@
     if (el("sh-url")) el("sh-url").onclick = function (e) { e.currentTarget.select(); };
     // Same reasoning as the link field: one value, read-only, and the thing you want
     // from it is the whole of it.
+    if (el("sh-hub")) el("sh-hub").onclick = function (e) {
+      e.currentTarget.select();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(e.currentTarget.value).then(function () {
+          note("Hub link copied.");
+        }, function () {});
+      }
+    };
     if (el("sh-embed")) el("sh-embed").onclick = function (e) {
       e.currentTarget.select();
       if (navigator.clipboard) {

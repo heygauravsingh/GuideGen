@@ -16,11 +16,24 @@
     {
       "source": "/g/:id",
       "destination": "/g"
+    },
+    {
+      "source": "/h/:uid",
+      "destination": "/h"
     }
   ],
   "headers": [
     {
       "source": "/g/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/h/(.*)",
       "headers": [
         {
           "key": "X-Robots-Tag",
