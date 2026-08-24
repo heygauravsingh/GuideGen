@@ -43,16 +43,25 @@
      removes this as soon as it has stamped data-theme. */
   body.pre-theme { visibility: hidden; }
   /* No max-height or overflow here on purpose, and it was tried. Chrome caps a popup
-     at 600px and scrolls the document itself past that, so a rule of our own is
-     inert — measured both ways in a 296x600 viewport, identical. The problem this
-     panel had was never that it could not scroll; it was that arming catch-up capture
-     grows it from 569px to 619px, or to 714px once there are steps to capture, and
-     everything the switch reveals lands below the fold with nothing to suggest it is
-     there. That is fixed in popup.js, where the reveal happens. */
+     at 600px and scrolls the document itself past that, so a rule of our own is inert
+     — measured both ways in a 296x600 viewport, identical. The height is handled by
+     the spacing being tight enough that the ordinary armed state fits, and by the
+     account row's bottom padding being large enough that a small overflow clips
+     whitespace rather than words. popup.js deliberately does **not** scroll on arming;
+     the note there says why. */
+  /* **The width goes on `html` as well as `body`, and that is not belt-and-braces.**
+     Chrome lays a popup out at its maximum width and then sizes the window to what
+     the document says it needs. `body` was 296px and nothing inside it overflowed —
+     but `html` had no width, so it stretched to fill the layout width, and the window
+     was sized to *that*. The result was a 296px panel sitting in a much wider popup
+     with a large blank area down the right-hand side, on every page, since the popup
+     was written. Constrain the root and the document's preferred width is the panel's
+     width, which is what Chrome measures. Keep the two numbers identical. */
+  html, body { width: 296px; background: var(--panel); }
   body {
-    width: 296px; margin: 0;
+    margin: 0;
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-    color: var(--ink); background: var(--panel);
+    color: var(--ink);
     -webkit-font-smoothing: antialiased;
   }
   header {
