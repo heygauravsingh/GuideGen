@@ -122,62 +122,69 @@
         or plain text for an AI. One recording, no re-work.</span></li>
       </ol>
 
-      <!-- The one graphic that has to earn its place: the product's whole claim as a
-           picture. One recording on the left, six things out of it on the right.
+      <!-- **The hero shows the product's most distinctive screen, with real words in it.**
+           Two earlier attempts failed the same way: skeleton bars and arrows. Placeholder
+           bars are wireframe language — they read as "unfinished" no matter how neatly
+           they are drawn, and a box-and-arrow diagram explains a product rather than
+           selling one. Everything here is legible: real labels, real hierarchy, real
+           colour, and the one moment that is ours — the page dimmed, the control lit, the
+           instruction pinned to it.
 
-           Inline SVG rather than an image file, so it themes with the page, stays crisp
-           at any width, costs no request, and can be edited by whoever edits the copy.
-           Drawn with the page's own tokens — an exported PNG would have needed two of
-           everything, one for each theme. -->
-      <figure class="heroart" aria-labelledby="heroart-cap">
-        <svg viewBox="0 0 900 300" role="img" aria-label="One recording becomes a narrated video, a shareable link, a PDF, slides, Markdown and text for an AI">
-          <defs>
-            <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-              <path d="M0 0l10 5-10 5z" fill="currentColor" stroke="none" />
-            </marker>
-          </defs>
+           HTML with the site's own tokens rather than an exported image, so it themes,
+           stays sharp on any display, costs no request and cannot go stale the way a
+           screenshot of an older build does. The dashboard behind the dimming is a
+           representation, not anyone's real data. -->
+      <figure class="hero-shot" aria-labelledby="hero-shot-cap">
+        <div class="hs-win">
+          <div class="hs-chrome">
+            <span class="hs-dot"></span><span class="hs-dot"></span><span class="hs-dot"></span>
+            <span class="hs-addr">guidegen.backpocket.website/g/&hellip;</span>
+          </div>
 
-          <g class="ha-win">
-            <rect x="14" y="42" width="330" height="216" rx="12" />
-            <path d="M14 78h330" />
-          </g>
-          <g class="ha-dots">
-            <circle cx="40" cy="60" r="4.5" /><circle cx="56" cy="60" r="4.5" /><circle cx="72" cy="60" r="4.5" />
-          </g>
-          <rect class="ha-bar" x="92" y="53" width="228" height="14" rx="7" />
-          <g class="ha-ui">
-            <rect x="40" y="100" width="128" height="12" rx="6" />
-            <rect x="40" y="124" width="196" height="12" rx="6" />
-            <rect x="40" y="200" width="164" height="12" rx="6" />
-          </g>
-          <rect class="ha-btn" x="40" y="152" width="96" height="30" rx="8" />
-          <circle class="ha-ring" cx="88" cy="167" r="21" />
-          <circle class="ha-pt" cx="88" cy="167" r="6" />
-          <g class="ha-pill">
-            <rect x="206" y="214" width="126" height="28" rx="14" />
-            <circle class="ha-rec" cx="225" cy="228" r="5" />
-            <text x="238" y="233">Recording</text>
-          </g>
+          <div class="hs-stage">
+            <div class="hs-app" aria-hidden="true">
+              <div class="hs-appbar"><span class="hs-brand">uEngage</span><span class="hs-user">Gaurav S.</span></div>
+              <div class="hs-card">
+                <div class="hs-title">Select Your Business</div>
+                <div class="hs-field">demo</div>
+                <div class="hs-item hs-hit">
+                  <span class="hs-av">RD</span>
+                  <span class="hs-meta"><b>Restaurant Demo</b><i>IT Park, Chandigarh</i></span>
+                  <span class="hs-cta">Select</span>
+                </div>
+                <div class="hs-item">
+                  <span class="hs-av">UC</span>
+                  <span class="hs-meta"><b>Uengage Demo &mdash; Corporate</b><i>Head Office</i></span>
+                  <span class="hs-cta">Select</span>
+                </div>
+                <div class="hs-item">
+                  <span class="hs-av">LP</span>
+                  <span class="hs-meta"><b>La Pino&rsquo;z Pizza &mdash; Demo</b><i>Bengaluru</i></span>
+                  <span class="hs-cta">Select</span>
+                </div>
+              </div>
+            </div>
 
-          <g class="ha-flow" marker-end="url(#ga)">
-            <path d="M358 150h48" />
-            <path d="M358 150h20c8 0 12-4 12-12V77c0-8 4-12 12-12h4" />
-            <path d="M358 150h20c8 0 12 4 12 12v61c0 8 4 12 12 12h4" />
-          </g>
+            <div class="hs-dim" aria-hidden="true"></div>
+            <span class="hs-spot" aria-hidden="true"></span>
 
-          <g class="ha-out">
-            <rect x="424" y="42" width="210" height="46" rx="10" /><text x="444" y="71">Narrated video · .mp4</text>
-            <rect x="654" y="42" width="232" height="46" rx="10" /><text x="674" y="71">A link anyone can open</text>
-            <rect x="424" y="128" width="210" height="46" rx="10" /><text x="444" y="157">PDF · Slides · Markdown</text>
-            <rect x="654" y="128" width="232" height="46" rx="10" /><text x="674" y="157">Paste into Notion or Docs</text>
-            <rect x="424" y="214" width="210" height="46" rx="10" /><text x="444" y="243">Text for an AI</text>
-          </g>
-          <g class="ha-out is-lit">
-            <rect x="654" y="214" width="232" height="46" rx="10" /><text x="674" y="243">Every API call, as cURL</text>
-          </g>
-        </svg>
-        <figcaption id="heroart-cap">One pass through the workflow. Six things out of it, and none of
-        them written by you.</figcaption>
+            <div class="hs-call">
+              <p class="hs-call-t">Click &ldquo;Restaurant Demo&rdquo;</p>
+              <div class="hs-call-r">
+                <span class="hs-call-n">Step 2 of 5</span>
+                <span class="hs-call-b">Next</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hs-outs" aria-label="The same recording, six ways out">
+          <span>Narrated .mp4</span><span>Shareable link</span><span>PDF</span>
+          <span>Slides</span><span>Notion paste</span><span class="is-ours">Every API call, as cURL</span>
+        </div>
+
+        <figcaption id="hero-shot-cap">One recording, read as a walkthrough &mdash; the reader clicks the
+        thing the guide points at.</figcaption>
       </figure>
 
       <div class="caps">
@@ -240,7 +247,7 @@
        Deliberately NOT tint, to break the run of tinted sections either side of it. -->
   <section id="catchup">
     <div class="wrap">
-      <span class="note-tag">In the beta build</span>
+      <span class="note-tag">Nothing else does this</span>
       <h2 class="sec">You already did it. Capture the last 2 minutes.</h2>
       <p class="sec-lede">
         Every tool that records a workflow needs you to know, in advance, that you are about to
