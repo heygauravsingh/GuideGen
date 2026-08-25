@@ -613,7 +613,10 @@ footer.site .spacer { flex: 1; }
    panel. If you add a band, draw one thing large. Do not draw a little screenshot. */
 .band {
   position: relative; overflow: hidden;
-  border-radius: 18px; margin: 34px 0 0;
+  /* Bottom margin is not optional: with `margin: … 0` the panel's edge lands exactly on
+     the next block — measured at a 0px gap — and the content under it reads as sitting on
+     top of the band rather than after it. */
+  border-radius: 18px; margin: 40px 0 44px;
   background: var(--dark, #15130f); color: #f2ede3;
   padding: 54px 56px;
   display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 48px;
@@ -710,6 +713,36 @@ footer.site .spacer { flex: 1; }
   font-size: 12px; font-weight: 700; color: var(--brand);
   font-variant-numeric: tabular-nums; display: block; margin-bottom: 5px;
 }
+/* One drawing per step. Same rule as the bands: a single simple object, the accent used
+   once, nothing that has to be read at small size. The tile gives each drawing the same
+   frame so the three read as a set rather than three sketches. */
+.verb-art {
+  display: block; margin-bottom: 14px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden;
+}
+.verb-art svg { display: block; width: 100%; height: auto; }
+
+.va-fill { fill: var(--panel); stroke: var(--line); stroke-width: 1.6; }
+.va-ring { fill: none; stroke: var(--brand); stroke-width: 2.6; }
+.va-cur  { fill: var(--ink); }
+.va-rew  { fill: none; stroke: var(--faint); stroke-width: 2.2; stroke-linecap: round;
+           stroke-linejoin: round; stroke-dasharray: 4 5; }
+
+.va-badge { fill: var(--brand); }
+.va-num   { fill: var(--on-brand); font: 700 14px/1 ui-sans-serif, system-ui, sans-serif;
+            text-anchor: middle; }
+.va-line  { fill: var(--ink-2); }
+.va-line.dim { fill: var(--line); }
+.va-shot  { fill: var(--panel); stroke: var(--line); stroke-width: 1.6; }
+.va-dot   { fill: var(--brand); }
+
+.va-card { fill: var(--panel); stroke: var(--line); stroke-width: 1.6; }
+.va-card.back { opacity: 0.45; }
+.va-card.mid  { opacity: 0.72; }
+.va-share { fill: none; stroke: var(--brand); stroke-width: 2.8;
+            stroke-linecap: round; stroke-linejoin: round; }
+
 .verbs b { display: block; font-size: 16.5px; letter-spacing: -0.015em; margin-bottom: 3px; }
 .verbs span { display: block; font-size: 14px; line-height: 1.55; color: var(--muted); }
 
