@@ -3,5 +3,7 @@
 User-agent: *
 Disallow: /g/
 Disallow: /app
+# A hub lists somebody's published guides. Same reasoning as /g/.
+Disallow: /h/
 
-Sitemap: https://guide-gen.vercel.app/sitemap.xml
+Sitemap: https://guidegen.backpocket.website/sitemap.xml
