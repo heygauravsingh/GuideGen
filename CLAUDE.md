@@ -31,7 +31,7 @@ node tools/recorder-test.mjs && node tools/buffer-test.mjs && node tools/net-tes
 && node tools/context-test.mjs && node tools/note-test.mjs && node tools/origin-test.mjs \
 && node tools/og-test.mjs && node tools/hub-test.mjs && node tools/sync-web-assets.mjs --check \
 && node tools/make-icons.mjs --check && node tools/set-extension-key.mjs --check \
-&& node tools/make-pages.mjs --check
+&& node tools/make-pages.mjs --check && node tools/make-faq-schema.mjs --check
 ```
 
 **Do not touch the Chrome Web Store item while a review is pending** — uploading a package
