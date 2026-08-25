@@ -134,3 +134,29 @@ safe here because `netpatch.js` marks the window and returns early.
 synchronously. Chrome does not. That one shortcut made the losing ordering impossible to reproduce,
 so the race lived in a file with an otherwise thorough test suite. **A stub that is more orderly than
 the real API does not simplify a test — it deletes the case the test existed to catch.**
+
+## The hub screen (25 Aug 2026) — three things that look like tidying and are not
+
+The folder rail at `/app` is in `web/assets/app.js` and `web/assets/site.css`. The engine behind it
+is in `background.js`; `tools/hub-test.mjs` covers the engine, and there is no automated test for the
+screen — it needs an extension and a signed-in session, so it was verified by driving the real
+`app.js` against a stubbed `GG`/`GGBridge`. If you change any of the below, drive it the same way.
+
+**`dragGuideId` is a module variable and must stay one.** It is tempting to put the dragged guide's
+id into `dataTransfer` and read it in the drop handler. `dataTransfer.getData` returns an empty
+string during `dragover` in every browser — that is a deliberate part of the drag-and-drop spec — and
+`dragover` is exactly where a folder has to decide whether to accept the drop and show its ring.
+Moving this into the drag payload kills every drop target silently: the drag still works, nothing
+highlights, and nothing lands.
+
+**The rail hides itself when there is no extension, and that is not a degraded state to improve.**
+Hubs live in the extension's storage because the editable copy of a guide does — filing kept anywhere
+else drifts the moment the dashboard is open in two windows. So a browser without the extension has
+no folders at all, and `renderHubs` sets `.dash-body.no-rail` and forces the selection back to *All
+guides*. Do not "fix" this by showing an empty rail: every control on it would fail.
+
+**Move and Duplicate are disabled with a reason on a server-only guide, not hidden.** A guide that
+exists only as a published document has no entry in `fs_index`, which is where `hubId` lives, and
+duplicating one would mean re-uploading every screenshot to make a draft nobody asked to publish.
+Hiding the two items instead makes the menu change shape from row to row, which reads as a bug and
+gets reported as one.

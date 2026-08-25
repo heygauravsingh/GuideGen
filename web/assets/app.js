@@ -26,7 +26,7 @@
   var R = window.FSRender;
   var X = window.FSExport;
 
-  var lib = { local: [], remote: [], buf: [], extVersion: null, extError: null };
+  var lib = { local: [], remote: [], buf: [], hubs: [], extVersion: null, extError: null };
   var cur = null;   // { kind, id, guide, steps }
   var mode = "signin";
   var saveTimers = {};
@@ -88,6 +88,16 @@
     // Up-and-down arrows: a request went out and something came back.
     net: '<path d="M7 4v13m0 0-3-3m3 3 3-3M17 20V7m0 0-3 3m3-3 3 3"/>',
     warn: '<path d="M12 9v4m0 3h.01"/><path d="M10.3 4.3 2.6 17.5A1.9 1.9 0 0 0 4.3 20.5h15.4a1.9 1.9 0 0 0 1.7-3L13.7 4.3a1.9 1.9 0 0 0-3.4 0Z"/>',
+    // ---- library and hubs ----
+    lines: '<path d="M4 7h16M4 12h11M4 17h7"/>',
+    folder: '<path d="M3 7.6A1.6 1.6 0 0 1 4.6 6h3.9l2 2.2h6.9A1.6 1.6 0 0 1 19 9.8v7.6A1.6 1.6 0 0 1 17.4 19H4.6A1.6 1.6 0 0 1 3 17.4z"/>',
+    // A tray, for the guides that are in no folder. Deliberately not a dashed
+    // folder: "unfiled" is a place things arrive, not a folder you made.
+    inbox: '<path d="M4 13h4l1.4 2.6h5.2L16 13h4"/><path d="M6.6 5h10.8L20 13v4.6A1.4 1.4 0 0 1 18.6 19H5.4A1.4 1.4 0 0 1 4 17.6V13z"/>',
+    more: '<path d="M12 6h.01M12 12h.01M12 18h.01"/>',
+    pencil: '<path d="M4 20h4l10-10a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5 17.5 9.5"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5.5A1.5 1.5 0 0 0 13.5 4h-8A1.5 1.5 0 0 0 4 5.5v8A1.5 1.5 0 0 0 5.5 15"/>',
+    moveTo: '<path d="M3 7.6A1.6 1.6 0 0 1 4.6 6h3.9l2 2.2h6.9A1.6 1.6 0 0 1 19 9.8v7.6A1.6 1.6 0 0 1 17.4 19H4.6A1.6 1.6 0 0 1 3 17.4z"/><path d="M11 15V10m0 0-2 2m2-2 2 2"/>',
   };
 
   function iconBtn(icon, title, fn, disabled) {
@@ -239,6 +249,86 @@
     return confirmModal(title, body, label || "OK", { info: true });
   }
 
+  /* Asks for one line of text — a hub's name, a guide's title. Separate from
+     confirmModal rather than an option on it, for two reasons: the button that
+     matters here is not destructive and must not be red, and an empty field has to
+     disable the button rather than let the press through and fail afterwards.
+     Resolves with the trimmed string, or null if the user backed out. */
+  function promptModal(title, body, value, confirmLabel, placeholder) {
+    return new Promise(function (resolve) {
+      var m = el("modal");
+      m.innerHTML =
+        "<h3></h3>" + (body ? "<p></p>" : "") +
+        '<div class="field"><input type="text" id="p-in" maxlength="80" autocomplete="off" /></div>' +
+        '<div class="row"><button class="btn" id="p-no">Cancel</button>' +
+        '<span class="spacer"></span>' +
+        '<button class="btn brand-btn" id="p-yes"></button></div>';
+      m.querySelector("h3").textContent = title;
+      if (body) m.querySelector("p").textContent = body;
+      var input = m.querySelector("#p-in");
+      var yes = m.querySelector("#p-yes");
+      input.value = value || "";
+      input.placeholder = placeholder || "";
+      yes.textContent = confirmLabel || "Save";
+      openModal();
+      var done = function (v) { closeModal(); resolve(v); };
+      var sync = function () { yes.disabled = !input.value.trim(); };
+      sync();
+      input.addEventListener("input", sync);
+      input.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        if (!yes.disabled) done(input.value.trim());
+      });
+      m.querySelector("#p-no").onclick = function () { done(null); };
+      yes.onclick = function () { if (!yes.disabled) done(input.value.trim()); };
+      input.focus();
+      input.select();
+    });
+  }
+
+  /* Picks a hub for a guide to sit in. A dialog rather than a submenu off the row
+     menu: a submenu that has to hold sixty folders is a scrolling menu inside a
+     menu, and it is unusable with a finger. Dragging a row onto the rail is the
+     fast path; this is the one that always works. */
+  function hubPickModal(currentHubId) {
+    return new Promise(function (resolve) {
+      var m = el("modal");
+      var opts = [{ id: "", name: "Unfiled", icon: ICON.inbox }].concat(
+        lib.hubs.map(function (h) { return { id: h.id, name: h.name, icon: ICON.folder }; })
+      );
+      m.innerHTML =
+        "<h3>Move to a hub</h3>" +
+        '<div class="menu slim open" id="hp-list" style="position:static;box-shadow:none;' +
+        'border:0;padding:0;min-width:0;margin:2px 0 14px"></div>' +
+        '<div class="row"><button class="btn" id="hp-new">New hub…</button>' +
+        '<span class="spacer"></span>' +
+        '<button class="btn" id="hp-no">Cancel</button></div>';
+      var list = m.querySelector("#hp-list");
+      opts.forEach(function (o) {
+        var b = mk("button", "");
+        var here = (currentHubId || "") === o.id;
+        b.innerHTML =
+          '<span class="ico">' + svg(o.icon) + "</span>" +
+          '<span class="txt"></span>' +
+          (here ? '<span class="spacer"></span><span class="ico">' + svg(ICON.check) + "</span>" : "");
+        b.querySelector(".txt").textContent = o.name;
+        b.disabled = here;
+        b.onclick = function () { closeModal(); resolve(o.id || null); };
+        list.appendChild(b);
+      });
+      openModal();
+      m.querySelector("#hp-no").onclick = function () { closeModal(); resolve(undefined); };
+      // Creating the folder from inside the move is the case that actually happens:
+      // you notice the guide has nowhere to go at the moment you try to file it.
+      m.querySelector("#hp-new").onclick = function () {
+        closeModal();
+        createHub().then(function (hub) { resolve(hub ? hub.id : undefined); });
+      };
+      m.querySelector("#hp-no").focus();
+    });
+  }
+
   // ---------------------------------------------------------------- auth view
 
   function applyMode() {
@@ -311,6 +401,207 @@
 
   // ---------------------------------------------------------------- library
 
+  /* ---- hubs: the folders in the rail ----
+   *
+   * Hubs live in the extension, beside the guides they file. That is not an
+   * implementation detail you can move: the editable copy of a guide is the local
+   * one, so filing kept anywhere else would drift the first time somebody opened
+   * the dashboard in a second window. It also means a browser without the
+   * extension has no folders — the rail hides itself rather than showing an empty
+   * one you cannot add to.
+   *
+   * One level deep, and hub ids are never in the URL. The selection is a view
+   * preference, so it belongs in localStorage: the hash on this page already means
+   * "open this guide", and a link to /app should not carry somebody else's folder.
+   */
+  var hubSel = "all";   // "all" | "unfiled" | hubId
+  try { hubSel = localStorage.getItem("gg_hub_sel") || "all"; } catch (e) { /* private mode */ }
+
+  function setHubSel(v) {
+    hubSel = v;
+    try { localStorage.setItem("gg_hub_sel", v); } catch (e) { /* private mode */ }
+  }
+
+  function hubById(id) {
+    return lib.hubs.filter(function (h) { return h.id === id; })[0] || null;
+  }
+
+  function inHub(r) {
+    if (hubSel === "all") return true;
+    if (hubSel === "unfiled") return !r.hubId;
+    return r.hubId === hubSel;
+  }
+
+  function createHub() {
+    return promptModal(
+      "New hub",
+      "A hub is a folder for guides — one place to send everything about a single product, team or process.",
+      "", "Create hub", "Onboarding"
+    ).then(function (name) {
+      if (!name) return null;
+      return GGBridge.hubCreate(name).then(function (r) {
+        lib.hubs = r.hubs || lib.hubs;
+        toast("Hub created");
+        return r.hub || null;
+      }).catch(function (e) {
+        say("dash-msg", e.message, "err");
+        return null;
+      });
+    });
+  }
+
+  // Every hub write ends here: the rail's counts come from the guide rows, so
+  // there is no version of this that updates one without the other.
+  function afterHubChange() {
+    renderLibrary();
+  }
+
+  el("hub-rename").addEventListener("click", function () {
+    var h = hubById(hubSel);
+    if (!h) return;
+    promptModal("Rename hub", "", h.name, "Rename").then(function (name) {
+      if (!name || name === h.name) return;
+      GGBridge.hubRename(h.id, name)
+        .then(function (r) { lib.hubs = r.hubs || lib.hubs; toast("Hub renamed"); afterHubChange(); })
+        .catch(function (e) { say("dash-msg", e.message, "err"); });
+    });
+  });
+
+  el("hub-delete").addEventListener("click", function () {
+    var h = hubById(hubSel);
+    if (!h) return;
+    var n = lib.local.filter(function (g) { return g.hubId === h.id; }).length;
+    confirmModal(
+      "Delete this hub?",
+      "“" + h.name + "” is removed. " +
+        (!n
+          ? "It has nothing in it."
+          : n === 1
+            ? "The guide in it is not deleted — it becomes unfiled."
+            : "The " + n + " guides in it are not deleted — they become unfiled."),
+      "Delete hub"
+    ).then(function (ok) {
+      if (!ok) return;
+      GGBridge.hubDelete(h.id)
+        .then(function (r) {
+          lib.hubs = r.hubs || [];
+          // Its guides are unfiled now, so that is where the user should be looking.
+          setHubSel("unfiled");
+          toast("Hub deleted");
+          return loadLibrary();
+        })
+        .catch(function (e) { say("dash-msg", e.message, "err"); });
+    });
+  });
+
+  function hubItem(id, name, count, icon) {
+    var b = mk("button", "hub-item" + (hubSel === id ? " on" : ""));
+    b.type = "button";
+    b.innerHTML = svg(icon, 15) + '<span class="nm"></span><span class="ct"></span>';
+    b.querySelector(".nm").textContent = name;
+    // A zero reads as a broken count next to folders that have numbers. Blank is
+    // the truth and looks like it.
+    b.querySelector(".ct").textContent = count ? String(count) : "";
+    b.setAttribute("aria-pressed", String(hubSel === id));
+    b.addEventListener("click", function () {
+      setHubSel(id);
+      renderLibrary();
+    });
+
+    /* Dropping a guide onto a folder. "All guides" is not a destination — it is a
+       view of everything — so it takes no drop; every other row does, and Unfiled
+       drops to null, which is what taking a guide out of a folder means. */
+    if (id !== "all") {
+      b.addEventListener("dragover", function (e) {
+        if (!dragGuideId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        b.classList.add("drop");
+      });
+      b.addEventListener("dragleave", function () { b.classList.remove("drop"); });
+      b.addEventListener("drop", function (e) {
+        e.preventDefault();
+        b.classList.remove("drop");
+        if (!dragGuideId) return;
+        fileGuide(dragGuideId, id === "unfiled" ? null : id);
+      });
+    }
+    return b;
+  }
+
+  // The guide currently being dragged, if any. A module variable rather than the
+  // drag's own dataTransfer, because dataTransfer.getData is empty during dragover
+  // in every browser — and dragover is where the drop target has to decide.
+  var dragGuideId = null;
+
+  function fileGuide(guideId, hubId) {
+    var g = lib.local.filter(function (x) { return x.id === guideId; })[0];
+    if (!g || (g.hubId || null) === (hubId || null)) return;
+    GGBridge.moveGuide(guideId, hubId)
+      .then(function () {
+        g.hubId = hubId || null;
+        var h = hubId ? hubById(hubId) : null;
+        toast(h ? "Moved to " + h.name : "Moved out of its hub");
+        renderLibrary();
+      })
+      .catch(function (e) { say("dash-msg", e.message, "err"); });
+  }
+
+  function renderHubs(rows) {
+    var body = document.querySelector(".dash-body");
+    var wrap = el("hubs");
+    // No extension, no folders — and no rail, rather than a rail with one row and
+    // a New hub button that would fail.
+    var off = !GGBridge.available() || !!lib.extError;
+    body.classList.toggle("no-rail", off);
+    wrap.hidden = off;
+    if (off) {
+      hubSel = "all";
+      wrap.innerHTML = "";
+      el("hub-acts").hidden = true;
+      return;
+    }
+    // A hub deleted in another tab leaves a selection pointing at nothing, and the
+    // symptom is an empty library with no explanation.
+    if (hubSel !== "all" && hubSel !== "unfiled" && !hubById(hubSel)) setHubSel("all");
+
+    var counts = {};
+    var unfiled = 0;
+    rows.forEach(function (r) {
+      if (r.hubId) counts[r.hubId] = (counts[r.hubId] || 0) + 1;
+      else unfiled++;
+    });
+
+    wrap.innerHTML = "";
+    var lbl = mk("div", "hub-lbl");
+    lbl.textContent = "Library";
+    wrap.appendChild(lbl);
+    wrap.appendChild(hubItem("all", "All guides", rows.length, ICON.lines));
+    wrap.appendChild(hubItem("unfiled", "Unfiled", unfiled, ICON.inbox));
+    if (lib.hubs.length) {
+      wrap.appendChild(mk("div", "hub-sep"));
+      var hl = mk("div", "hub-lbl");
+      hl.textContent = "Hubs";
+      wrap.appendChild(hl);
+      lib.hubs.forEach(function (h) {
+        wrap.appendChild(hubItem(h.id, h.name, counts[h.id] || 0, ICON.folder));
+      });
+    }
+    var add = mk("button", "hub-new");
+    add.type = "button";
+    add.innerHTML = svg(ICON.plus, 14) + "<span>New hub</span>";
+    add.addEventListener("click", function () {
+      createHub().then(function (hub) {
+        if (hub) setHubSel(hub.id);
+        afterHubChange();
+      });
+    });
+    wrap.appendChild(add);
+
+    var h = hubById(hubSel);
+    el("hub-acts").hidden = !h;
+  }
+
   function loadLibrary() {
     var list = el("list");
     list.innerHTML = '<div class="skel"></div><div class="skel"></div>';
@@ -334,10 +625,18 @@
       ? GGBridge.bufSessions().catch(function () { return []; })
       : Promise.resolve([]);
 
-    return Promise.all([localP, remoteP, bufP]).then(function (r) {
+    // Folders, on the same terms as the pending list: best-effort, because an
+    // extension too old to know the message answers with an error and a library
+    // with no rail is still a library.
+    var hubsP = GGBridge.available()
+      ? GGBridge.hubs().catch(function () { return []; })
+      : Promise.resolve([]);
+
+    return Promise.all([localP, remoteP, bufP, hubsP]).then(function (r) {
       lib.local = r[0] || [];
       lib.remote = r[1] || [];
       lib.buf = (r[2] || []).filter(function (s) { return !s.redeemedAt; });
+      lib.hubs = r[3] || [];
       renderLibrary();
     });
   }
@@ -368,6 +667,7 @@
         kind: "local", id: g.id, title: g.title, stepCount: g.stepCount,
         createdAt: g.createdAt, startUrl: g.startUrl,
         remoteId: g.remoteId || null,
+        hubId: g.hubId || null,
         live: !!(pub && pub.visibility === "link"),
         shared: !!g.remoteId,
       };
@@ -375,28 +675,57 @@
       return {
         kind: "remote", id: g.id, title: g.title, stepCount: g.stepCount,
         createdAt: g.createdAt, remoteId: g.id,
+        // Filing lives in the extension's index, and this guide has no entry in it.
+        // It is genuinely unfiled, and the row menu says why it has to stay that way.
+        hubId: null,
         live: g.visibility === "link", shared: true,
       };
     }));
 
+    renderHubs(rows);
+
+    var hub = hubById(hubSel);
+    var shown = rows.filter(inHub);
+    // A catch-up capture is not a guide and cannot be filed, so it belongs to no
+    // folder. It appears in the two views that mean "not in a folder" and nowhere
+    // else, rather than following you into every hub.
+    var pending = hubSel === "all" || hubSel === "unfiled" ? lib.buf || [] : [];
+
     var list = el("list");
     list.innerHTML = "";
-    var pending = lib.buf || [];
-    if (!rows.length && !pending.length) {
-      list.innerHTML = blankState();
-      el("dash-sub").textContent = "Nothing here yet.";
+    el("dash-h1").textContent = hub ? hub.name : hubSel === "unfiled" ? "Unfiled" : "Your guides";
+
+    if (!shown.length && !pending.length) {
+      list.innerHTML = rows.length ? emptyHubState(hub) : blankState();
+      el("dash-sub").textContent = rows.length ? "Nothing in here." : "Nothing here yet.";
       return;
     }
     // Pending captures sit above the guides, and they are the only rows with an
     // expiry — so the thing that will disappear on its own is the thing you see
     // first. They are not guides yet and are counted separately for that reason.
     pending.forEach(function (s) { list.appendChild(pendingRow(s)); });
-    rows.forEach(function (r) { list.appendChild(libRow(r)); });
+    shown.forEach(function (r) { list.appendChild(libRow(r)); });
     el("dash-sub").textContent =
-      (rows.length === 1 ? "1 guide" : rows.length + " guides") +
+      (shown.length === 1 ? "1 guide" : shown.length + " guides") +
+      (hubSel !== "all" && rows.length !== shown.length ? " of " + rows.length : "") +
       (pending.length
         ? " · " + pending.length + " catch-up capture" + (pending.length === 1 ? "" : "s")
         : "");
+  }
+
+  /* The library has guides, this folder does not. Different from blankState, which
+     tells a first-time user how to record one — that advice is wrong here, and
+     "record a guide" is not what somebody looking at an empty folder needs. */
+  function emptyHubState(hub) {
+    return '<div class="blank">' +
+      '<div class="ico">' + svg(hub ? ICON.folder : ICON.inbox, 22) + "</div>" +
+      "<h2>" + (hub ? "Nothing in this hub yet" : "Everything is filed") + "</h2>" +
+      "<p>" +
+      (hub
+        ? "Drag a guide onto <b>" + escapeHtml(hub.name) + "</b> in the rail, or use " +
+          "<b>Move to hub</b> on any guide."
+        : "Every guide on this device is in a hub. Pick one on the left to see it.") +
+      "</p></div>";
   }
 
   // "in 6 days" / "in 4 hours" / "in 12 minutes". Rounded down, because a card
@@ -528,7 +857,176 @@
       view.addEventListener("click", function () { window.open("/g/" + r.remoteId, "_blank"); });
       acts.appendChild(view);
     }
+    acts.appendChild(rowMenu(r, d));
+
+    /* Drag to file. Only guides that are on this device can be filed, and only when
+       there is a rail to drop them onto — a row that lifts and has nowhere to land
+       is worse than a row that does not lift. */
+    if (r.kind === "local" && GGBridge.available() && !lib.extError) {
+      d.draggable = true;
+      d.addEventListener("dragstart", function (e) {
+        dragGuideId = r.id;
+        d.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        // Firefox refuses to start a drag at all unless something is set here.
+        try { e.dataTransfer.setData("text/plain", r.title || "guide"); } catch (err) { /* ignore */ }
+      });
+      d.addEventListener("dragend", function () {
+        dragGuideId = null;
+        d.classList.remove("dragging");
+      });
+    }
     return d;
+  }
+
+  /* The overflow menu on a guide row: the four verbs that are not "open it".
+   *
+   * Rename and Delete work on both kinds of row. Move and Duplicate need the
+   * extension's own copy — a guide that exists only as a published document has no
+   * entry in the index that holds filing, and duplicating one would mean
+   * re-uploading every screenshot to make a draft nobody asked to publish. Those
+   * two are shown disabled with the reason rather than hidden, because a menu that
+   * changes shape row to row reads as a bug. */
+  function rowMenu(r, row) {
+    var wrap = mk("div", "menu-wrap");
+    var btn = mk("button", "btn icon sm");
+    btn.innerHTML = svg(ICON.more);
+    btn.title = "More";
+    btn.setAttribute("aria-label", "More actions");
+    btn.setAttribute("aria-haspopup", "menu");
+    btn.setAttribute("aria-expanded", "false");
+    var menu = mk("div", "menu slim");
+    var localOnly = r.kind !== "local"
+      ? "Only guides recorded on this device can be filed or copied"
+      : "";
+
+    function item(icon, label, note, fn, danger) {
+      var b = mk("button", danger ? "danger-item" : "");
+      b.innerHTML = '<span class="ico">' + svg(icon) + '</span><span class="txt"></span>';
+      var txt = b.querySelector(".txt");
+      txt.textContent = label;
+      if (note) {
+        var small = document.createElement("small");
+        small.textContent = note;
+        txt.appendChild(small);
+      }
+      if (!fn) b.disabled = true;
+      else b.addEventListener("click", function () { close(); fn(); });
+      menu.appendChild(b);
+      return b;
+    }
+
+    function close() {
+      menu.classList.remove("open", "up");
+      btn.setAttribute("aria-expanded", "false");
+    }
+
+    item(ICON.pencil, "Rename", "", function () { renameRow(r); });
+    item(ICON.moveTo, "Move to hub", localOnly, localOnly ? null : function () {
+      hubPickModal(r.hubId).then(function (hubId) {
+        if (hubId === undefined) return;   // backed out; null means unfiled
+        fileGuide(r.id, hubId);
+      });
+    });
+    item(ICON.copy, "Duplicate", localOnly, localOnly ? null : function () { duplicateRow(r); });
+    menu.appendChild(mk("div", "sep"));
+    item(ICON.trash, "Delete", "", function () { deleteRow(r); }, true);
+
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var opening = !menu.classList.contains("open");
+      // One menu at a time, including the export menu in the editor.
+      closeAllRowMenus();
+      if (!opening) return;
+      menu.classList.add("open");
+      btn.setAttribute("aria-expanded", "true");
+      /* A row near the foot of the page would otherwise open a 200px menu below the
+         viewport, and the only way to read it is to scroll the page out from under
+         the row you pressed. Flip it upward — but only when there is actually more
+         room up there, or a short window just moves the same problem to the top of
+         the screen. offsetHeight is read after .open, so the menu is laid out. */
+      var rect = row.getBoundingClientRect();
+      var below = window.innerHeight - rect.bottom;
+      if (below < menu.offsetHeight + 24 && rect.top > below) menu.classList.add("up");
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    return wrap;
+  }
+
+  function closeAllRowMenus() {
+    [].forEach.call(document.querySelectorAll(".menu.slim.open"), function (m) {
+      m.classList.remove("open", "up");
+      var b = m.parentNode && m.parentNode.querySelector("button[aria-expanded]");
+      if (b) b.setAttribute("aria-expanded", "false");
+    });
+  }
+  document.addEventListener("click", closeAllRowMenus);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeAllRowMenus();
+  });
+
+  /* Renaming from the row saves exactly where the editor's title field saves: the
+     local copy through the extension, a published-only guide through Firestore. A
+     local guide that has been shared keeps its published title until it is
+     published again — that is the editor's behaviour too, and two different answers
+     to "did the rename reach the link" would be worse than one that is consistent. */
+  function renameRow(r) {
+    promptModal("Rename guide", "", r.title || "", "Rename").then(function (title) {
+      if (!title || title === r.title) return;
+      var p = r.kind === "local"
+        ? GGBridge.updateGuide(r.id, { title: title })
+        : GG.patchGuide(r.id, { title: title });
+      p.then(function () {
+        var g = (r.kind === "local" ? lib.local : lib.remote)
+          .filter(function (x) { return x.id === r.id; })[0];
+        if (g) g.title = title;
+        toast("Renamed");
+        renderLibrary();
+      }).catch(function (e) { say("dash-msg", e.message, "err"); });
+    });
+  }
+
+  function duplicateRow(r) {
+    say("dash-msg", "Duplicating…");
+    GGBridge.duplicateGuide(r.id)
+      .then(function () {
+        say("dash-msg", "");
+        toast("Copy created");
+        // Reloaded rather than pushed onto lib.local: the copy's step count and
+        // filing come back from the extension, and guessing them here is how the
+        // row ends up saying "0 steps".
+        //
+        // No rename dialog afterwards, deliberately. The copy is called "X (copy)"
+        // and sits at the top of the list; a modal on every duplicate is a press
+        // you have to dismiss even when you were only making a backup before
+        // editing, which is most of the time.
+        return loadLibrary();
+      })
+      .catch(function (e) { say("dash-msg", e.message, "err"); });
+  }
+
+  function deleteRow(r) {
+    var title = r.title || "Untitled guide";
+    confirmModal(
+      "Delete this guide?",
+      "“" + title + "” and its " + (r.stepCount || 0) +
+        ((r.stepCount === 1 ? " step" : " steps")) + " will be removed." +
+        (r.shared
+          ? " Its screenshots will be deleted from our servers and anyone with the link will lose access."
+          : "") +
+        " This cannot be undone.",
+      "Delete guide"
+    ).then(function (ok) {
+      if (!ok) return;
+      var jobs = [];
+      if (r.remoteId) jobs.push(GG.deleteGuideAndAssets(r.remoteId));
+      if (r.kind === "local") jobs.push(GGBridge.deleteGuide(r.id));
+      say("dash-msg", "Deleting…");
+      Promise.all(jobs)
+        .then(function () { say("dash-msg", ""); toast("Guide deleted"); return loadLibrary(); })
+        .catch(function (e) { say("dash-msg", e.message, "err"); });
+    });
   }
 
   el("refresh").addEventListener("click", loadLibrary);

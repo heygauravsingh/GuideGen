@@ -432,6 +432,88 @@ footer.site .spacer { flex: 1; }
 /* Dashed, so a provisional row reads as provisional before the badge is read. */
 .guide-row.pending { border-style: dashed; }
 
+/* ---------- hubs: the folder rail beside the library ----------
+ *
+ * A rail rather than a breadcrumb, because the folders here are one level deep and
+ * a breadcrumb over one level is a control that never changes. Everything the rail
+ * needs to say fits in a fixed column: which folder you are in, how many guides are
+ * in each, and a drop target for moving one.
+ *
+ * The rail is sticky so a long library scrolls past its folders rather than away
+ * from them, and it collapses to a horizontal strip under 860px — a 208px column
+ * beside a guide row leaves the title nothing on a phone. */
+.dash-body { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 26px; align-items: start; }
+/* No extension means no folders to show. The library keeps the full width rather
+   than reserving a column for a rail that isn't there. */
+.dash-body.no-rail { grid-template-columns: minmax(0, 1fr); }
+.dash-main { min-width: 0; }
+.hub-acts { display: flex; gap: 6px; }
+
+.hubs { position: sticky; top: 18px; display: flex; flex-direction: column; gap: 2px; }
+.hubs .hub-lbl {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--faint); padding: 4px 9px 7px;
+}
+.hub-item {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  border: 1px solid transparent; background: none; color: var(--ink-2);
+  font: inherit; font-size: 14px; font-weight: 560; text-align: left;
+  padding: 7px 9px; border-radius: var(--r-sm); cursor: pointer;
+}
+.hub-item:hover { background: var(--panel-2); color: var(--ink); }
+.hub-item svg { width: 15px; height: 15px; flex: none; color: var(--faint); }
+.hub-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-item .ct { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.hub-item.on {
+  background: var(--brand-soft); color: var(--brand-2); border-color: transparent; font-weight: 640;
+}
+.hub-item.on svg, .hub-item.on .ct { color: var(--brand-2); }
+/* The drop target, while a guide is over it. A dashed ring rather than a fill:
+   the row underneath is still readable, which is how you know what you are
+   dropping onto. */
+.hub-item.drop { border-color: var(--brand); border-style: dashed; background: var(--brand-soft); }
+.hub-sep { height: 1px; background: var(--line); margin: 7px 4px; }
+.hub-new {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 1px dashed var(--line); background: none; color: var(--muted);
+  font: inherit; font-size: 13.5px; font-weight: 560; text-align: left;
+  padding: 7px 9px; border-radius: var(--r-sm); cursor: pointer; margin-top: 4px;
+}
+.hub-new:hover { color: var(--brand-2); border-color: var(--brand-ring); background: var(--brand-soft); }
+.hub-new svg { width: 14px; height: 14px; flex: none; }
+
+/* A guide mid-drag. Kept subtle — the browser is already carrying a ghost of the
+   row, and two things moving at once reads as a glitch. */
+.guide-row.dragging { opacity: 0.45; }
+.guide-row[draggable="true"] .info { cursor: grab; }
+
+/* The per-row overflow menu. Same component as the export menu, narrower, and
+   without the two-line descriptions — these verbs need no explaining. */
+.menu.slim { min-width: 196px; }
+.menu.slim .ico { width: 22px; height: 22px; border-radius: 6px; }
+.menu.slim .ico svg { width: 13px; height: 13px; }
+.menu.slim .txt { font-size: 13.5px; }
+.menu.slim button[disabled] { opacity: 0.5; cursor: default; }
+.menu.slim button[disabled]:hover { background: none; }
+.menu.slim button.danger-item { color: var(--err); }
+.menu.slim button.danger-item .ico { color: var(--err); }
+/* The tick beside the hub a guide is already in, pushed to the right edge. */
+.menu.slim .spacer { flex: 1; }
+/* The last row's menu would otherwise open below the fold and take the page with
+   it. Rows near the bottom get this and open upward instead. */
+.menu.up { top: auto; bottom: calc(100% + 6px); }
+
+@media (max-width: 860px) {
+  .dash-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .hubs {
+    position: static; flex-direction: row; flex-wrap: nowrap; gap: 6px;
+    overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;
+  }
+  .hubs .hub-lbl, .hub-sep { display: none; }
+  .hub-item, .hub-new { width: auto; flex: none; white-space: nowrap; margin-top: 0; }
+  .hub-item .nm { max-width: 130px; }
+}
+
 .blank {
   border: 1px dashed var(--line); border-radius: var(--r-lg);
   padding: 52px 28px; text-align: center; background: var(--panel-2);
