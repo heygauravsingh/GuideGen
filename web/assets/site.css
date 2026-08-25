@@ -602,141 +602,92 @@ footer.site .spacer { flex: 1; }
 }
 .cmp-list.them li { border-left: 3px solid var(--faint); }
 
-/* ---------- the hero product shot ----------
-   Legibility is the whole trick. Two earlier versions used skeleton bars, which read as
-   an unfinished wireframe however neatly they are drawn. Everything here carries real
-   text at a real size, with real colour and real depth — and the accent appears exactly
-   twice: the lit control, and the one output nobody else has. */
-.hero-shot { margin: 36px 0 0; padding: 0; }
+/* ---------- feature bands ----------
+   Lifted from the store launch assets in private/GuideGen/store/screenshots-launch —
+   the visual language that already worked, rather than a fifth invented one.
 
-.hs-win {
-  border-radius: 14px; overflow: hidden;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  box-shadow: 0 24px 60px -20px rgba(26, 23, 19, 0.28), 0 2px 6px rgba(26, 23, 19, 0.06);
+   What makes it read as designed rather than diagrammed: a corner glow instead of a
+   flat ground, one very large headline with the accent on a single phrase, and **one
+   big simple object** as the art. Earlier attempts here failed by drawing a detailed
+   mockup at small scale; these assets draw one shape at 400px and let it carry the
+   panel. If you add a band, draw one thing large. Do not draw a little screenshot. */
+.band {
+  position: relative; overflow: hidden;
+  border-radius: 18px; margin: 34px 0 0;
+  background: var(--dark, #15130f); color: #f2ede3;
+  padding: 54px 56px;
+  display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 48px;
 }
-:root[data-theme="dark"] .hs-win { box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7); }
+.band::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(760px 520px at 112% -14%, rgba(224, 138, 79, 0.22), transparent 60%),
+    radial-gradient(560px 420px at -10% 112%, rgba(224, 138, 79, 0.10), transparent 58%);
+}
+.band > * { position: relative; z-index: 2; }
+.band-eyebrow {
+  display: inline-block; font-size: 12.5px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: #e08a4f; background: #2c2318;
+  padding: 8px 14px; border-radius: 999px; margin-bottom: 22px;
+}
+.band h3 {
+  font-size: clamp(30px, 4.2vw, 50px); line-height: 0.99; letter-spacing: -0.033em;
+  font-weight: 800; margin: 0 0 18px; color: #f7f4ee;
+}
+.band h3 em { font-style: normal; color: #e08a4f; }
+.band p { font-size: clamp(15.5px, 1.7vw, 19px); line-height: 1.45; color: #b7ac9c; margin: 0; max-width: 42ch; }
+.band-chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 26px; }
+.band-chips span {
+  font-size: 13px; font-weight: 700; padding: 8px 12px;
+  border-radius: 9px; background: #2c2318; color: #e08a4f;
+}
+.band-art { display: grid; place-items: center; }
 
-.hs-chrome {
-  display: flex; align-items: center; gap: 7px;
-  padding: 11px 14px; background: var(--panel-2);
-  border-bottom: 1px solid var(--line);
+/* the dial: one object, drawn large */
+.dial {
+  width: min(360px, 78%); aspect-ratio: 1; border-radius: 50%;
+  background: #1c1a15; border: 1px solid #332e26;
+  display: grid; place-items: center; position: relative;
+  box-shadow: 0 34px 80px -28px rgba(0, 0, 0, 0.6);
 }
-.hs-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2, var(--line)); flex: none; }
-.hs-dot:nth-child(1) { background: #e2685c; }
-.hs-dot:nth-child(2) { background: #e5b04a; }
-.hs-dot:nth-child(3) { background: #6cbf72; }
-.hs-addr {
-  margin-left: 10px; flex: 1; font-size: 12px; color: var(--muted);
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: 7px; padding: 5px 11px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.dial .ringbg { position: absolute; inset: 22px; border-radius: 50%; border: 16px solid #2c2318; }
+.dial .ringfg {
+  position: absolute; inset: 22px; border-radius: 50%; border: 16px solid transparent;
+  border-top-color: #e08a4f; border-right-color: #e08a4f; transform: rotate(38deg);
 }
-
-/* the captured page, dimmed except where the guide is pointing */
-.hs-stage { position: relative; background: #eef1f4; }
-:root[data-theme="dark"] .hs-stage { background: #14171a; }
-
-.hs-appbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 18px; background: #0b5c3a; color: #fff;
+.dial-n {
+  font-size: clamp(46px, 8vw, 86px); font-weight: 800; letter-spacing: -0.05em;
+  line-height: 1; font-variant-numeric: tabular-nums; color: #f7f4ee;
 }
-.hs-brand { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
-.hs-user { font-size: 12px; opacity: 0.85; }
-
-.hs-card {
-  /* Bottom padding leaves room for the callout that hangs under the target row. */
-  margin: 22px auto 96px; max-width: 460px; background: #fff;
-  border-radius: 12px; padding: 18px 18px 20px;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1);
-}
-:root[data-theme="dark"] .hs-card { background: #1e2226; }
-.hs-title { font-size: 16px; font-weight: 700; color: #101828; margin-bottom: 12px; }
-:root[data-theme="dark"] .hs-title { color: #e8eaed; }
-.hs-field {
-  font-size: 13px; color: #475467; background: #f7f8fa;
-  border: 1px solid #e4e7ec; border-radius: 8px; padding: 8px 11px; margin-bottom: 12px;
-}
-:root[data-theme="dark"] .hs-field { background: #16191c; border-color: #2a2f34; color: #98a2b3; }
-
-.hs-item {
-  display: flex; align-items: center; gap: 11px;
-  padding: 9px 10px; border-radius: 9px; margin-bottom: 6px;
-}
-.hs-av {
-  width: 30px; height: 30px; border-radius: 8px; flex: none;
-  background: #eaf1ee; color: #0b5c3a;
-  display: grid; place-items: center; font-size: 11px; font-weight: 700;
-}
-.hs-meta { flex: 1; min-width: 0; display: block; }
-.hs-meta b { display: block; font-size: 13px; font-weight: 600; color: #101828; }
-.hs-meta i { display: block; font-size: 11px; font-style: normal; color: #667085; margin-top: 1px; }
-:root[data-theme="dark"] .hs-meta b { color: #e8eaed; }
-:root[data-theme="dark"] .hs-meta i { color: #8b949e; }
-.hs-cta {
-  font-size: 11.5px; font-weight: 600; color: #0b5c3a;
-  border: 1px solid #cfe0d8; border-radius: 7px; padding: 4px 10px; flex: none;
-}
-/* The control the guide is pointing at: lifted above the dimming, and ringed. */
-.hs-hit {
-  position: relative; z-index: 2;
-  background: #fff; outline: 2px solid var(--brand); outline-offset: 1px;
-  border-radius: 9px;
-}
-:root[data-theme="dark"] .hs-hit { background: #1e2226; }
-
-.hs-dim {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: rgba(12, 14, 16, 0.52);
+.dial-l { font-size: 13px; font-weight: 750; color: #9a9080; margin-top: 8px; letter-spacing: 0.08em; }
+.dial-pill {
+  position: absolute; bottom: -20px; display: flex; align-items: center; gap: 7px;
+  font-size: 13.5px; font-weight: 800; color: #e08a4f; background: #2c2318;
+  border: 1px solid #3a3025; padding: 8px 14px; border-radius: 999px; white-space: nowrap;
 }
 
-/* Pinned to the control it points at — the row is the positioning context, so the dot
-   sits on the button at every width instead of at a percentage of the stage that only
-   happened to look right once. */
-.hs-spot {
-  position: absolute; z-index: 3; right: 14px; top: 50%;
-  transform: translate(50%, -50%);
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--brand); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.95);
+/* the terminal: the API log, drawn as the one thing it produces */
+.term {
+  width: 100%; max-width: 400px; border-radius: 14px; overflow: hidden;
+  background: #100f0c; border: 1px solid #332e26;
+  box-shadow: 0 34px 80px -28px rgba(0, 0, 0, 0.6);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+.term-bar {
+  display: flex; align-items: center; gap: 6px; padding: 10px 13px;
+  background: #17150f; border-bottom: 1px solid #262119;
+}
+.term-bar i { width: 8px; height: 8px; border-radius: 50%; background: #3a3025; }
+.term-bar b { margin-left: 6px; font: 600 11.5px ui-monospace, monospace; color: #6f675b; }
+.term-body { padding: 15px 16px; font-size: 12.5px; line-height: 1.85; color: #cbc2b1; }
+.term-body .k { color: #e08a4f; font-weight: 700; }
+.term-body .s { color: #f0897c; font-weight: 700; }
+.term-body .d { color: #6f675b; }
 
-/* Hangs directly under the row it belongs to, offset right so it never covers the
-   control it is describing. */
-.hs-call {
-  position: absolute; z-index: 4; left: 34%; top: calc(100% + 12px);
-  width: min(272px, 66%);
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 13px 14px 12px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26);
-}
-.hs-call-t { margin: 0 0 11px; font-size: 14.5px; font-weight: 650; letter-spacing: -0.012em; }
-.hs-call-r { display: flex; align-items: center; gap: 10px; }
-.hs-call-n { flex: 1; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.hs-call-b {
-  font-size: 12.5px; font-weight: 650; color: var(--on-brand);
-  background: var(--brand); border-radius: 7px; padding: 6px 13px;
-}
-
-/* what else comes out of the same recording — chips, not a diagram */
-.hs-outs {
-  display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px;
-}
-.hs-outs span {
-  font-size: 12.5px; font-weight: 550; color: var(--ink-2);
-  background: var(--panel-2); border: 1px solid var(--line);
-  border-radius: 999px; padding: 6px 12px;
-}
-.hs-outs .is-ours {
-  color: var(--brand-2, var(--brand)); border-color: var(--brand);
-  background: var(--brand-soft, var(--panel-2)); font-weight: 650;
-}
-.hero-shot figcaption { margin-top: 13px; font-size: 13.5px; color: var(--muted); }
-
-@media (max-width: 620px) {
-  .hs-call { position: static; width: auto; margin: 0; border-radius: 0;
-             border: 0; border-top: 1px solid var(--line); box-shadow: none; }
-  .hs-spot, .hs-dim { display: none; }
-  .hs-hit { outline-offset: 0; }
+@media (max-width: 780px) {
+  .band { grid-template-columns: 1fr; padding: 34px 26px; gap: 34px; }
+  .band-art { order: 2; }
+  .dial-pill { bottom: -18px; }
 }
 
 /* ---------- the three verbs ----------

@@ -121,78 +121,6 @@
         or plain text for an AI. One recording, no re-work.</span></li>
       </ol>
 
-      <!-- **The hero shows the product's most distinctive screen, with real words in it.**
-           Two earlier attempts failed the same way: skeleton bars and arrows. Placeholder
-           bars are wireframe language — they read as "unfinished" no matter how neatly
-           they are drawn, and a box-and-arrow diagram explains a product rather than
-           selling one. Everything here is legible: real labels, real hierarchy, real
-           colour, and the one moment that is ours — the page dimmed, the control lit, the
-           instruction pinned to it.
-
-           HTML with the site's own tokens rather than an exported image, so it themes,
-           stays sharp on any display, costs no request and cannot go stale the way a
-           screenshot of an older build does. The dashboard behind the dimming is a
-           representation, not anyone's real data. -->
-      <figure class="hero-shot" aria-labelledby="hero-shot-cap">
-        <div class="hs-win">
-          <div class="hs-chrome">
-            <span class="hs-dot"></span><span class="hs-dot"></span><span class="hs-dot"></span>
-            <span class="hs-addr">guidegen.backpocket.website/g/&hellip;</span>
-          </div>
-
-          <div class="hs-stage">
-            <!-- **Invented, and obviously so.** This carried a real company's brand and
-                 real third-party business names, lifted from a screenshot. A marketing
-                 asset must not wear somebody else's identity — it reads as an endorsement
-                 nobody gave. Every name here is fictional and generic on purpose. -->
-            <div class="hs-app" aria-hidden="true">
-              <div class="hs-appbar"><span class="hs-brand">Your dashboard</span><span class="hs-user">Signed in</span></div>
-              <div class="hs-card">
-                <div class="hs-title">Select an account</div>
-                <div class="hs-field"><span>north</span></div>
-                <div class="hs-item hs-hit">
-                  <span class="hs-av">NB</span>
-                  <span class="hs-meta"><b>Northside Branch</b><i>Account 4021</i></span>
-                  <span class="hs-cta">Open</span>
-                  <!-- Both of these live *inside* the row they point at, so they track it
-                       instead of being placed by a magic percentage of the stage. The
-                       previous version pinned the dot at left:50%/top:47% and it landed in
-                       empty space beside the text — a highlight that misses is worse than
-                       no highlight, because it tells the reader the product aims badly. -->
-                  <span class="hs-spot" aria-hidden="true"></span>
-                  <div class="hs-call">
-                    <p class="hs-call-t">Click &ldquo;Open&rdquo; on Northside Branch</p>
-                    <div class="hs-call-r">
-                      <span class="hs-call-n">Step 2 of 5</span>
-                      <span class="hs-call-b">Next</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="hs-item">
-                  <span class="hs-av">HR</span>
-                  <span class="hs-meta"><b>Harbour Road</b><i>Account 4022</i></span>
-                  <span class="hs-cta">Open</span>
-                </div>
-                <div class="hs-item">
-                  <span class="hs-av">WD</span>
-                  <span class="hs-meta"><b>West Depot</b><i>Account 4023</i></span>
-                  <span class="hs-cta">Open</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="hs-dim" aria-hidden="true"></div>
-          </div>
-        </div>
-
-        <div class="hs-outs" aria-label="The same recording, six ways out">
-          <span>Narrated .mp4</span><span>Shareable link</span><span>PDF</span>
-          <span>Slides</span><span>Notion paste</span><span class="is-ours">Every API call, as cURL</span>
-        </div>
-
-        <figcaption id="hero-shot-cap">One recording, read as a walkthrough &mdash; the reader clicks the
-        thing the guide points at.</figcaption>
-      </figure>
 
 
     </div>
@@ -253,6 +181,35 @@
         asks how you did it, or the bug turns out to be worth filing, or the new joiner needs the
         steps. By then the recording you didn't start is the one you needed.
       </p>
+      <!-- Same language as the store launch assets: one very large object, one headline
+           with the accent on a single phrase, a corner glow instead of a flat ground.
+           The earlier attempts here drew a detailed mockup at small scale and read as a
+           wireframe; this draws one thing at 360px and lets it carry the panel. -->
+      <div class="band">
+        <div>
+          <span class="band-eyebrow">Capture last 2 minutes</span>
+          <h3>Forgot to press <em>record</em>?</h3>
+          <p>Turn it on for a site you document, then just work. The guide is built out of what
+          you already did — no second run-through, and nothing to remember in advance.</p>
+          <div class="band-chips">
+            <span>Off until you enable it</span><span>One site at a time</span><span>Never leaves your device</span>
+          </div>
+        </div>
+        <div class="band-art">
+          <div class="dial">
+            <div class="ringbg"></div><div class="ringfg"></div>
+            <div style="text-align:center;position:relative">
+              <div class="dial-n">2:00</div>
+              <div class="dial-l">ALREADY CAPTURED</div>
+            </div>
+            <span class="dial-pill">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 4 12l7 7M20 5l-7 7 7 7"/></svg>
+              Make the guide
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div class="steps">
         <div>
           <h3>Turn it on for one site</h3>
@@ -466,6 +423,41 @@
           </div>
         </div>
 
+        </div>
+
+      <!-- The second differentiator, in the same language. The art is the one artefact the
+           feature produces — a cURL with a failing call in it — drawn large and readable
+           rather than as a screenshot of a panel. -->
+      <div class="band">
+        <div class="band-art">
+          <div class="term">
+            <div class="term-bar"><i></i><i></i><i></i><b>step 4 — Click &ldquo;Save&rdquo;</b></div>
+            <div class="term-body">
+              <div><span class="s">POST</span> /api/orders <span class="s">500</span></div>
+              <div class="d">&nbsp;</div>
+              <div><span class="k">curl</span> -X POST \</div>
+              <div>&nbsp;&nbsp;'https://api.example.com/orders' \</div>
+              <div>&nbsp;&nbsp;-H 'authorization: <span class="d">…masked…</span>' \</div>
+              <div>&nbsp;&nbsp;--data '{"qty":2}'</div>
+              <div class="d">&nbsp;</div>
+              <div class="d"># returned</div>
+              <div>{"error":"stock_unavailable"}</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <span class="band-eyebrow">API requests &amp; responses</span>
+          <h3>&ldquo;It didn't work&rdquo; becomes <em>a bug report</em></h3>
+          <p>Every call a step fired, with what came back, copyable as a cURL. Nobody else in this
+          category records it — and it is why an engineer can start on your ticket without asking
+          you to do the whole thing again.</p>
+          <div class="band-chips">
+            <span>Off by default</span><span>Credentials masked</span><span>Never uploaded</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
         <div class="card" id="readable">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h11M4 17h7"/></svg></span>
           <h3>Made to be read</h3>
