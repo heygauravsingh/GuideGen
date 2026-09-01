@@ -92,7 +92,7 @@
 
   <p>The same list applies to catch-up capture, which records the same things on a site you have
   switched it on for and holds them for up to seven days so you can turn recent activity into a
-  guide after the fact. It is off until you enable it, per site, and none of it is ever uploaded.
+  guide after the fact. It is off until you enable it, and none of it is ever uploaded.
   Section&nbsp;9a covers it in full.</p>
 
   <p>From version 1.1 the editor is a page on this website rather than a page inside the extension,
@@ -277,10 +277,23 @@
   any site you switch it on for, GuideGen records each action and its screenshot as you go and
   discards them again — keeping only a rolling window of recent activity.</p>
 
-  <p><b>It is off until you turn it on, per site.</b> There is no global switch in the extension's
-  interface and it is never on by default. You enable it for one website at a time, and you can
-  switch it off again at any point. While it is on, that site's pages show a small marker in the
+  <p><b>It is off until you turn it on, and it is never on by default.</b> The switch in the
+  extension turns it on for <b>the one site you are looking at</b>. Nothing else is touched, and you
+  can switch it off again at any point. While it is on, that site's pages show a small marker in the
   corner for as long as it is running.</p>
+
+  <p><b>There is a second, wider choice, and you have to make it deliberately.</b> Once catch-up is
+  on you can change its scope from <em>This site only</em> to <em>Every site I visit</em>. That
+  exists because real work crosses domains — an internal tool that hands off to a payment provider
+  and back is one piece of work, and keeping it as three separate captures made it useless. With
+  that scope chosen, GuideGen holds the same rolling window on <b>every page you open</b>, including
+  sites that have nothing to do with what you are documenting, until you switch catch-up off.</p>
+
+  <p>It is not a default and it is not reachable by a single tap: the switch alone only ever arms one
+  site, the wider scope is a separate control, and choosing it asks you to confirm in a dialog that
+  names what it will keep and for how long. Switching catch-up off clears it everywhere. Everything
+  below — the seven-day limit, the cap, the password rule, incognito, and the fact that none of it is
+  uploaded — applies exactly the same at either scope.</p>
 
   <p><b>What is kept, and for how long.</b> The same information a recording captures — the label
   and position of the control, the page URL and title, and a screenshot of the visible page — held
