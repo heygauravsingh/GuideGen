@@ -160,3 +160,50 @@ exists only as a published document has no entry in `fs_index`, which is where `
 duplicating one would mean re-uploading every screenshot to make a draft nobody asked to publish.
 Hiding the two items instead makes the menu change shape from row to row, which reads as a bug and
 gets reported as one.
+
+## Catch-up capture, 1.2.11 (27 Aug 2026) — two bugs and a scope
+
+Both bugs were reported from the same page, and both had survived a thorough test suite because
+the suite only ever exercised the easy half of each.
+
+**"10 steps held" beside "Nothing held yet" was one number describing two different things.**
+`fs_buf_status` returned `count: (await get(K.bufIndex, [])).length` — the whole buffer, every armed
+site — while `session` in the same response was correctly scoped to this origin, and the Capture
+button acts on `session`. So a site holding nothing announced other sites' steps and then refused to
+capture them. Both halves were right; they were answering different questions. The count is now
+`here ? here.stepCount : 0`, and **the whole-buffer number is gone from all three places that
+published it** (the two `fs_buf_changed` broadcasts and the reply to a buffered step) so it cannot
+come back by a different route. `sessionForTab()` is now the single rule for "which session would
+this tab capture" — the pill and the button must never resolve that separately again.
+
+**Scrolling inside a container recorded nothing, in every mode.** `onScroll` is attached with
+`capture: true` *specifically* so a scroll in a panel is seen — there is a comment saying so — but
+`flushScroll` measured `window.scrollY` and nothing else. On any page whose content scrolls in a div,
+every scroll event was caught and thrown away: the window never moved, so `moved` was always 0. It
+now measures whatever actually scrolled, tracked per element in a `WeakMap` keyed by the node (with
+`window` for the page), because two scrollers move independently and comparing one against the
+other's last position reads as an enormous jump.
+
+**The lesson both share, and it is the same one as the 21 Aug harness bug:** the tests passed because
+every scroll case fired with `target: document.body`, and every count case had one armed site. A
+suite that only ever exercises the simple shape will not find the bug that lives in the other one.
+`recorder-test.mjs` §11 now scrolls a real panel while asserting the window does **not** move, and
+`buffer-test.mjs` §13 holds steps on one site and asks a different one. Both were confirmed to fail
+against the old code before being kept — do that when you add to them.
+
+**Capture scope is a consent control, not a preference.** `"*"` in the arming map was always the
+whole-browser wildcard; 1.2.11 gives it a UI and makes sessions stop splitting at each domain, which
+is the half that actually mattered — a journey through a payment provider and back was three
+captures, and the slice you got was the last hop. Rules that must not be softened:
+
+- **The switch alone can only ever arm one site.** Whole-browser is a second, explicit choice with
+  its own confirm naming what it keeps and for how long. Nobody may arrive at it by accident.
+- **Turning catch-up off clears `"*"` as well as this origin.** Clearing only the origin would leave
+  the wildcard set: the switch would read off and it would still be recording. That is the worst
+  possible failure in a control whose entire job is consent, and `buffer-test.mjs` §15 asserts it.
+- **Choosing "this site only" deletes `"*"`.** It is a narrowing; leaving the wildcard would silently
+  ignore the choice the user just made.
+- **Copy in whole-browser scope must not name a single host.** A merged session's `host` is
+  `"site + N more"`, and the popup uses it — saying "held for uengage.io" about a capture that also
+  holds two other sites understates what is on disk, which is the one direction this copy may never
+  err in.

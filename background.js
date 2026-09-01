@@ -639,11 +639,32 @@ async function bufArmed(url) {
   return !!(o && origins[o]);
 }
 
-async function setBufArmed(origin, on) {
-  if (!origin) return {};
+/* Arms or disarms catch-up, at one of two scopes.
+ *
+ * `"*"` is whole-browser and was already the wildcard `bufArmed` understood; it is
+ * reused rather than joined by a second setting, so there is still one answer to "is
+ * this page armed" and no way for two settings to disagree.
+ *
+ * Turning OFF has to clear the scope that is actually on. A user who armed every site
+ * and then flicks the switch off on one of them means "stop", and deleting only this
+ * origin would leave `"*"` in place — the switch would spring back on, and it would
+ * still be recording. That is the worst possible bug in a control whose entire job is
+ * consent, so `off` clears both.
+ *
+ * Turning ON at site scope clears `"*"` deliberately: choosing "this site only" is a
+ * narrowing, and leaving the wildcard behind would silently ignore the choice. */
+async function setBufArmed(origin, on, scope) {
   const origins = await bufOrigins();
-  if (on) origins[origin] = true;
-  else delete origins[origin];
+  if (!on) {
+    delete origins["*"];
+    if (origin) delete origins[origin];
+  } else if (scope === "browser") {
+    origins["*"] = true;
+  } else {
+    if (!origin) return origins;
+    delete origins["*"];
+    origins[origin] = true;
+  }
   await set({ [K.bufOrigins]: origins });
   broadcast({ type: "fs_buf_changed" });
   return origins;
@@ -672,21 +693,49 @@ async function bufList() {
  * that one case. Cheap to live with; not worth a stored id and its consistency
  * problem.
  */
-function groupSessions(steps) {
+function groupSessions(steps, merge) {
   const out = [];
   let cur = null;
   steps.forEach((s) => {
     const origin = originOf(s.url);
     const t = s.timestamp || 0;
-    if (!cur || cur.origin !== origin || t - cur.endedAt > BUF.sessionGapMs) {
-      cur = { id: s.id, origin, startedAt: t, endedAt: t, steps: [s] };
+    /* `merge` is whole-browser scope. Without it a change of origin ends the session,
+       which is right when each site is armed on its own — two sites armed separately
+       are two pieces of work. It is exactly wrong for a journey that crosses domains:
+       an app that hands off to a payment provider and back was three sessions, and
+       Capture returned only the last one's slice, which is the part that explains
+       nothing. In merge mode only the time gap ends a session. */
+    const broke = merge ? false : !cur || cur.origin !== origin;
+    if (!cur || broke || t - cur.endedAt > BUF.sessionGapMs) {
+      cur = { id: s.id, origin, origins: [origin], startedAt: t, endedAt: t, steps: [s] };
       out.push(cur);
     } else {
       cur.endedAt = t;
       cur.steps.push(s);
+      if (origin && cur.origins.indexOf(origin) === -1) cur.origins.push(origin);
     }
   });
   return out;
+}
+
+/* Whole-browser scope is the wildcard the arming map already understood. Keeping it
+   as `origins["*"]` rather than a second setting means there is still one answer to
+   "is this page armed", and no way for the two to disagree. */
+/* The session this tab's Capture button would act on.
+ *
+ * Per-site scope: the most recent session on this origin — not simply the newest, or
+ * a click in another tab would offer to capture a site you are not looking at.
+ * Whole-browser scope: the newest session, full stop. A merged session spans domains,
+ * so matching on `origin` (only ever its FIRST site) would miss it the moment the
+ * journey moved on — which is the whole case that scope exists for. */
+function sessionForTab(sessions, url, merged) {
+  if (merged) return sessions[0] || null;
+  const o = originOf(url);
+  return sessions.filter((x) => x.origin === o)[0] || null;
+}
+
+async function bufMerged() {
+  return !!(await bufOrigins())["*"];
 }
 
 /* Drops what is past the age cap or the count cap. Returns the surviving ids.
@@ -704,7 +753,7 @@ async function evictBuffer(ids) {
     chrome.storage.local.get(ids.map(K.bufStep), res)
   );
   const steps = ids.map((id) => map[K.bufStep(id)]).filter(Boolean);
-  let sessions = groupSessions(steps).filter((s) => s.endedAt >= cutoff);
+  let sessions = groupSessions(steps, await bufMerged()).filter((s) => s.endedAt >= cutoff);
 
   let total = sessions.reduce((n, s) => n + s.steps.length, 0);
   while (total > BUF.maxSteps && sessions.length > 1) {
@@ -734,12 +783,20 @@ async function evictBuffer(ids) {
 async function bufSessions() {
   const steps = await bufList();
   const done = await get(K.bufDone, {});
-  const out = groupSessions(steps).map((s) => {
+  const merged = await bufMerged();
+  const out = groupSessions(steps, merged).map((s) => {
     const from = s.endedAt - BUF.sliceMs;
     return {
       id: s.id,
       origin: s.origin,
-      host: s.origin.replace(/^https?:\/\//, ""),
+      /* In whole-browser scope a session can span sites, so the label has to say so
+         rather than name only the site it happened to start on. */
+      host: (function () {
+        const first = s.origin.replace(/^https?:\/\//, "");
+        const more = (s.origins || []).length - 1;
+        return more > 0 ? first + " + " + more + " more" : first;
+      })(),
+      origins: s.origins || [s.origin],
       startedAt: s.startedAt,
       endedAt: s.endedAt,
       stepCount: s.steps.length,
@@ -757,7 +814,7 @@ async function bufSessions() {
 // Prunes redemption marks whose session no longer exists, so this map cannot
 // grow forever behind a buffer that keeps expiring.
 async function markRedeemed(sessionId) {
-  const live = groupSessions(await bufList()).map((s) => s.id);
+  const live = groupSessions(await bufList(), await bufMerged()).map((s) => s.id);
   const done = await get(K.bufDone, {});
   const next = {};
   live.forEach((id) => { if (done[id]) next[id] = done[id]; });
@@ -766,7 +823,7 @@ async function markRedeemed(sessionId) {
 }
 
 async function discardSession(sessionId) {
-  const sessions = groupSessions(await bufList());
+  const sessions = groupSessions(await bufList(), await bufMerged());
   const sess = sessions.filter((s) => s.id === sessionId)[0];
   if (!sess) return { ok: false, error: "That capture has already gone." };
   const gone = sess.steps.map((s) => s.id);
@@ -780,7 +837,7 @@ async function discardSession(sessionId) {
   const to = sess.endedAt + NET.windowMs;
   const net = (await get(K.bufNet, [])).filter((e) => e.ts < from || e.ts > to);
   await set({ [K.bufIndex]: ids, [K.bufNet]: net });
-  broadcast({ type: "fs_buf_changed", count: ids.length });
+  broadcast({ type: "fs_buf_changed" });
   return { ok: true };
 }
 
@@ -817,7 +874,7 @@ function bufWrite(step, shotPromise) {
       await set({ [K.bufStep(step.id)]: step });
       const keep = await evictBuffer(ids);
       await set({ [K.bufIndex]: keep });
-      broadcast({ type: "fs_buf_changed", count: keep.length });
+      broadcast({ type: "fs_buf_changed" });
     })
     .catch(() => {});
 }
@@ -842,8 +899,11 @@ async function bufferStep(step, sender) {
 
   bufWrite(step, shotPromise);
 
-  const n = (await get(K.bufIndex, [])).length + 1;
-  return { ok: true, count: Math.min(n, BUF.maxSteps) };
+  /* No count in the reply. It used to return the size of the whole buffer, which is
+     the same lie the status handler told — see the note there. bufWrite() broadcasts
+     fs_buf_changed and recorder.js answers that with askBuffer(), so the pill gets an
+     origin-scoped number from the one handler that computes it. */
+  return { ok: true };
 }
 
 /* Buffer -> real guide. Copies a slice of one session into the normal guide
@@ -867,7 +927,7 @@ async function promoteBuffer(opts) {
   const steps = await bufList();
   if (!steps.length) return { ok: false, error: "Nothing captured yet." };
 
-  const sessions = groupSessions(steps);
+  const sessions = groupSessions(steps, await bufMerged());
   const sess = o.sessionId
     ? sessions.filter((s) => s.id === o.sessionId)[0]
     : sessions[sessions.length - 1];
@@ -2025,13 +2085,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           // The session the popup would act on: the most recent one on *this*
           // origin. Not simply the newest, or a click in another tab would leave
           // the popup offering to capture a site you are not looking at.
-          const here = sessions.filter((s) => s.origin === origin)[0] || null;
+          const here = sessionForTab(sessions, url, await bufMerged());
           sendResponse({
             armed: await bufArmed(url),
+            // "site" or "browser". The popup renders the consent choice from this;
+            // it is derived from the arming map rather than stored twice.
+            scope: (await bufMerged()) ? "browser" : "site",
             origin,
             session: here,
             pending: sessions.filter((s) => !s.redeemedAt).length,
-            count: (await get(K.bufIndex, [])).length,
+            /* Steps held FOR THE SESSION THIS TAB WOULD CAPTURE, not the whole buffer.
+             *
+             * This was `(await get(K.bufIndex, [])).length` — every step across every
+             * armed site — while `session` two lines up was correctly scoped. The page
+             * pill renders this number and the Capture button acts on `session`, so on
+             * a site with nothing held the pill announced "10 steps held" (belonging to
+             * other sites) and the button then answered "Nothing held yet". Both were
+             * right about different things. Reported from uengage.io, 27 Aug 2026. */
+            count: here ? here.stepCount : 0,
             max: BUF.maxSteps,
             sliceMinutes: Math.round(BUF.sliceMs / 60000),
             days: Math.round(BUF.maxAgeMs / 86400000),
@@ -2081,9 +2152,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
         }
         case "fs_buf_arm": {
-          const origins = await setBufArmed(msg.origin, !!msg.on);
+          const origins = await setBufArmed(msg.origin, !!msg.on, msg.scope);
           if (msg.on && msg.tabId != null) await ensureInjected(msg.tabId);
-          sendResponse({ ok: true, origins });
+          sendResponse({ ok: true, origins, merged: !!origins["*"] });
           break;
         }
         case "fs_buf_promote": {
@@ -2097,9 +2168,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
          * only ever redeem the site it is sitting on. */
         case "fs_buf_capture": {
           const url = (sender.tab && sender.tab.url) || "";
-          const here = (await bufSessions()).filter((s) => s.origin === originOf(url))[0];
+          const merged = await bufMerged();
+          const here = sessionForTab(await bufSessions(), url, merged);
           if (!here) {
-            sendResponse({ ok: false, error: "Nothing is held for this site yet." });
+            sendResponse({
+              ok: false,
+              error: merged ? "Nothing is held yet." : "Nothing is held for this site yet.",
+            });
             break;
           }
           sendResponse(

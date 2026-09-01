@@ -235,6 +235,23 @@
   .opt b { display: block; font-size: 12.5px; font-weight: 650; }
   .opt small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); line-height: 1.45; }
 
+  /* The consent choice. Same reasoning as `.opt`: the consequence is part of the
+     control, not a footnote, because the difference between the two options is the
+     whole privacy question. Radios rather than a second switch — this is a choice
+     between two things, and a switch would imply one of them is "off". */
+  .buf-scope { margin: 9px 0 0; display: flex; flex-direction: column; gap: 2px; }
+  .scope {
+    display: flex; gap: 8px; align-items: flex-start; cursor: pointer;
+    padding: 7px 8px; border-radius: 7px; border: 1px solid transparent;
+  }
+  .scope:hover { background: var(--panel-2); }
+  .scope input { margin: 2px 0 0; flex: none; width: 13px; height: 13px; accent-color: var(--pri); }
+  .scope b { display: block; font-size: 12px; font-weight: 650; }
+  .scope small { display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+  /* The wider scope, once chosen, is marked — it is the one worth noticing on a
+     glance at a popup you opened for something else. */
+  .scope:has(input:checked) { background: var(--panel-2); border-color: var(--line); }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -356,6 +373,37 @@
         </label>
       </div>
       <p class="buf-sub" id="bufSub"></p>
+
+      <!-- What catch-up is allowed to hold. Two scopes, asked explicitly, because the
+           difference between them is the whole privacy question and it must not be a
+           default anyone arrives at by accident.
+
+           "This site only" is first and is what the switch gives you: a workflow is
+           usually one product, and it is the narrower of the two. "Every site" exists
+           because a real journey crosses domains — an app that hands off to a payment
+           provider and back was three separate captures before 1.2.11, and the slice
+           you got was the last hop, which explains nothing.
+
+           The wording says *held*, not recorded, and names the 7 days: the honest
+           summary of an always-on buffer is what it keeps and for how long. -->
+      <div class="buf-scope" id="bufScope" hidden>
+        <label class="scope">
+          <input type="radio" name="bufscope" id="bufScopeSite" value="site" />
+          <span>
+            <b>This site only</b>
+            <small>Holds the last steps on this site. Nothing else is touched.</small>
+          </span>
+        </label>
+        <label class="scope">
+          <input type="radio" name="bufscope" id="bufScopeAll" value="browser" />
+          <span>
+            <b>Every site I visit</b>
+            <small>Follows a workflow across domains and keeps it as one capture. Holds
+            steps on <b>every</b> page you open, for 7 days, until you switch this off.</small>
+          </span>
+        </label>
+      </div>
+
       <div class="buf-acts" id="bufActs" hidden>
         <button class="primary sm" id="bufSlice">Capture last 2 minutes</button>
       </div>

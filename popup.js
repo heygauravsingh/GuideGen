@@ -136,6 +136,12 @@ function bufRender(r) {
   const slice = bufSession ? bufSession.sliceCount : 0;
 
   el("bufArm").checked = !!r.armed;
+  const browser = r.scope === "browser";
+  // The choice only appears once catch-up is on: a consent question about something
+  // that is switched off is a question with no consequence, and reads as one.
+  el("bufScope").hidden = !r.armed;
+  el("bufScopeSite").checked = !browser;
+  el("bufScopeAll").checked = browser;
   // Both action rows go together: an armed site with nothing held yet has nothing
   // to capture, and a button that can only fail is worse than no button.
   el("bufActs").hidden = !(r.armed && held);
@@ -151,14 +157,21 @@ function bufRender(r) {
             : "Capture last " + mins + " minutes";
     el("bufSlice").disabled = !slice;
     el("bufAll").textContent = "Capture all " + held;
+    /* In browser scope a session spans domains, so it is described by where it has
+       been — bufSessions puts "site + N more" in `host` — rather than by the tab that
+       happens to be open. Saying "held for uengage.io" about a capture that also holds
+       two other sites would understate what is on disk, which is the one direction
+       this copy must never err in. */
     el("bufSub").textContent =
-      plural(held, "step") + " held for " + host + " since " +
-      clockTime(bufSession.startedAt) + ". Kept for " + (r.days || 7) +
+      plural(held, "step") + " held for " + (browser ? bufSession.host : host) +
+      " since " + clockTime(bufSession.startedAt) + ". Kept for " + (r.days || 7) +
       " days unless you capture it.";
   } else if (r.armed) {
-    el("bufSub").textContent =
-      "Watching " + host + ". Do something, then come back and capture the last " +
-      mins + " minutes of it.";
+    el("bufSub").textContent = browser
+      ? "Watching every site you visit. Do something, then come back and capture the last " +
+        mins + " minutes of it."
+      : "Watching " + host + ". Do something, then come back and capture the last " +
+        mins + " minutes of it.";
   } else {
     el("bufSub").textContent =
       "Keeps what you do on " + host + " for " + (r.days || 7) + " days so you can " +
@@ -182,10 +195,33 @@ function bufRefresh(after) {   // eslint-disable-line no-unused-vars -- kept for
   });
 }
 
+/* Widening the scope is the one change here that starts holding more than the user
+   had already agreed to, so it asks. Narrowing back to one site does not — nobody
+   needs to confirm that less is being kept. */
+function setScope(scope) {
+  if (scope === "browser" &&
+      !confirm(
+        "Hold steps on every site you visit?\n\n" +
+        "GuideGen will keep the last steps of every page you open — including sites " +
+        "unrelated to what you are documenting — for 7 days, until you switch catch-up " +
+        "off. Nothing is uploaded and nothing leaves this device.")) {
+    el("bufScopeSite").checked = true;
+    return;
+  }
+  chrome.runtime.sendMessage(
+    { type: "fs_buf_arm", origin: bufOrigin, on: true, scope, tabId: bufTabId },
+    () => { if (!chrome.runtime.lastError) bufRefresh(); }
+  );
+}
+el("bufScopeSite").addEventListener("change", () => setScope("site"));
+el("bufScopeAll").addEventListener("change", () => setScope("browser"));
+
 el("bufArm").addEventListener("change", (e) => {
   const on = e.target.checked;
   chrome.runtime.sendMessage(
-    { type: "fs_buf_arm", origin: bufOrigin, on, tabId: bufTabId },
+    // Arming from the switch is always the narrow scope. Whole-browser is a second,
+    // explicit choice — it must never be what a single toggle lands you in.
+    { type: "fs_buf_arm", origin: bufOrigin, on, scope: "site", tabId: bufTabId },
     () => {
       if (chrome.runtime.lastError) return;
       /* **Do not auto-scroll here.** Arming grows the panel, and a previous fix

@@ -76,7 +76,10 @@
       sync();
     }
     if (msg.type === "fs_buf_changed") {
-      if (typeof msg.count === "number") bufCount = msg.count;
+      /* No count is read off the broadcast any more. It carried the size of the whole
+         buffer across every armed site, which is what made the pill claim "10 steps
+         held" on a site holding none. askBuffer() is the single source now — it asks
+         the one handler that scopes the number to the session this tab would capture. */
       askBuffer();
     }
     // The Tier 2 opt-in changed while this page was already open. Ask again: the
@@ -176,6 +179,7 @@
     // step to a guide the user has already been handed.
     if (typing) { clearTimeout(typing.timer); typing = null; }
     clearTimeout(scrollTimer);
+    scrollWho = null;
     hidePill();
   }
 
@@ -296,36 +300,83 @@
   const SCROLL_SETTLE = 500;
   const SCROLL_GAP_MS = 1200;
   let scrollTimer = null;
-  let lastScrollY = null;
   let lastScrollTs = 0;
 
-  function scrollY() {
+  /* Where each scroller was when it last produced a step.
+   *
+   * A WeakMap keyed by the element, with `window` as the key for the page itself,
+   * because a page has more than one scroller and they move independently. This
+   * replaced a single `lastScrollY` that only ever tracked the window — see the bug
+   * note on flushScroll. Weak so a panel removed from the DOM takes its entry with it. */
+  const scrollAt = new WeakMap();
+
+  /* The element that scrolled, or null meaning the page.
+   *
+   * A scroll event's target is the Document when the page scrolls and the element
+   * when a container does; document.body / documentElement can also arrive here
+   * depending on the engine, and all three mean the same thing. */
+  function scrollerOf(e) {
+    const t = e && e.target;
+    if (!t || t.nodeType !== 1) return null;
+    if (t === document.documentElement || t === document.body) return null;
+    return t;
+  }
+  function offsetOf(el) {
+    if (el) return el.scrollTop || 0;
     return window.scrollY || (document.documentElement || {}).scrollTop || 0;
   }
+  function viewportOf(el) {
+    return (el ? el.clientHeight : window.innerHeight) || 0;
+  }
+  function atEndOf(el) {
+    if (el) return el.scrollTop + el.clientHeight >= (el.scrollHeight || 0) - 4;
+    const doc = document.documentElement || {};
+    return offsetOf(null) + window.innerHeight >= (doc.scrollHeight || 0) - 4;
+  }
 
-  function onScroll() {
+  // Which scroller the pending flush is about. Set on the event, read after the
+  // settle — the event object is long gone by then.
+  let scrollWho = null;
+
+  function onScroll(e) {
     if (!mode()) return;
+    scrollWho = scrollerOf(e);
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(flushScroll, SCROLL_SETTLE);
   }
 
+  /* BUG, fixed 27 Aug 2026. This measured `window.scrollY` and nothing else, while
+     onScroll is attached with `capture: true` precisely so that scrolling *inside* a
+     container is seen — the two disagreed. On any page whose content scrolls in a div
+     rather than the document, every scroll event was caught and then thrown away: the
+     window never moved, so `moved` was always 0 and no step was ever recorded. Found
+     on uengage.io, and it was never catch-up specific — an ordinary recording lost
+     them the same way. Measure whatever actually scrolled. */
   function flushScroll() {
     if (!mode()) return;
     // Typing that moves the page (a field scrolling into view) is not a scroll step;
     // the typing step is the one that means something.
     if (typing) return;
-    const y = scrollY();
-    if (lastScrollY === null) lastScrollY = 0;
-    const moved = Math.abs(y - lastScrollY);
+    const el = scrollWho;
+    // A panel can be gone by the time the settle fires — a virtualised list replaces
+    // its scroller, and measuring a detached node reads zeros that look like a scroll
+    // back to the top.
+    if (el && !el.isConnected) { scrollWho = null; return; }
+    const key = el || window;
+    const y = offsetOf(el);
+    const last = scrollAt.has(key) ? scrollAt.get(key) : 0;
+    const moved = Math.abs(y - last);
     const now = Date.now();
-    if (moved < Math.max(240, window.innerHeight * 0.5)) return;
+    // Half of whatever actually scrolled, not half the window. The 240px floor is the
+    // same anti-noise floor as before, so a short panel needs most of its own height
+    // before it counts — deliberately conservative.
+    if (moved < Math.max(240, viewportOf(el) * 0.5)) return;
     if (now - lastScrollTs < SCROLL_GAP_MS || now - lastCaptureTs < 400) return;
-    const down = y > lastScrollY;
-    lastScrollY = y;
+    const down = y > last;
+    scrollAt.set(key, y);
     lastScrollTs = now;
     lastCaptureTs = now;
-    const doc = document.documentElement || {};
-    const atEnd = y + window.innerHeight >= (doc.scrollHeight || 0) - 4;
+    const atEnd = atEndOf(el);
     send({
       // No point and no rect: nothing was clicked, so render.js draws the screenshot
       // unannotated, exactly as it does for a tab switch.
@@ -334,7 +385,11 @@
       pageTitle: document.title,
       timestamp: now,
       dpr: window.devicePixelRatio || 1,
-      text: atEnd ? "Scroll to the bottom of the page" : down ? "Scroll down the page" : "Scroll up the page",
+      // "the page" is wrong for a panel, and a step that misdescribes what happened is
+      // worse than a terse one.
+      text: el
+        ? (atEnd ? "Scroll to the bottom of the panel" : down ? "Scroll down in the panel" : "Scroll up in the panel")
+        : (atEnd ? "Scroll to the bottom of the page" : down ? "Scroll down the page" : "Scroll up the page"),
     });
   }
 
@@ -521,8 +576,10 @@
       (resp) => {
         if (pill) pill.style.visibility = "visible";
         if (resp && resp.ok) {
+          // Recording counts its own steps; buffering does not, for the reason in the
+          // fs_buf_changed note above. bufWrite() broadcasts one, and askBuffer()
+          // answers it with a number that is actually about this site.
           if (m === "rec") count = resp.count;
-          else bufCount = resp.count;
           updatePill();
           flash();
         }

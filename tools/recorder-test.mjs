@@ -42,7 +42,7 @@ function el(tag) {
     className: "", innerHTML: "", style: {}, children: [], attrs: {}, parent: null,
     // The catch-up CTA drives these directly: it disables itself while capturing
     // and narrates on the label, so a no-op stub would hide a broken button.
-    disabled: false, textContent: "", isConnected: true,
+    disabled: false, textContent: "", isConnected: true, nodeType: 1,
     classList: {
       _s: new Set(),
       add(...c) { c.forEach((x) => this._s.add(x)); },
@@ -526,6 +526,72 @@ console.log("\n=== 11. scrolling, stingily ===");
   scroll(5100);          // scrollHeight 6000, innerHeight 900
   await wait(600);
   check("reaching the end says so", h.sent[0].step.text, "Scroll to the bottom of the page");
+}
+
+/* Scrolling a container rather than the document.
+ *
+ * This is the case that shipped broken. onScroll is attached with `capture: true`
+ * precisely so a scroll inside a panel is seen, but flushScroll measured only
+ * window.scrollY — so on any page whose content scrolls in a div, every scroll was
+ * caught and thrown away. The window deliberately never moves in this block: if it
+ * has to move for a step to appear, the bug is back. */
+{
+  const h = rec();
+  await settle();
+  h.sent.length = 0;
+  const panel = el("div");
+  panel.scrollTop = 0;
+  panel.clientHeight = 800;
+  panel.scrollHeight = 6000;
+  const frozen = h.sandbox.scrollY;
+  const scrollPanel = (y) => {
+    panel.scrollTop = y;
+    (h.handlers.scroll || []).forEach((fn) => fn({ target: panel }));
+  };
+
+  scrollPanel(120);
+  await wait(600);
+  check("a nudge inside a panel is not a step either", h.sent.length, 0);
+
+  scrollPanel(1200);
+  await wait(600);
+  check("scrolling a panel IS a step, though the window never moved", h.sent.length, 1);
+  check("and the window really did not move", h.sandbox.scrollY, frozen);
+  check("it says panel, not page", h.sent[0].step.text, "Scroll down in the panel");
+
+  h.sent.length = 0;
+  await wait(1300);
+  scrollPanel(400);
+  await wait(600);
+  check("scrolling back up reads as up", h.sent[0].step.text, "Scroll up in the panel");
+
+  h.sent.length = 0;
+  await wait(1300);
+  scrollPanel(5200);           // 5200 + 800 === scrollHeight
+  await wait(600);
+  check("the panel's own end is the end", h.sent[0].step.text, "Scroll to the bottom of the panel");
+
+  // Two scrollers on one page move independently: the page's own position must not
+  // be compared against a panel's, or the first scroll after switching between them
+  // reads as an enormous jump.
+  h.sent.length = 0;
+  await wait(1300);
+  h.sandbox.scrollY = 1300;
+  h.body.scrollTop = 1300;
+  (h.handlers.scroll || []).forEach((fn) => fn({ target: h.body }));
+  await wait(600);
+  check("the page is tracked separately from the panel", h.sent.length, 1);
+  check("and it says page again", h.sent[0].step.text, "Scroll down the page");
+
+  // A panel that leaves the DOM mid-settle must not be measured: a detached node
+  // reads zeros, which look like a scroll back to the top.
+  h.sent.length = 0;
+  await wait(1300);
+  panel.scrollTop = 0;
+  (h.handlers.scroll || []).forEach((fn) => fn({ target: panel }));
+  panel.isConnected = false;
+  await wait(600);
+  check("a panel removed before the settle records nothing", h.sent.length, 0);
 }
 {
   const h = rec();

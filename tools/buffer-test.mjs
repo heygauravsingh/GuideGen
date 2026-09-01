@@ -394,5 +394,117 @@ console.log("\n=== 11. the downscale is folded into dpr, as it is for a recordin
         Math.round(s.dpr * 1000) / 1000, Math.round(2 * (1280 / 3024) * 1000) / 1000);
 }
 
+// ---------------------------------------------------------------------------
+/* The count the page pill renders, and the session the Capture button acts on, have
+   to be the same thing. They were not: `count` was the size of the WHOLE buffer while
+   `session` was scoped to this origin, so a site holding nothing announced other
+   sites' steps and the button then said "Nothing held yet". Reported 27 Aug 2026. */
+console.log("\n=== 13. the held count is about THIS site, not the whole buffer ===");
+{
+  const h = await armed();
+  const other = { id: 2, windowId: 9, url: "https://mail.google.com/u/0", title: "Inbox", incognito: false };
+  h.harnessTabs[2] = other;
+  await send(h, { type: "fs_buf_arm", origin: "https://mail.google.com", on: true, scope: "site" });
+  for (const t of ["a", "b", "c"]) {
+    await send(h, { type: "fs_buffer_step", step: step("Click " + t, { url: other.url }) }, { tab: other });
+    await tick();
+  }
+  check("three steps are held, all of them elsewhere", buf(h).length, 3);
+
+  const st = await send(h, { type: "fs_buf_status" }, { tab: TAB });
+  check("this site's status says zero, not three", st.count, 0);
+  check("and offers no session to capture", st.session, null);
+
+  const cap = await send(h, { type: "fs_buf_capture" }, { tab: TAB });
+  check("capturing here refuses, as it always did", cap.ok, false);
+
+  // The half that matters: the number and the button now agree.
+  await send(h, { type: "fs_buffer_step", step: step('Click "Orders"') }, { tab: TAB });
+  await tick();
+  const st2 = await send(h, { type: "fs_buf_status" }, { tab: TAB });
+  check("one step here reads as one, not four", st2.count, 1);
+  const cap2 = await send(h, { type: "fs_buf_capture" }, { tab: TAB });
+  check("and the button that said nothing-held now works", cap2.ok, true);
+}
+
+// ---------------------------------------------------------------------------
+/* Whole-browser scope. A journey that crosses domains was three separate captures,
+   and the slice you got was the last hop — the part that explains nothing. */
+console.log("\n=== 14. scope: this site only, or every site ===");
+{
+  const h = harness();
+  h.harnessTabs[1] = TAB;
+  const pay = { id: 2, windowId: 9, url: "https://pay.example.com/checkout", title: "Pay", incognito: false };
+  h.harnessTabs[2] = pay;
+
+  await send(h, { type: "fs_buf_arm", origin: ORIGIN, on: true, scope: "site" });
+  await tick(50);
+  const s1 = await send(h, { type: "fs_buf_status" }, { tab: TAB });
+  check("site scope is what the switch gives you", s1.scope, "site");
+  const p1 = await send(h, { type: "fs_buf_status" }, { tab: pay });
+  check("and another domain is not armed by it", p1.armed, false);
+
+  await send(h, { type: "fs_buf_arm", origin: ORIGIN, on: true, scope: "browser" });
+  await tick(50);
+  const p2 = await send(h, { type: "fs_buf_status" }, { tab: pay });
+  check("browser scope arms a domain never named", p2.armed, true);
+  check("and reports itself as browser scope", p2.scope, "browser");
+
+  // The journey: two steps here, one on the payment domain, one back.
+  await send(h, { type: "fs_buffer_step", step: step('Click "Checkout"') }, { tab: TAB });
+  await tick();
+  await send(h, { type: "fs_buffer_step", step: step('Click "Pay now"', { url: pay.url }) }, { tab: pay });
+  await tick();
+  await send(h, { type: "fs_buffer_step", step: step('Click "Done"') }, { tab: TAB });
+  await tick();
+
+  const st = await send(h, { type: "fs_buf_status" }, { tab: TAB });
+  check("the whole journey is ONE capture, not three", st.count, 3);
+  check("and it names every site it crossed", (st.session.origins || []).length, 2);
+  check("the label says so rather than naming one", /\+ 1 more$/.test(st.session.host), true);
+
+  // Standing on the payment domain must offer the same session, not a second one.
+  const onPay = await send(h, { type: "fs_buf_status" }, { tab: pay });
+  check("the same capture is offered from either domain", onPay.session.id, st.session.id);
+
+  const cap = await send(h, { type: "fs_buf_capture" }, { tab: pay });
+  check("and capturing it works from the domain it ended on", cap.ok, true);
+  const guide = h.store.fs_index[0];
+  check("the guide holds all three steps, across both sites", guide.stepCount, 3);
+}
+
+// ---------------------------------------------------------------------------
+/* The consent switch must actually stop it. Turning catch-up off while every site is
+   armed has to clear the wildcard — clearing only this origin would leave it running
+   with the switch showing off, which is the worst possible bug in a consent control. */
+console.log("\n=== 15. switching it off clears the scope that is on ===");
+{
+  const h = harness();
+  h.harnessTabs[1] = TAB;
+  const other = { id: 2, windowId: 9, url: "https://mail.google.com/u/0", title: "Inbox", incognito: false };
+  h.harnessTabs[2] = other;
+
+  await send(h, { type: "fs_buf_arm", origin: ORIGIN, on: true, scope: "browser" });
+  await tick(50);
+  check("armed everywhere", (await send(h, { type: "fs_buf_status" }, { tab: other })).armed, true);
+
+  await send(h, { type: "fs_buf_arm", origin: ORIGIN, on: false });
+  await tick(50);
+  check("off here means off everywhere", (await send(h, { type: "fs_buf_status" }, { tab: other })).armed, false);
+  check("and off here too", (await send(h, { type: "fs_buf_status" }, { tab: TAB })).armed, false);
+
+  await send(h, { type: "fs_buffer_step", step: step("Click x", { url: other.url }) }, { tab: other });
+  await tick();
+  check("nothing is held after switching off", buf(h).length, 0);
+
+  // Narrowing back to one site must drop the wildcard, or the choice is ignored.
+  await send(h, { type: "fs_buf_arm", origin: ORIGIN, on: true, scope: "browser" });
+  await tick(50);
+  await send(h, { type: "fs_buf_arm", origin: ORIGIN, on: true, scope: "site" });
+  await tick(50);
+  check("choosing this-site-only narrows it", (await send(h, { type: "fs_buf_status" }, { tab: other })).armed, false);
+  check("while this site stays armed", (await send(h, { type: "fs_buf_status" }, { tab: TAB })).armed, true);
+}
+
 console.log(failures ? `\n${failures} failed\n` : "\nall passed\n");
 process.exit(failures ? 1 : 0);
